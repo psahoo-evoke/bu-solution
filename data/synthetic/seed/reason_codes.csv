@@ -1,0 +1,23 @@
+reason_code,decision,meaning
+EQ-CONTENT,Equivalent,Substantially equivalent content and level (>=80% overlap)
+EQ-EVALUATOR,Equivalent,Partial overlap; evaluator judged it equivalent
+EL-PARTIAL,Elective,Partial overlap; evaluator judged elective
+EL-LOWOVERLAP,Elective,Below 50% overlap; eligible course -> elective
+EL-NOEQUIV,Elective,Eligible course with no BU equivalent
+EL-DUPLICATE,Elective,Second course covering the same BU course
+EL-RESIDENCY,Elective,Requirement must be taken at BU; units post as elective
+NC-GRADE,No credit,Grade below C
+NC-PASSFAIL,No credit,Pass/Fail grade
+NC-ONECREDIT,No credit,One-credit course
+NC-REMEDIAL,No credit,Remedial / developmental course
+NC-PE,No credit,Physical education activity course
+NC-VOC,No credit,Vocational course
+NC-ROTC,No credit,ROTC / military science
+NC-INTERNSHIP,No credit,Internship or co-op
+NC-RESEARCH,No credit,Research / independent study
+NC-ACCRED,No credit,Institution not regionally accredited
+RV-AGE,Pending,Course 5+ years old; needs review
+PD-TS,Pending,Syllabus requested (TS)
+PD-TM,Pending,Additional materials requested (TM)
+PD-REVIEW,Pending,Syllabus on file; awaiting evaluator
+CAP-68,Flag,68-unit external cap reached

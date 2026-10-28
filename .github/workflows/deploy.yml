@@ -1,0 +1,116 @@
+name: deploy
+
+# Deploys TransferIQ to Azure with OpenID Connect (no stored Azure credentials).
+# Required repo secrets (identifiers only, not credentials):
+#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+# Required repo variables:
+#   AZURE_RESOURCE_GROUP   (existing resource group)
+# Optional repo variables:
+#   TIQ_ENV (default "demo")
+# See infra/README.md for the federated-credential setup.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write   # OIDC token for azure/login
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+  TIQ_ENV: ${{ vars.TIQ_ENV || 'demo' }}
+  IMAGE_NAME: transferiq-api
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ vars.TIQ_ENV || 'demo' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Phase 1: everything except the container app (idempotent). Creates ACR on the first run.
+      - name: Deploy infrastructure (phase 1)
+        id: infra
+        run: |
+          set -euo pipefail
+          out=$(az deployment group create -g "$RG" -n "tiq-infra-${GITHUB_RUN_ID}" \
+            -f infra/main.bicep -p infra/main.bicepparam \
+            -p env="$TIQ_ENV" deployApi=false \
+            --query properties.outputs -o json)
+          echo "acr=$(jq -r .acrName.value <<<"$out")" >> "$GITHUB_OUTPUT"
+          echo "acrServer=$(jq -r .acrLoginServer.value <<<"$out")" >> "$GITHUB_OUTPUT"
+          echo "swa=$(jq -r .staticWebAppName.value <<<"$out")" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push API image
+        id: image
+        run: |
+          set -euo pipefail
+          az acr login -n "${{ steps.infra.outputs.acr }}"
+          ref="${{ steps.infra.outputs.acrServer }}/${IMAGE_NAME}:${GITHUB_SHA}"
+          docker build -f backend/Dockerfile -t "$ref" .   # build context = repo root
+          docker push "$ref"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      # Phase 2: same template with the API; creates/updates the container app revision to the new image,
+      # assigns its managed-identity roles and links it as the SWA /api backend.
+      - name: Deploy / update container app (phase 2)
+        id: api
+        run: |
+          set -euo pipefail
+          out=$(az deployment group create -g "$RG" -n "tiq-api-${GITHUB_RUN_ID}" \
+            -f infra/main.bicep -p infra/main.bicepparam \
+            -p env="$TIQ_ENV" deployApi=true apiImage="${{ steps.image.outputs.ref }}" \
+            --query properties.outputs -o json)
+          echo "apiUrl=$(jq -r .apiUrl.value <<<"$out")" >> "$GITHUB_OUTPUT"
+          echo "swaUrl=$(jq -r .staticWebAppUrl.value <<<"$out")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build SPA
+        working-directory: frontend
+        run: |
+          npm ci
+          npx ng build
+
+      - name: Get SWA deployment token (runtime, masked)
+        id: swatoken
+        run: |
+          token=$(az staticwebapp secrets list -n "${{ steps.infra.outputs.swa }}" -g "$RG" --query properties.apiKey -o tsv)
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy SPA to Static Web App
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.swatoken.outputs.token }}
+          action: upload
+          app_location: frontend/dist/transferiq-web/browser
+          skip_app_build: true
+          skip_api_build: true
+
+      - name: Smoke test
+        run: |
+          echo "SPA: ${{ steps.api.outputs.swaUrl }}"
+          echo "API: ${{ steps.api.outputs.apiUrl }}"
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${{ steps.api.outputs.swaUrl }}/api/health" || true)
+            echo "GET /api/health via SWA -> $code"; [ "$code" = "200" ] && exit 0; sleep 10
+          done
+          echo "::warning::Health check via SWA did not return 200 (link may still be propagating)."

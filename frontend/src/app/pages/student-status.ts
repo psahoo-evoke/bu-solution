@@ -1,0 +1,141 @@
+import { DecimalPipe } from '@angular/common';
+import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { Router } from '@angular/router';
+import { ApiService } from '../api/api.service';
+import { describeError } from '../api/errors';
+import { CourseEvaluation, Student, StudentEvaluation, SyllabusCheck } from '../api/models';
+import { can } from '../api/permissions';
+import { RoleService } from '../api/role.service';
+import { DEFAULT_STUDENT } from '../app.routes';
+import { ErrorBanner } from '../shared/error-banner';
+import { displayStatus, groupByTerm, nextStepText } from '../shared/status';
+import { StatusChip } from '../shared/status-chip';
+
+/** States where a syllabus upload can move the course forward. */
+const SYLLABUS_STATES = new Set(['maybe_ts', 'maybe_tm', 'maybe_review', 'pending_age']);
+
+@Component({
+  selector: 'app-student-status',
+  imports: [StatusChip, ErrorBanner, DecimalPipe],
+  templateUrl: './student-status.html',
+})
+export class StudentStatusPage {
+  private readonly api = inject(ApiService);
+  private readonly router = inject(Router);
+  private readonly roles = inject(RoleService);
+
+  /** Route param :id (component input binding). */
+  readonly id = input<string>(DEFAULT_STUDENT);
+
+  protected readonly students = signal<Student[]>([]);
+  protected readonly evaluation = signal<StudentEvaluation | null>(null);
+  protected readonly loading = signal(false);
+  protected readonly error = signal<string | null>(null);
+  protected readonly notice = signal<string | null>(null);
+  protected readonly busyExtId = signal<string | null>(null);
+  protected readonly uploadingTranscript = signal(false);
+
+  protected readonly canUploadTranscript = computed(() => can(this.roles.role(), 'uploadTranscript'));
+  protected readonly canUploadSyllabusRole = computed(() => can(this.roles.role(), 'uploadSyllabus'));
+  protected readonly groups = computed(() => groupByTerm(this.evaluation()?.lines ?? []));
+  protected readonly totals = computed(() => this.evaluation()?.totals ?? null);
+  protected readonly displayStatus = displayStatus;
+  protected readonly nextStepText = nextStepText;
+
+  constructor() {
+    this.loadStudents();
+    effect(() => {
+      const id = this.id();
+      untracked(() => this.load(id));
+    });
+  }
+
+  loadStudents(): void {
+    this.api.listStudents().subscribe({
+      next: (s) => this.students.set(s),
+      error: () => this.students.set([]),
+    });
+  }
+
+  load(id = this.id()): void {
+    this.loading.set(true);
+    this.error.set(null);
+    this.api.getStudentEvaluation(id).subscribe({
+      next: (ev) => {
+        this.evaluation.set(ev);
+        this.loading.set(false);
+      },
+      error: (err) => {
+        this.evaluation.set(null);
+        this.error.set(describeError(err, this.roles.role(), 'studentEvaluation'));
+        this.loading.set(false);
+      },
+    });
+  }
+
+  onPick(studentId: string): void {
+    this.notice.set(null);
+    this.router.navigate(['/student', studentId]);
+  }
+
+  tierText(tier: string): string {
+    const t = tier.replace(/_/g, ' ');
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+
+  canUploadSyllabus(line: CourseEvaluation): boolean {
+    return this.canUploadSyllabusRole() && SYLLABUS_STATES.has(line.state);
+  }
+
+  onTranscript(event: Event): void {
+    const file = takeFile(event);
+    if (!file) return;
+    this.uploadingTranscript.set(true);
+    this.error.set(null);
+    this.api.uploadTranscript(this.id(), file).subscribe({
+      next: (ev) => {
+        this.evaluation.set(ev);
+        this.uploadingTranscript.set(false);
+        this.notice.set(`Transcript "${file.name}" read: ${ev.lines.length} courses evaluated.`);
+      },
+      error: (err) => {
+        this.uploadingTranscript.set(false);
+        this.error.set(describeError(err, this.roles.role(), 'uploadTranscript'));
+      },
+    });
+  }
+
+  onSyllabus(line: CourseEvaluation, event: Event): void {
+    const file = takeFile(event);
+    if (!file) return;
+    this.busyExtId.set(line.ext_id);
+    this.error.set(null);
+    this.api.uploadSyllabus(line.ext_id, file).subscribe({
+      next: (check) => {
+        this.busyExtId.set(null);
+        this.notice.set(syllabusMessage(line, check));
+        this.load();
+      },
+      error: (err) => {
+        this.busyExtId.set(null);
+        this.error.set(describeError(err, this.roles.role(), 'uploadSyllabus'));
+      },
+    });
+  }
+}
+
+function takeFile(event: Event): File | null {
+  const inputEl = event.target as HTMLInputElement;
+  const file = inputEl.files?.[0] ?? null;
+  inputEl.value = '';
+  return file;
+}
+
+export function syllabusMessage(line: CourseEvaluation, check: SyllabusCheck): string {
+  const base = check.complete
+    ? `Syllabus for ${line.course_code} is complete (status ${check.status_code}): it is now with an evaluator.`
+    : `Syllabus for ${line.course_code} is missing: ${check.missing_sections.join(', ') || 'sections'} (status ${check.status_code}).`;
+  return check.injection_detected
+    ? `${base} Note: the file contained instructions aimed at the AI; they were ignored and flagged for the evaluator.`
+    : base;
+}

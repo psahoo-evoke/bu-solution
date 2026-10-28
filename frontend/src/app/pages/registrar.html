@@ -1,0 +1,120 @@
+<section class="page-head">
+  <div>
+    <h1>Registrar</h1>
+    <p class="muted">Export approved courses for posting in MyBU, and reset the demo.</p>
+  </div>
+</section>
+
+@if (!canExport() || !canReset() || !canPost()) {
+  <div class="banner banner--info" role="status">
+    You are viewing as <strong>{{ roles.role() }}</strong>. Posting, the export and the demo reset are for Registrar or CreditStaff.
+    <button type="button" class="btn btn--small" (click)="roles.set('Registrar')">Switch to Registrar</button>
+  </div>
+}
+<app-error-banner [message]="error()" [retryable]="false" />
+@if (message()) {
+  <div class="banner banner--success" role="status">{{ message() }}</div>
+}
+
+<div class="field registrar-student">
+  <label for="export-student">Student</label>
+  <select id="export-student" [ngModel]="studentId()" (ngModelChange)="studentId.set($event)">
+    <option value="">All students</option>
+    @for (s of students(); track s.student_id) {
+      <option [value]="s.student_id">{{ s.student_id }} · {{ s.name }}</option>
+    }
+  </select>
+</div>
+
+<div class="grid-3">
+  <section class="card" aria-labelledby="post-h">
+    <h2 id="post-h">Post approved courses</h2>
+    <p class="muted small">
+      Evaluator-approved courses wait here as TP ("Approved – awaiting posting"). Posting makes them secured (T) for the student.
+    </p>
+    <button type="button" class="btn btn--primary" (click)="post()" [disabled]="posting() || !canPost()" [attr.aria-describedby]="canPost() ? null : 'post-hint'">
+      {{ posting() ? 'Posting…' : 'Post approved courses' }}
+    </button>
+    @if (!canPost()) {
+      <p id="post-hint" class="muted small">{{ postHint }}</p>
+    }
+  </section>
+
+  <section class="card" aria-labelledby="export-h">
+    <h2 id="export-h">MyBU posting export</h2>
+    <p class="muted small">Rows contain the BU course or TR code, units and grade T/TX (US-09, R24).</p>
+    <button type="button" class="btn btn--primary" (click)="download()" [disabled]="downloading() || !canExport()" [attr.aria-describedby]="canExport() ? null : 'export-hint'">
+      {{ downloading() ? 'Preparing…' : 'Download MyBU CSV' }}
+    </button>
+    @if (!canExport()) {
+      <p id="export-hint" class="muted small">{{ exportHint }}</p>
+    }
+  </section>
+
+  <section class="card" aria-labelledby="reset-h">
+    <h2 id="reset-h">Demo reset</h2>
+    <p class="muted small">Restores the seeded synthetic data and removes decisions made during the demo.</p>
+    <button type="button" class="btn btn--danger" (click)="reset()" [disabled]="resetting() || !canReset()" [attr.aria-describedby]="canReset() ? null : 'reset-hint'">
+      {{ resetting() ? 'Resetting…' : 'Reset demo data' }}
+    </button>
+    @if (!canReset()) {
+      <p id="reset-hint" class="muted small">{{ resetHint }}</p>
+    }
+  </section>
+</div>
+
+@if (posted(); as p) {
+  <section class="card" aria-labelledby="posted-h">
+    <h2 id="posted-h">Posted just now: {{ p.count }} {{ p.count === 1 ? 'course' : 'courses' }}</h2>
+    @if (p.rows.length > 1) {
+      <div class="table-wrap">
+        <table class="table table--compact">
+          <thead>
+            <tr>
+              @for (h of p.rows[0]; track $index) {
+                <th scope="col">{{ h }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of p.rows.slice(1); track $index) {
+              <tr>
+                @for (c of r; track $index) {
+                  <td>{{ c }}</td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="muted small">No rows were posted.</p>
+    }
+  </section>
+}
+
+@if (preview().length) {
+  <section class="card" aria-labelledby="preview-h">
+    <h2 id="preview-h">Preview (first {{ preview().length - 1 }} rows)</h2>
+    <div class="table-wrap">
+      <table class="table table--compact">
+        <thead>
+          <tr>
+            @for (h of preview()[0]; track $index) {
+              <th scope="col">{{ h }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of preview().slice(1); track $index) {
+            <tr>
+              @for (c of r; track $index) {
+                <td>{{ c }}</td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+}

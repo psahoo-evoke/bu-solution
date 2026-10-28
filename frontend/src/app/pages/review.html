@@ -1,0 +1,314 @@
+<section class="page-head">
+  <div>
+    <h1>Evaluator workbench</h1>
+    <p class="muted">Maybe courses with the comparison already done. The AI recommends; you decide.</p>
+  </div>
+  <div class="field">
+    <label for="evaluator-name">Evaluator name</label>
+    <input id="evaluator-name" type="text" [ngModel]="evaluator()" (ngModelChange)="evaluator.set($event)" autocomplete="off" />
+  </div>
+</section>
+
+@if (!canQueue()) {
+  <div class="banner banner--info" role="status">
+    You are viewing as <strong>{{ roles.role() }}</strong>. {{ queueHint }}
+    <button type="button" class="btn btn--small" (click)="roles.set(decideRole)">Switch to {{ decideRole }}</button>
+  </div>
+} @else if (!canDecide()) {
+  <div class="banner banner--info" role="status">
+    You are viewing as <strong>{{ roles.role() }}</strong> (read-only). {{ decideHint }}
+    <button type="button" class="btn btn--small" (click)="roles.set(decideRole)">Switch to {{ decideRole }}</button>
+  </div>
+}
+<app-error-banner [message]="error()" (retry)="loadQueue()" />
+@if (success()) {
+  <div class="banner banner--success" role="status">
+    <strong>Saved.</strong> {{ success() }}
+  </div>
+}
+
+@if (canQueue()) {
+<div class="workbench">
+  <section class="card queue" aria-labelledby="queue-h">
+    <div class="queue__head">
+      <h2 id="queue-h">Queue <span class="count">{{ queue().length }}</span></h2>
+      <div class="field field--inline">
+        <label for="dept-filter">Department</label>
+        <select id="dept-filter" [value]="department()" (change)="onDepartment($any($event.target).value)">
+          <option value="">All departments</option>
+          @for (d of departments(); track d) {
+            <option [value]="d" [selected]="d === department()">{{ d }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <fieldset class="batch">
+      <legend>Batch approve (confidence above 90%)</legend>
+      @for (b of batchItems(); track b.ext_id) {
+        <label class="check">
+          <input type="checkbox" [disabled]="!canBatch()" [checked]="batchSelection().has(b.ext_id)" (change)="toggleBatch(b.ext_id, $any($event.target).checked)" />
+          {{ b.school_code }} {{ b.course_code }} → {{ b.top_candidate.bu_code }} ({{ b.confidence_pct }}%)
+        </label>
+      } @empty {
+        <p class="muted small">No items above 90% right now.</p>
+      }
+      @if (batchItems().length) {
+        <div class="row">
+          <button type="button" class="btn btn--small btn--ghost" (click)="selectAllBatch()">Select all</button>
+          <button
+            type="button"
+            class="btn btn--primary btn--small"
+            [disabled]="!batchSelection().size || batchBusy() || !canBatch()"
+            (click)="approveBatch()"
+          >
+            {{ batchBusy() ? 'Approving…' : 'Approve batch (' + batchSelection().size + ')' }}
+          </button>
+        </div>
+      }
+    </fieldset>
+
+    @if (queueLoading()) {
+      <p class="muted" role="status">Loading queue…</p>
+    }
+    <ul class="queue__list" aria-label="Courses awaiting a decision">
+      @for (item of queue(); track item.ext_id) {
+        <li>
+          <button
+            type="button"
+            class="queue__item"
+            [class.is-selected]="selected()?.ext_id === item.ext_id"
+            [attr.aria-pressed]="selected()?.ext_id === item.ext_id"
+            (click)="open(item)"
+          >
+            <span class="queue__title"><strong>{{ item.school_code }} {{ item.course_code }}</strong> {{ item.title }}</span>
+            <span class="muted small">
+              {{ item.department }} · {{ item.students.length }} {{ item.students.length === 1 ? 'student' : 'students' }} ·
+              syllabus {{ item.syllabus_state }}
+            </span>
+            <span class="small">
+              Top: {{ item.top_candidate.bu_code }} · {{ item.top_candidate.overlap_pct }}% overlap · {{ item.confidence_pct }}% confidence
+            </span>
+          </button>
+        </li>
+      } @empty {
+        @if (!queueLoading() && !error()) {
+          <li class="muted">Queue is empty. Nothing awaits a decision.</li>
+        }
+      }
+    </ul>
+  </section>
+
+  <section class="card detail" aria-labelledby="detail-h" aria-live="polite">
+    @if (selected(); as item) {
+      <div class="detail__head">
+        <div>
+          <h2 id="detail-h">{{ item.school_code }} {{ item.course_code }} · {{ item.title }}</h2>
+          <p class="muted small">
+            {{ item.department }} · students {{ item.students.join(', ') }} · syllabus {{ item.syllabus_state }}
+          </p>
+        </div>
+        <div class="timer" [class.timer--over]="overTarget()" role="timer" aria-live="off">
+          <span class="timer__value">{{ elapsedLabel() }}</span>
+          <span class="timer__label">{{ overTarget() ? 'over' : 'under' }} {{ targetLabel }} target</span>
+        </div>
+      </div>
+
+      @if (recLoading()) {
+        <p class="muted" role="status">Loading AI recommendation…</p>
+      }
+      <app-error-banner [message]="recError()" (retry)="open(item)" />
+
+      @if (rec(); as r) {
+        @if (r.injection_detected) {
+          <div class="banner banner--warning" role="alert">
+            <strong>Warning: possible prompt injection.</strong> This syllabus contains text addressed to the AI. It was treated
+            as untrusted data and did not change the tier. Review the source document.
+          </div>
+        }
+        @if (notDecidable()) {
+          <div class="banner banner--warning" role="status">
+            <strong>Preliminary – not decidable.</strong> No complete syllabus is on file, so this comparison uses the catalogue
+            description only. Request the syllabus (TS/TM) before deciding.
+          </div>
+        }
+
+        <div class="suggestion">
+          <div><span class="muted small">AI suggestion</span><br /><strong>{{ r.suggested_decision }}</strong> {{ r.suggested_code }}</div>
+          <div><span class="muted small">Confidence</span><br /><strong>{{ r.confidence_pct }}%</strong></div>
+          <div><span class="muted small">Engine</span><br /><code>{{ r.engine }}</code></div>
+        </div>
+
+        <h3>BU candidates</h3>
+        <div class="candidates" role="radiogroup" aria-label="BU candidate course">
+          @for (c of r.candidates.slice(0, 3); track c.bu_code) {
+            <article class="candidate" [class.is-selected]="candidateCode() === c.bu_code">
+              <label class="candidate__head">
+                <input type="radio" name="candidate" [value]="c.bu_code" [checked]="candidateCode() === c.bu_code" (change)="pickCandidate(c)" />
+                <span>
+                  <strong>{{ c.bu_code }}</strong> {{ c.title }}
+                  <span class="tier tier--{{ c.tier }}">{{ tierLabel(c.tier) }}</span>
+                </span>
+              </label>
+              <div class="overlap">
+                <meter min="0" max="100" low="50" high="80" optimum="100" [value]="c.overlap_pct" [attr.aria-label]="c.bu_code + ' overlap'"></meter>
+                <span><strong>{{ c.overlap_pct }}%</strong> outcome overlap</span>
+              </div>
+              <div class="outcomes">
+                <div>
+                  <h4>Covered ({{ c.covered.length }})</h4>
+                  <ul class="outcome-list outcome-list--covered">
+                    @for (o of c.covered; track o) {
+                      <li><span aria-hidden="true">✓</span> {{ o }}</li>
+                    } @empty {
+                      <li class="muted">None</li>
+                    }
+                  </ul>
+                </div>
+                <div>
+                  <h4>Missing ({{ c.missing.length }})</h4>
+                  <ul class="outcome-list outcome-list--missing">
+                    @for (o of c.missing; track o) {
+                      <li><span aria-hidden="true">✗</span> {{ o }}</li>
+                    } @empty {
+                      <li class="muted">None</li>
+                    }
+                  </ul>
+                </div>
+              </div>
+            </article>
+          } @empty {
+            <p class="muted">No BU candidates found.</p>
+          }
+        </div>
+
+        <h3>Past decisions on this course</h3>
+        @if (r.past_decisions.length) {
+          <div class="table-wrap">
+            <table class="table table--compact">
+              <thead>
+                <tr>
+                  <th scope="col">Decided</th>
+                  <th scope="col">Decision</th>
+                  <th scope="col">BU course</th>
+                  <th scope="col">Reason</th>
+                  <th scope="col">Catalog year</th>
+                  <th scope="col">Evaluator</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (d of r.past_decisions; track d.decision_id) {
+                  <tr>
+                    <td>{{ d.decided_at ? d.decided_at.slice(0, 10) : '—' }}</td>
+                    <td>{{ d.decision }}</td>
+                    <td>{{ d.bu_course }}</td>
+                    <td>{{ d.reason_code }}</td>
+                    <td>{{ d.catalog_year || '—' }}</td>
+                    <td>{{ d.evaluator }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="muted small">No earlier decisions for this course.</p>
+        }
+
+        <form class="decision" (ngSubmit)="submit()" aria-labelledby="decide-h">
+          <h3 id="decide-h">Your decision</h3>
+          <fieldset class="segmented">
+            <legend class="visually-hidden">Decision</legend>
+            @for (k of ['Equivalent', 'Elective', 'No credit']; track k) {
+              <label [class.is-on]="decision() === k">
+                <input type="radio" name="decision" [value]="k" [checked]="decision() === k" (change)="setDecision($any(k))" />
+                {{ k === 'Equivalent' ? 'Approve equivalent' : k === 'Elective' ? 'Elective (TR code)' : 'No credit' }}
+              </label>
+            }
+          </fieldset>
+
+          <div class="decision__fields">
+            @switch (decision()) {
+              @case ('Equivalent') {
+                <div class="field">
+                  <span class="field__label">BU course</span>
+                  <output>{{ candidateCode() || 'Pick a candidate above' }}</output>
+                </div>
+              }
+              @case ('Elective') {
+                <div class="field">
+                  <label for="tr-code">Elective code</label>
+                  <input
+                    id="tr-code"
+                    name="trCode"
+                    type="text"
+                    required
+                    aria-describedby="tr-code-help"
+                    [attr.aria-invalid]="!buCourseValid()"
+                    [ngModel]="electiveCode()"
+                    (ngModelChange)="electiveCode.set($event.toUpperCase())"
+                  />
+                  <span id="tr-code-help" class="small" [class.muted]="buCourseValid()" [class.field-error]="!buCourseValid()">
+                    Format: CAS XX 1TR or CAS XX 2TR (or TFRGEN 1TR)
+                  </span>
+                </div>
+              }
+              @default {
+                <div class="field">
+                  <span class="field__label">Posts as</span>
+                  <output>TFRGEN NOCRDT (TX)</output>
+                </div>
+              }
+            }
+            <div class="field">
+              <label for="reason">Reason code</label>
+              <select id="reason" name="reason" [ngModel]="reasonCode()" (ngModelChange)="reasonCode.set($event)">
+                @for (o of reasonOptions(); track o.reason_code) {
+                  <option [value]="o.reason_code" [selected]="o.reason_code === reasonCode()">{{ o.reason_code }} – {{ o.meaning }}</option>
+                } @empty {
+                  <option value="" disabled selected>{{ reasonError() ? 'Reason codes unavailable' : 'Loading reason codes…' }}</option>
+                }
+              </select>
+            </div>
+            @if (reasonError()) {
+              <div class="field field--wide">
+                <app-error-banner [message]="reasonError()" (retry)="loadReasonCodes()" />
+              </div>
+            }
+            <div class="field">
+              <label for="catalog-year">Catalog year</label>
+              <input id="catalog-year" name="catalogYear" type="text" [ngModel]="catalogYear()" (ngModelChange)="catalogYear.set($event)" />
+            </div>
+            <div class="field field--wide">
+              <label for="note">Note (optional)</label>
+              <input id="note" name="note" type="text" [ngModel]="note()" (ngModelChange)="note.set($event)" />
+            </div>
+            <label class="check">
+              <input type="checkbox" name="reusable" [ngModel]="reusable()" (ngModelChange)="reusable.set($event)" />
+              Reusable – apply to the next student with this course
+            </label>
+          </div>
+
+          <div class="row">
+            <button
+              type="submit"
+              class="btn btn--primary"
+              [disabled]="saving() || !canDecide() || notDecidable() || !buCourseValid() || !reasonCode()"
+            >
+              {{ saving() ? 'Saving…' : decision() === 'Equivalent' ? 'Approve equivalent' : decision() === 'Elective' ? 'Approve as elective' : 'Record no credit' }}
+            </button>
+            <button type="button" class="btn btn--ghost" (click)="close()">Close</button>
+            @if (!canDecide()) {
+              <span class="muted small">{{ decideHint }}</span>
+            } @else if (notDecidable()) {
+              <span class="muted small">Disabled: preliminary recommendation.</span>
+            }
+          </div>
+        </form>
+      }
+    } @else {
+      <h2 id="detail-h" class="visually-hidden">Course detail</h2>
+      <p class="muted empty">Select a course from the queue to see the AI comparison. A timer starts when you open it.</p>
+    }
+  </section>
+</div>
+}

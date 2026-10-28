@@ -1,0 +1,57 @@
+student_id,school_code,term,ext_id,course_code,title,credits,calendar,grade,status,bu_course,units,bu_grade,reason_code,flag,units_if_approved,gt_counterpart,gt_overlap_pct
+SYN-24001,NYU,Fall 2024,NYU|PSYCH-UA 1,PSYCH-UA 1,Intro to Psychology,4,Semester,A-,Matched - existing equivalency,CAS PS 101,4.0,T,EQ-CONTENT,,4.0,CAS PS 101,87
+SYN-24001,NYU,Fall 2024,NYU|MATH-UA 121,MATH-UA 121,Calculus I,4,Semester,B+,Matched - existing equivalency,CAS MA 123,4.0,T,EQ-CONTENT,,4.0,CAS MA 123,100
+SYN-24001,NYU,Fall 2024,NYU|ECON-UA 2,ECON-UA 2,Introduction to Microeconomics,4,Semester,B,Matched - existing equivalency,CAS EC 101,4.0,T,EQ-CONTENT,,4.0,CAS EC 101,87
+SYN-24001,NYU,Spring 2025,NYU|PSYCH-UA 10,PSYCH-UA 10,Statistics for the Behavioral Sciences,4,Semester,A,Maybe - syllabus on file; AI tier: Evaluator decides (50-79%),,0.0,,PD-REVIEW,,4.0,CAS PS 211,75
+SYN-24001,NYU,Spring 2025,NYU|PSYCH-UA 25,PSYCH-UA 25,Cognitive Neuroscience,4,Semester,B+,Maybe - syllabus requested (TS),,0.0,,PD-TS,,4.0,CAS PS 231,62
+SYN-24001,PSC,Summer 2025,PSC|PSY 215,PSY 215,Psychology of Music,4,Quarter,B,Matched - existing equivalency,CAS PS 2TR,2.67,T,EL-NOEQUIV,,2.67,,
+SYN-24002,NEU,Fall 2019,NEU|HIST 1130,HIST 1130,Introduction to World History,4,Semester,B,Pending - age review (5+ years old),,0.0,,RV-AGE,,4.0,,
+SYN-24002,NEU,Fall 2023,NEU|CS 2000,CS 2000,Introduction to Program Design and Implementation,5,Semester,A,Matched - existing equivalency,CAS CS 111,5.0,T,EQ-CONTENT,,5.0,CAS CS 111,87
+SYN-24002,NEU,Fall 2023,NEU|MATH 1341,MATH 1341,Calculus 1 for Science and Engineering,4,Semester,C-,Posted - no credit,TFRGEN NOCRDT,0.0,TX,NC-GRADE,,4.0,CAS MA 123,87
+SYN-24002,NEU,Fall 2023,NEU|MATH 0990,MATH 0990,Algebra Foundations (developmental),4,Semester,A,Posted - no credit,TFRGEN NOCRDT,0.0,TX,NC-REMEDIAL,,4.0,,
+SYN-24002,NEU,Fall 2023,NEU|PE 1100,PE 1100,Fitness Fundamentals,2,Semester,P,Posted - no credit,TFRGEN NOCRDT,0.0,TX,NC-PE,,2.0,,
+SYN-24002,NEU,Fall 2023,NEU|FYS 1000,FYS 1000,First-Year Seminar,1,Semester,A,Posted - no credit,TFRGEN NOCRDT,0.0,TX,NC-ONECREDIT,,1.0,,
+SYN-24002,NEU,Spring 2024,NEU|CS 2100,CS 2100,Program Design and Implementation 1,5,Semester,B+,Maybe - syllabus on file; AI tier: Evaluator decides (50-79%),,0.0,,PD-REVIEW,,5.0,CAS CS 112,62
+SYN-24002,NEU,Spring 2024,NEU|CS 1800,CS 1800,Discrete Structures,4,Semester,B,Matched - existing equivalency,CAS CS 131,4.0,T,EQ-CONTENT,,4.0,CAS CS 131,87
+SYN-24002,NEU,Spring 2024,NEU|CS 1990,CS 1990,Introduction to Programming in Python,4,Semester,A-,Matched - existing equivalency,CAS CS 1TR,4.0,T,EL-DUPLICATE,,4.0,CAS CS 111,75
+SYN-24002,NEU,Spring 2024,NEU|FILM 1101,FILM 1101,Film Analysis,4,Semester,P,Posted - no credit,TFRGEN NOCRDT,0.0,TX,NC-PASSFAIL,,4.0,,
+SYN-24002,NEU,Fall 2024,NEU|CS 2700,CS 2700,Data Structures and Analysis,5,Semester,B,Maybe - syllabus incomplete (TM request),,0.0,,PD-TM,,5.0,CAS CS 112,75
+SYN-24002,NEU,Fall 2024,NEU|CS 3650,CS 3650,Computer Systems,4,Semester,B,Matched - existing equivalency,CAS CS 210,4.0,T,EQ-CONTENT,,4.0,CAS CS 210,100
+SYN-24002,NEU,Fall 2024,NEU|CS 4400,CS 4400,Programming Languages,4,Semester,A-,Matched - existing equivalency,CAS CS 2TR,4.0,T,EL-RESIDENCY,,4.0,CAS CS 320,100
+SYN-24002,NEU,Fall 2024,NEU|MATH 2331,MATH 2331,Linear Algebra,4,Semester,B+,Matched - existing equivalency,CAS MA 242,4.0,T,EQ-CONTENT,,4.0,CAS MA 242,100
+SYN-24003,NEU,Fall 2024,NEU|BIOL 1107,BIOL 1107,Foundations of Biology,5,Semester,A,Matched - existing equivalency,CAS BI 107,5.0,T,EQ-CONTENT,,5.0,CAS BI 107,87
+SYN-24003,NEU,Fall 2024,NEU|CHEM 1161,CHEM 1161,General Chemistry for Science Majors,5,Semester,B+,Maybe - syllabus on file; AI tier: Evaluator decides (50-79%),,0.0,,PD-REVIEW,,5.0,CAS CH 101,62
+SYN-24003,NEU,Fall 2024,NEU|ENGW 1111,ENGW 1111,First-Year Writing,4,Semester,A-,Matched - existing equivalency,TFRGEN 1TR,4.0,T,EL-NOEQUIV,,4.0,,
+SYN-24003,NEU,Spring 2025,NEU|BIOL 1113,BIOL 1113,General Biology 2,4,Semester,B+,Matched - existing equivalency,CAS BI 108,4.0,T,EQ-CONTENT,,4.0,CAS BI 108,100
+SYN-24003,NEU,Spring 2025,NEU|MATH 1341,MATH 1341,Calculus 1 for Science and Engineering,4,Semester,A,Matched - existing equivalency,CAS MA 123,4.0,T,EQ-CONTENT,,4.0,CAS MA 123,87
+SYN-24003,NEU,Spring 2025,NEU|BIOL 2299,BIOL 2299,Inquiries in Biological Sciences,4,Semester,B,Maybe - syllabus on file; AI tier: Elective (<50%),,0.0,,PD-REVIEW,,4.0,CAS BI 107,37
+SYN-24003,NEU,Fall 2025,NEU|BIOL 2301,BIOL 2301,Genetics and Molecular Biology,5,Semester,B+,Maybe - syllabus on file; AI tier: Evaluator decides (50-79%),,0.0,,PD-REVIEW,,5.0,CAS BI 206,75
+SYN-24003,NEU,Fall 2025,NEU|CHEM 2311,CHEM 2311,Organic Chemistry 1,5,Semester,C+,Maybe - syllabus requested (TS),,0.0,,PD-TS,,5.0,CAS CH 203,87
+SYN-24003,NEU,Fall 2025,NEU|BIOL 2703,BIOL 2703,Microbiology,5,Semester,A-,Matched - existing equivalency,CAS BI 2TR,5.0,T,EL-PARTIAL,"CONFLICT: same catalog year, different decisions -> flag for department",5.0,CAS BI 210,87
+SYN-24003,NEU,Spring 2026,NEU|BIOL 3611,BIOL 3611,Biochemistry,5,Semester,B+,Maybe - syllabus on file; AI tier: Equivalent (>=80%),,0.0,,PD-REVIEW,,5.0,CAS CH 373,87
+SYN-24003,NEU,Spring 2026,NEU|CHEM 2313,CHEM 2313,Organic Chemistry 2,5,Semester,B,Matched - existing equivalency,CAS CH 204,5.0,T,EQ-CONTENT,,5.0,CAS CH 204,100
+SYN-24003,NEU,Spring 2026,NEU|BIOL 4990,BIOL 4990,Directed Research in Biology,4,Semester,A,Posted - no credit,TFRGEN NOCRDT,0.0,TX,NC-RESEARCH,,4.0,,
+SYN-24004,NEU,Fall 2022,NEU|ECON 1116,ECON 1116,Principles of Microeconomics,4,Semester,A,Matched - existing equivalency,CAS EC 101,4.0,T,EQ-CONTENT,,4.0,CAS EC 101,87
+SYN-24004,NEU,Fall 2022,NEU|MATH 1341,MATH 1341,Calculus 1 for Science and Engineering,4,Semester,B,Matched - existing equivalency,CAS MA 123,4.0,T,EQ-CONTENT,,4.0,CAS MA 123,87
+SYN-24004,NEU,Fall 2022,NEU|ENGW 1111,ENGW 1111,First-Year Writing,4,Semester,A-,Matched - existing equivalency,TFRGEN 1TR,4.0,T,EL-NOEQUIV,,4.0,,
+SYN-24004,NEU,Fall 2022,NEU|MILS 1101,MILS 1101,Military Science I (ROTC),2,Semester,A,Posted - no credit,TFRGEN NOCRDT,0.0,TX,NC-ROTC,,2.0,,
+SYN-24004,NEU,Spring 2023,NEU|ECON 1115,ECON 1115,Principles of Macroeconomics,4,Semester,B+,Matched - existing equivalency,CAS EC 102,4.0,T,EQ-CONTENT,,4.0,CAS EC 102,100
+SYN-24004,NEU,Spring 2023,NEU|MATH 1342,MATH 1342,Calculus 2 for Science and Engineering,4,Semester,B-,Matched - existing equivalency,CAS MA 124,4.0,T,EQ-CONTENT,,4.0,CAS MA 124,87
+SYN-24004,NEU,Spring 2023,NEU|HIST 1130,HIST 1130,Introduction to World History,4,Semester,B,Matched - existing equivalency,TFRGEN 1TR,4.0,T,EL-NOEQUIV,,4.0,,
+SYN-24004,NEU,Spring 2023,NEU|SOCL 1101,SOCL 1101,Introduction to Sociology,4,Semester,A,Matched - existing equivalency,TFRGEN 1TR,4.0,T,EL-NOEQUIV,,4.0,,
+SYN-24004,SOI,Summer 2023,SOI|ECO 210,ECO 210,Personal Finance,3,Semester,A,Posted - no credit,TFRGEN NOCRDT,0.0,TX,NC-ACCRED,,3.0,,
+SYN-24004,SOI,Summer 2023,SOI|BUS 101,BUS 101,Introduction to Business,3,Semester,A,Posted - no credit,TFRGEN NOCRDT,0.0,TX,NC-ACCRED,,3.0,,
+SYN-24004,NYU,Fall 2023,NYU|PSYCH-UA 10,PSYCH-UA 10,Statistics for the Behavioral Sciences,4,Semester,B+,Maybe - syllabus on file; AI tier: Evaluator decides (50-79%),,0.0,,PD-REVIEW,Same course as Maya's PSYCH-UA 10: matches instantly once her decision is approved (test T15),4.0,CAS PS 211,75
+SYN-24004,NYU,Fall 2023,NYU|COMM-UA 10,COMM-UA 10,Public Speaking,4,Semester,A-,Matched - existing equivalency,TFRGEN 1TR,4.0,T,EL-NOEQUIV,,4.0,,
+SYN-24004,NYU,Fall 2023,NYU|ART-UA 5,ART-UA 5,Art Appreciation,4,Semester,B+,Matched - existing equivalency,TFRGEN 1TR,4.0,T,EL-NOEQUIV,,4.0,,
+SYN-24004,NYU,Spring 2024,NYU|SPAN-UA 1,SPAN-UA 1,Elementary Spanish I,4,Semester,B,Matched - existing equivalency,TFRGEN 1TR,4.0,T,EL-NOEQUIV,,4.0,,
+SYN-24004,NYU,Spring 2024,NYU|ECON-UA 10,ECON-UA 10,Intermediate Microeconomics,4,Semester,B+,Matched - existing equivalency,CAS EC 201,4.0,T,EQ-CONTENT,Econ 200+ cap applies only after matriculation: not applied,4.0,CAS EC 201,87
+SYN-24004,NYU,Spring 2024,NYU|PHIL-UA 3,PHIL-UA 3,Introduction to Ethics,4,Semester,A,Matched - existing equivalency,TFRGEN 1TR,4.0,T,EL-NOEQUIV,,4.0,,
+SYN-24004,NYU,Fall 2024,NYU|ECON-UA 12,ECON-UA 12,Intermediate Macroeconomics,4,Semester,B,Matched - existing equivalency,CAS EC 202,4.0,T,EQ-CONTENT,Econ 200+ cap applies only after matriculation: not applied,4.0,CAS EC 202,100
+SYN-24004,NYU,Fall 2024,NYU|ECON-UA 18,ECON-UA 18,Statistics,4,Semester,A-,Matched - existing equivalency,CAS EC 203,4.0,T,EQ-EVALUATOR,Older conflicting decision superseded by newest catalog year; Econ 200+ cap applies only after matriculation: not applied,4.0,CAS EC 203,100
+SYN-24004,NYU,Fall 2024,NYU|MATH-UA 140,MATH-UA 140,Linear Algebra,4,Semester,B,Matched - existing equivalency,CAS MA 242,4.0,T,EQ-CONTENT,,4.0,CAS MA 242,100
+SYN-24004,NYU,Spring 2025,NYU|ECON-UA 266,ECON-UA 266,Intro to Econometrics,4,Semester,B,Maybe - syllabus on file; AI tier: Evaluator decides (50-79%),,0.0,,PD-REVIEW,Econ 200+ cap applies only after matriculation: not applied,4.0,CAS EC 204,62
+SYN-24004,NYU,Spring 2025,NYU|ECON-UA 163,ECON-UA 163,Money and Banking,4,Semester,A-,Matched - existing equivalency,CAS EC 220,0.0,T,EQ-CONTENT,68-unit cap reached: only 0.0 of 4.0 units can count; Econ 200+ cap applies only after matriculation: not applied,4.0,CAS EC 220,100
+SYN-24004,NYU,Fall 2025,NYU|ECON-UA 166,ECON-UA 166,International Trade,4,Semester,B+,Matched - existing equivalency,CAS EC 250,0.0,T,EQ-CONTENT,68-unit cap reached: only 0.0 of 4.0 units can count; Econ 200+ cap applies only after matriculation: not applied,4.0,CAS EC 250,87
+SYN-24004,NYU,Fall 2025,NYU|ECON-UA 169,ECON-UA 169,Labor Economics,4,Semester,B,Maybe - syllabus requested (TS),,0.0,,PD-TS,68-unit cap reached: only 0.0 of 4.0 units can count; Econ 200+ cap applies only after matriculation: not applied,4.0,CAS EC 240,75
+SYN-24004,NYU,Spring 2026,NYU|ECON-UA 980,ECON-UA 980,Economics Internship,4,Semester,P,Posted - no credit,TFRGEN NOCRDT,0.0,TX,NC-INTERNSHIP,,4.0,,

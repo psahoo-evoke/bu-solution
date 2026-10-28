@@ -1,0 +1,136 @@
+"""Azure OpenAI engine with a fake client: output validation (checklist section 3), prompt PII (section 4),
+fallback, and lazy azure-identity import. No network."""
+import json
+import re
+import sys
+
+import pytest
+
+from app import matcher
+from app import store as store_mod
+
+
+@pytest.fixture
+def azure(monkeypatch):
+    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://fake.openai.azure.com")
+    calls = []
+
+    def install(reply):
+        def fake(messages):
+            calls.append(messages)
+            return reply(messages) if callable(reply) else reply
+        monkeypatch.setattr(matcher, "llm_client", fake)
+        return calls
+    return install
+
+
+def _course(ext_id="NYU|ECON-UA 266"):
+    s = store_mod.STORE
+    return s.ext_courses[ext_id], list(s.bu_courses.values()), s.syllabi.get(ext_id)
+
+
+def _shortlist_codes(messages):
+    return [c["bu_code"] for c in json.loads(messages[1]["content"].split("Candidate BU courses (trusted):\n")[1])]
+
+
+def test_valid_output_is_used(azure):
+    def reply(messages):
+        codes = _shortlist_codes(messages)
+        b = store_mod.STORE.bu_courses[codes[0]]
+        return json.dumps({"candidates": [
+            {"bu_code": codes[0], "overlap_pct": 85, "tier": "equivalent", "covered": b.learning_outcomes[:5] + ["invented"]},
+            {"bu_code": codes[1], "overlap_pct": 140},                 # clamped to 100
+            {"bu_code": codes[2], "overlap_pct": -3}]})                # clamped to 0
+    azure(reply)
+    rec = matcher.recommend(*_course())
+    assert rec["engine"] == "azure-openai"
+    pcts = sorted(c["overlap_pct"] for c in rec["candidates"])
+    assert pcts == [0, 85, 100]
+    top85 = next(c for c in rec["candidates"] if c["overlap_pct"] == 85)
+    assert "invented" not in top85["covered"] and len(top85["covered"]) == 5
+    assert all(c["tier"] in matcher.TIERS for c in rec["candidates"])
+
+
+@pytest.mark.parametrize("bad", [
+    "not json at all",
+    json.dumps([1, 2]),
+    json.dumps({"candidates": []}),
+    json.dumps({"candidates": [{"bu_code": "CAS ZZ 999", "overlap_pct": 90}]}),        # not a search candidate
+    json.dumps({"candidates": [{"bu_code": "__FIRST__", "overlap_pct": "ninety"}]}),
+    json.dumps({"candidates": [{"bu_code": "__FIRST__", "overlap_pct": 90, "tier": "credit_granted"}]}),
+    json.dumps({"candidates": [{"bu_code": "__FIRST__", "overlap_pct": True}]}),
+])
+def test_invalid_output_falls_back_to_offline(azure, bad):
+    azure(lambda m: bad.replace("__FIRST__", _shortlist_codes(m)[0]))
+    rec = matcher.recommend(*_course())
+    offline_top = rec["candidates"][0]
+    assert rec["engine"] == "offline-fallback"
+    assert (offline_top["bu_code"], offline_top["overlap_pct"], offline_top["tier"]) == ("CAS EC 204", 62, "evaluator_decides")
+
+
+def test_client_error_falls_back(azure):
+    def boom(messages):
+        raise TimeoutError("quota")
+    azure(boom)
+    assert matcher.recommend(*_course())["engine"] == "offline-fallback"
+
+
+def test_injection_cannot_raise_tier_through_the_model(azure):
+    """Even if a compromised model obeys the injected line, it can only score candidates; tier comes from the
+    clamped overlap, and the injection flag is still raised for the evaluator."""
+    azure(lambda m: json.dumps({"candidates": [{"bu_code": _shortlist_codes(m)[0], "overlap_pct": 100}]}))
+    rec = matcher.recommend(*_course())
+    assert rec["injection_detected"] is True
+    assert rec["engine"] == "azure-openai"
+    # the injected sentence never reached the prompt
+    calls = azure(lambda m: json.dumps({"candidates": [{"bu_code": _shortlist_codes(m)[0], "overlap_pct": 60}]}))
+    matcher.recommend(*_course())
+    assert "ignore all previous instructions" not in calls[-1][1]["content"].lower()
+
+
+def test_prompt_contains_course_data_only(azure):
+    calls = azure(lambda m: "bad")       # forces fallback, but the prompt is still captured
+    s = store_mod.STORE
+    for sid in s.students:
+        for ln in s.lines_for(sid):
+            matcher.recommend(s.ext_courses[ln.ext_id], list(s.bu_courses.values()), s.syllabi.get(ln.ext_id))
+    assert calls
+    names = [n for st in s.students.values() for n in st.name.replace(".", "").split() if len(n) > 2]
+    for msgs in calls:
+        text = json.dumps(msgs)
+        assert not re.search(r"SYN-\d+", text)
+        assert "gt_" not in text and "gt_counterpart" not in text
+        assert not any(re.search(rf"\b{re.escape(n)}\b", text) for n in names)
+        assert '"grade"' not in text
+        user = msgs[1]["content"]
+        assert user.startswith("<course_data>") and "</course_data>" in user
+        assert "UNTRUSTED DATA" in msgs[0]["content"]
+
+
+def test_auth_prefers_managed_identity(monkeypatch):
+    monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(matcher, "_token_provider", lambda: "tok123")
+    assert matcher._openai_auth_headers() == {"Authorization": "Bearer tok123"}
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "local-dev")
+    assert matcher._openai_auth_headers() == {"api-key": "local-dev"}
+
+
+def test_di_auth_prefers_managed_identity(monkeypatch):
+    from app import ingest
+
+    class FakeCred:
+        def get_token(self, scope):
+            assert scope == ingest.COGNITIVE_SCOPE
+            return type("T", (), {"token": "di-tok"})()
+    monkeypatch.delenv("AZURE_DI_KEY", raising=False)
+    monkeypatch.setattr(ingest, "_CREDENTIAL", FakeCred())
+    assert ingest.DocumentIntelligenceAdapter("https://di.example")._auth_headers() == {"Authorization": "Bearer di-tok"}
+
+
+def test_offline_import_does_not_load_azure():
+    import subprocess
+    code = ("import sys; sys.path.insert(0, '.'); import app.main, app.matcher, app.ingest; "
+            "print(any(m.startswith('azure') for m in sys.modules))")
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                         cwd=str(__import__("pathlib").Path(__file__).resolve().parents[1]))
+    assert out.stdout.strip() == "False", out.stderr

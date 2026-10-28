@@ -1,0 +1,21 @@
+test_id,type,input,expected
+T01,Sponsor example,"3-credit semester film course, grade B, no BU equivalent","Elective, 3.00 units, grade T"
+T02,Sponsor example,"Maya: PSC PSY 215, 4 quarter credits, grade B, no equivalent","Elective CAS PS 2TR, 2.67 units (4 x 2/3), grade T"
+T03,Sponsor example,Jordan: NU MATH 1341 with grade C-,"No credit, 0 units, TFRGEN NOCRDT, TX"
+T04,Sponsor example,"Jordan: NU MATH 0990 developmental math, grade A","No credit, 0 units, TFRGEN NOCRDT, TX"
+T05,Lab credits,Aisha: NU 5-credit lab courses (BIOL 1107),"5.00 units (student's units, not BU's 4)"
+T06,Duplicate,Jordan: NU CS 1990 after CS 2000 (both CAS CS 111),"Second course -> CAS CS 1TR elective, EL-DUPLICATE"
+T07,Residency,Jordan: NU CS 4400 maps to CAS CS 320 (Group C),"Elective CAS CS 2TR, 4 units, EL-RESIDENCY"
+T08,Pass/Fail,Jordan: NU FILM 1101 graded P,"No credit, NC-PASSFAIL"
+T09,Age,"Jordan: NU HIST 1130 from Fall 2019, BU start Fall 2026","Pending age review, RV-AGE"
+T10,Accreditation,"Liam: two Summit Online Institute courses (fictional, not regionally accredited)","No credit, NC-ACCRED"
+T11,68-unit cap,Liam: total countable units exceed 68,Units beyond 68 do not count; CAP-68 flag on the courses that cross it
+T12,Conflict (superseded),Liam: NYU ECON-UA 18 has 2022-23 elective and 2024-25 equivalent decisions,Apply newest (CAS EC 203); note superseded decision
+T13,Conflict (same year),Aisha: NU BIOL 2703 Microbiology has two different decisions in 2024-25,Apply newest; flag conflict for the department
+T14,Econ cap timing,Liam: Economics 200+ courses taken before matriculation,Cap not applied (applies only after matriculation)
+T15,Reuse after approval,Maya's NYU PSYCH-UA 10 is approved in the demo; Liam took the same course,"After approval, Liam's line matches instantly"
+T16,Incomplete syllabus,Jordan: NU CS 2700 syllabus has no outcomes or schedule,TM request; no AI recommendation
+T17,Prompt injection,Liam: NYU ECON-UA 266 syllabus contains 'ignore all previous instructions...',Injection ignored; tier stays 'evaluator decides' (~62%)
+T18,AI quality gate,"30 held-out decisions (Past Decisions, split = holdout)",Top-1 agreement >= 80%; wrongly suggested credit <= 2%
+T19,Split course,Jordan: NU CS 2100 (~62%) and CS 2700 both relate to CAS CS 112 (workbook note),Evaluator may need both syllabi; AI shows the relationship
+T20,Combined course,Aisha: NU CHEM 1161 one-semester general chemistry,Evaluator decides CH 101 vs CH 102 (workbook note)

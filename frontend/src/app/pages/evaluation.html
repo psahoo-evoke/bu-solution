@@ -1,0 +1,90 @@
+<section class="page-head">
+  <div>
+    <h1>AI quality on held-out decisions</h1>
+    <p class="muted">The matcher is scored against real evaluator decisions it never saw. These are the sponsor's go/no-go gates.</p>
+  </div>
+  <button type="button" class="btn" (click)="load()" [disabled]="loading()">Refresh</button>
+</section>
+
+<app-error-banner [message]="error()" (retry)="load()" />
+@if (loading() && !metrics()) {
+  <p class="muted" role="status">Loading metrics…</p>
+}
+
+@if (metrics(); as m) {
+  <div class="banner" [class.banner--success]="m.gates_met" [class.banner--warning]="!m.gates_met" role="status">
+    <strong>{{ m.gates_met ? 'Gates met' : 'Gates not met' }}</strong> on {{ m.n }} held-out decisions · engine <code>{{ m.engine }}</code>
+  </div>
+
+  <div class="metrics">
+    <section class="card metric" aria-labelledby="m-agree">
+      <h2 id="m-agree">Top-1 candidate agreement</h2>
+      <p class="metric__value">{{ agreementPct() | number: '1.0-1' }}%</p>
+      <meter min="0" max="100" [low]="agreementGate" [optimum]="100" [value]="agreementPct()" aria-label="Top-1 candidate agreement"></meter>
+      <p class="metric__gate" [class.ok]="agreementOk()" [class.bad]="!agreementOk()">
+        <span aria-hidden="true">{{ agreementOk() ? '✓' : '✗' }}</span>
+        {{ agreementOk() ? 'Pass' : 'Fail' }}: gate is at least {{ agreementGate }}%
+      </p>
+      <dl class="metric__extra">
+        <div>
+          <dt>Strict agreement</dt>
+          <dd>{{ strictPct() === null ? '—' : (strictPct() | number: '1.0-1') + '%' }}</dd>
+        </div>
+        <div>
+          <dt>Deferrals to evaluator</dt>
+          <dd>{{ deferrals() === null ? '—' : deferrals() + ' of ' + m.n }}</dd>
+        </div>
+      </dl>
+      <p class="muted small">
+        Strict counts a correct deferral to the evaluator (50–79% band) as a miss; top-1 counts it as agreement when the right BU course
+        is the top candidate.
+      </p>
+    </section>
+    <section class="card metric" aria-labelledby="m-wrong">
+      <h2 id="m-wrong">Wrongly suggested credit</h2>
+      <p class="metric__value">{{ wrongPct() | number: '1.0-1' }}%</p>
+      <meter min="0" max="10" [high]="wrongGate" [optimum]="0" [value]="wrongPct()" aria-label="Wrongly suggested credit rate"></meter>
+      <p class="metric__gate" [class.ok]="wrongOk()" [class.bad]="!wrongOk()">
+        <span aria-hidden="true">{{ wrongOk() ? '✓' : '✗' }}</span>
+        {{ wrongOk() ? 'Pass' : 'Fail' }}: gate is at most {{ wrongGate }}%
+      </p>
+    </section>
+    <section class="card metric" aria-labelledby="m-engine">
+      <h2 id="m-engine">Engine</h2>
+      <p class="metric__value metric__value--text"><code>{{ m.engine }}</code></p>
+      <p class="muted small">
+        {{ m.engine === 'offline-fallback' ? 'Deterministic offline matcher (no Azure OpenAI key set).' : 'Azure OpenAI outcome comparison.' }}
+      </p>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="tier-h">
+    <h2 id="tier-h">By tier</h2>
+    @if (tierRows().length) {
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Tier</th>
+              @for (c of tierColumns(); track c) {
+                <th scope="col" class="num">{{ label(c) }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of tierRows(); track row[0]) {
+              <tr>
+                <th scope="row">{{ label(row[0]) }}</th>
+                @for (c of tierColumns(); track c) {
+                  <td class="num">{{ cell(row[1], c) }}</td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="muted">No per-tier breakdown returned.</p>
+    }
+  </section>
+}

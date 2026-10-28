@@ -1,0 +1,25 @@
+rule_id,category,rule,condition,outcome,reason_code,source
+R01,Accreditation,Only courses from regionally accredited institutions are eligible.,school.accreditation,"No credit, TFRGEN NOCRDT, 0 units, TX",NC-ACCRED,Sponsor Q8
+R02,Course type,"Remedial/developmental, vocational, physical education and ROTC courses are ineligible.",course.course_type,"No credit, TX",NC-REMEDIAL / NC-VOC / NC-PE / NC-ROTC,Sponsor Q8
+R03,Course type,"Internships, research and military or life experience are ineligible.",course.course_type,"No credit, TX",NC-INTERNSHIP / NC-RESEARCH,Sponsor Q8
+R04,Credits,One-credit courses are generally not accepted.,credits = 1,"No credit, TX",NC-ONECREDIT,Sponsor Q8
+R05,Grades,Pass/Fail grades are generally not accepted.,"grade in (P, NP, S, U)","No credit, TX",NC-PASSFAIL,Sponsor Q8
+R06,Grades,Minimum grade C; C- and below are ineligible. External grades do not enter the BU GPA.,min_grade = C,"No credit, TX",NC-GRADE,Brief; sponsor Q18
+R07,Age,Courses five or more years old need review before any credit.,term_year <= start_year - 5,Pending: age review,RV-AGE,Sponsor Q8
+R08,Conversion,"Quarter credits x 2/3, rounded to 2 decimals, course by course.",calendar = Quarter,"units = ROUND(credits*2/3, 2)",-,Sponsor Q18/Q27
+R09,Units,"Units posted are always the units the student took (converted), never the BU course's credits.",-,-,-,Sponsor Q27
+R10,Existing match,Check the equivalency table first; a reusable decision is applied without a syllabus.,reusable = Yes,"Matched: BU course or TR elective, grade T",(decision's code),"Sponsor Q1, Q23"
+R11,Conflicts,Conflicting past decisions: the newest decision for the same catalog years wins; flag the conflict for the department.,multiple decisions,Apply newest; flag,-,Sponsor Q18
+R12,Duplicates,A second course covering the same BU course earns elective credit only.,bu_course already used,Elective (TR),EL-DUPLICATE,Sponsor Q8/Q18
+R13,Residency,"CS Group C (CS 320, 332, 350) must be taken at BU: requirement blocked, units still post as elective.",bu_course in Group C,Elective (TR),EL-RESIDENCY,Sponsor Q29/Q31
+R14,Residency,Biology: at least five BI courses beyond BI 107/108 must be taken at BU (advisory; credit unaffected).,major = Biology,Advisory flag,-,Sponsor Q29/Q31
+R15,Residency,Economics: at most four 200+ level courses transferred AFTER matriculation.,term after BU start,Excess -> elective,EL-RESIDENCY,Sponsor Q8/Q31
+R16,Residency,Engineering: at least 48 upper-division units must be taken at BU (not in this data set's majors).,school = ENG,Advisory flag,-,Sponsor Q29/Q31
+R17,Cap,At most 68 external units can count toward the degree.,sum(units) > 68,Excess units do not count; flag,CAP-68,Sponsor Q8/Q31
+R18,Hub,Transfer courses do not earn BU Hub general education units.,-,-,-,Brief
+R19,Deadline,All credits must be transferred within one year of starting at BU; after that an Outstanding Transfer Credit Review is needed.,today > start + 1 year,Escalate,-,Brief; sponsor Q32
+R20,Matching tiers,Learning-outcome overlap >=80% -> propose equivalent; 50-79% -> evaluator decides; <50% -> elective if eligible.,AI overlap score,Recommendation only,-,Sponsor Q7
+R21,Batch approval,Recommendations above 90% may be approved together as a reviewed batch; each course still logged.,AI confidence > 90%,Batch list,-,Sponsor Q11
+R22,Evidence,Course descriptions are not accepted as evidence; they may drive preliminary AI suggestions only.,no syllabus,Preliminary; not decidable,PD-TS,Sponsor Q16
+R23,Syllabus chase,"Missing syllabus -> TS; incomplete -> TM request. Reminders on days 7, 21 and 45. A current syllabus from another instructor of the same code/title is accepted.",syllabus state,Status + reminders,PD-TS / PD-TM,"Sponsor Q16, Q22"
+R24,Codes,"Equivalent -> specific BU course; elective -> BU code ending in TR; no credit -> TFRGEN NOCRDT, 0 units, TX. Every evaluated course shows grade T (TX for no credit).",-,-,-,Sponsor Q24/Q27

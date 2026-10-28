@@ -1,0 +1,38 @@
+<a class="skip-link" href="#main">Skip to main content</a>
+<header class="topbar">
+  <div class="topbar__brand">
+    <span class="logo" aria-hidden="true">TIQ</span>
+    <span class="topbar__title">TransferIQ</span>
+    <span class="badge badge--synthetic">Synthetic data – EvoHack 2026</span>
+  </div>
+  <nav class="topbar__nav" aria-label="Main">
+    <a routerLink="/student" routerLinkActive="active" ariaCurrentWhenActive="page">Student status</a>
+    <a routerLink="/review" routerLinkActive="active" ariaCurrentWhenActive="page">Evaluator workbench</a>
+    <a routerLink="/evaluation" routerLinkActive="active" ariaCurrentWhenActive="page">AI evaluation</a>
+    <a routerLink="/registrar" routerLinkActive="active" ariaCurrentWhenActive="page">Registrar</a>
+  </nav>
+  <div class="topbar__role">
+    <label for="role-select">Demo role</label>
+    <select id="role-select" [value]="roleService.role()" (change)="onRoleChange($any($event.target).value)">
+      @for (r of roles; track r) {
+        <option [value]="r" [selected]="r === roleService.role()">{{ r }}</option>
+      }
+    </select>
+  </div>
+</header>
+
+@if (apiUp() === false) {
+  <div class="banner banner--error banner--global" role="alert">
+    <strong>API offline:</strong> the TransferIQ backend at <code>/api</code> did not answer. Start it on
+    <code>http://localhost:8000</code> (see <code>frontend/README.md</code>).
+    <button type="button" class="btn btn--small" (click)="checkHealth()">Check again</button>
+  </div>
+}
+
+<main id="main" class="container" tabindex="-1">
+  <router-outlet />
+</main>
+
+<footer class="footer">
+  AI recommends, rules compute, evaluators decide. The AI never posts credit. All people and records are synthetic.
+</footer>

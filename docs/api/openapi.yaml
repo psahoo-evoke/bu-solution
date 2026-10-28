@@ -1,0 +1,278 @@
+openapi: 3.0.3
+info:
+  title: TransferIQ API
+  version: 0.3.0
+  description: |
+    Transfer credit evaluation co-pilot (EvoHack 2026, BU problem statement).
+    AI recommends, the rules engine computes, evaluators decide.
+    Demo auth: send `X-Demo-Role` (Student | CreditStaff | Evaluator | Department | Registrar | Advisor).
+    Production auth: Entra ID bearer token with the same app roles.
+    Default deny: every route except /health requires a valid role; `x-roles` lists the roles allowed per operation (others get 403, missing/unknown role 401).
+    In production, Student may only read or upload for their own student_id; /demo/reset is disabled.
+servers:
+  - url: /api
+security:
+  - demoRole: []
+  - bearer: []
+paths:
+  /health:
+    get:
+      summary: Liveness
+      security: []
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { status: { type: string } } } } } }
+  /students:
+    get:
+      summary: List students
+      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor]
+      responses:
+        "200": { description: Students, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Student" } } } } }
+  /students/{student_id}/evaluation:
+    get:
+      summary: Every transcript line with its current status, plus secured vs pending totals
+      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor]
+      parameters: [ { $ref: "#/components/parameters/StudentId" } ]
+      responses:
+        "200": { description: Evaluation, content: { application/json: { schema: { $ref: "#/components/schemas/StudentEvaluation" } } } }
+        "404": { description: Unknown student }
+  /students/{student_id}/transcripts:
+    post:
+      summary: Upload a transcript PDF; lines are extracted and evaluated
+      x-roles: [Student, CreditStaff]
+      parameters: [ { $ref: "#/components/parameters/StudentId" } ]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } }
+      responses:
+        "201": { description: Extracted and evaluated, content: { application/json: { schema: { $ref: "#/components/schemas/StudentEvaluation" } } } }
+  /courses/{ext_id}/syllabus:
+    post:
+      summary: Upload a syllabus for an external course; checked for completeness (outcomes, schedule)
+      x-roles: [Student, CreditStaff, Evaluator, Department]
+      parameters: [ { $ref: "#/components/parameters/ExtId" } ]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } }
+      responses:
+        "201": { description: Checked, content: { application/json: { schema: { $ref: "#/components/schemas/SyllabusCheck" } } } }
+  /courses/{ext_id}/recommendation:
+    get:
+      summary: AI recommendation for an external course (top-3 BU candidates with evidence)
+      x-roles: [CreditStaff, Evaluator, Department]
+      parameters: [ { $ref: "#/components/parameters/ExtId" } ]
+      responses:
+        "200": { description: Recommendation, content: { application/json: { schema: { $ref: "#/components/schemas/Recommendation" } } } }
+  /review-queue:
+    get:
+      summary: Maybe courses awaiting an evaluator decision
+      x-roles: [CreditStaff, Evaluator, Department]
+      parameters:
+        - { name: department, in: query, required: false, schema: { type: string } }
+      responses:
+        "200": { description: Queue, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ReviewItem" } } } } }
+  /decisions:
+    post:
+      summary: Record an evaluator decision (Evaluator or Department role)
+      x-roles: [Evaluator, Department]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/DecisionInput" } } }
+      responses:
+        "201": { description: Saved, content: { application/json: { schema: { $ref: "#/components/schemas/Decision" } } } }
+        "403": { description: Role not allowed }
+  /decisions/batch:
+    post:
+      summary: Approve recommendations above 90% as a reviewed batch (one decision logged per course)
+      x-roles: [Evaluator, Department]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [ext_ids, evaluator], properties: { ext_ids: { type: array, items: { type: string } }, evaluator: { type: string } } }
+      responses:
+        "201": { description: Saved, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Decision" } } } } }
+        "422": { description: An item is at or below the 90% threshold }
+  /exports/mybu.csv:
+    get:
+      summary: MyBU-style posting export of approved courses (Registrar or Credit Evaluation staff)
+      x-roles: [Registrar, CreditStaff]
+      parameters:
+        - { name: student_id, in: query, required: false, schema: { type: string } }
+      responses:
+        "200": { description: CSV, content: { text/csv: { schema: { type: string } } } }
+  /postings:
+    post:
+      summary: Post approved courses (Registrar step) - approved lines become posted/secured; returns the MyBU-style CSV rows posted
+      x-roles: [Registrar, CreditStaff]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, properties: { student_id: { type: string } } }
+      responses:
+        "201": { description: Posted, content: { application/json: { schema: { type: object, properties: { posted: { type: integer }, csv: { type: string } } } } } }
+  /evaluation/metrics:
+    get:
+      summary: Matcher quality on the held-out decisions (sponsor gates)
+      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor]
+      responses:
+        "200": { description: Metrics, content: { application/json: { schema: { $ref: "#/components/schemas/Metrics" } } } }
+  /rules:
+    get:
+      summary: The rules the engine applies (R01–R24)
+      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor]
+      responses:
+        "200": { description: Rules, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Rule" } } } } }
+  /reason-codes:
+    get:
+      summary: Reason codes evaluators can record
+      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor]
+      responses:
+        "200": { description: Codes, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ReasonCode" } } } } }
+  /demo/reset:
+    post:
+      summary: Reset to the seeded demo state (removes decisions made during the demo)
+      x-roles: [CreditStaff, Registrar]
+      responses:
+        "204": { description: Reset }
+components:
+  securitySchemes:
+    demoRole: { type: apiKey, in: header, name: X-Demo-Role }
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    StudentId: { name: student_id, in: path, required: true, schema: { type: string, example: SYN-24001 } }
+    ExtId: { name: ext_id, in: path, required: true, description: "School code and course code joined by '|', URL-encoded", schema: { type: string, example: "NYU|PSYCH-UA 10" } }
+  schemas:
+    Student:
+      type: object
+      properties:
+        student_id: { type: string }
+        name: { type: string }
+        intended_major: { type: string }
+        bu_start_term: { type: string }
+    CourseEvaluation:
+      type: object
+      properties:
+        ext_id: { type: string }
+        school_code: { type: string }
+        term: { type: string }
+        course_code: { type: string }
+        title: { type: string }
+        credits: { type: number }
+        calendar: { type: string, enum: [Semester, Quarter] }
+        grade: { type: string }
+        state: { type: string, enum: [matched, approved, posted, posted_no_credit, maybe_review, maybe_ts, maybe_tm, pending_age], description: "approved = evaluator approved, awaiting posting (student still sees TP; counts as pending); posted = secured" }
+        status: { type: string, description: Plain-words status }
+        bu_status_code: { type: string, enum: [T, TX, TP, TS, TM], description: BU portal code }
+        bu_course: { type: string, nullable: true }
+        units: { type: number, description: Units posted or approved (0 while pending) }
+        units_if_approved: { type: number }
+        reason_code: { type: string }
+        flags: { type: array, items: { type: string } }
+        next_step: { type: string }
+        ai_tier: { type: string, nullable: true }
+        ai_overlap_pct: { type: integer, nullable: true }
+    StudentEvaluation:
+      type: object
+      properties:
+        student: { $ref: "#/components/schemas/Student" }
+        lines: { type: array, items: { $ref: "#/components/schemas/CourseEvaluation" } }
+        totals:
+          type: object
+          properties:
+            secured_units: { type: number, description: "Matched from the equivalency table or posted" }
+            approved_units: { type: number, description: "Approved, awaiting posting (included in pending_units)" }
+            pending_units: { type: number }
+            no_credit_lines: { type: integer }
+            cap_units: { type: number, example: 68 }
+    Candidate:
+      type: object
+      properties:
+        bu_code: { type: string }
+        title: { type: string }
+        overlap_pct: { type: integer }
+        tier: { type: string, enum: [equivalent, evaluator_decides, elective] }
+        covered: { type: array, items: { type: string } }
+        missing: { type: array, items: { type: string } }
+    Recommendation:
+      type: object
+      properties:
+        ext_id: { type: string }
+        preliminary: { type: boolean, description: True when based on a description only (not decidable) }
+        engine: { type: string, enum: [azure-openai, offline-fallback] }
+        candidates: { type: array, items: { $ref: "#/components/schemas/Candidate" } }
+        suggested_decision: { type: string, enum: [Equivalent, Elective, Evaluator decides] }
+        suggested_code: { type: string }
+        confidence_pct: { type: integer }
+        injection_detected: { type: boolean }
+        past_decisions: { type: array, items: { $ref: "#/components/schemas/Decision" } }
+    ReviewItem:
+      type: object
+      properties:
+        ext_id: { type: string }
+        course_code: { type: string }
+        title: { type: string }
+        school_code: { type: string }
+        department: { type: string }
+        students: { type: array, items: { type: string } }
+        syllabus_state: { type: string, enum: [complete, incomplete, missing] }
+        top_candidate: { $ref: "#/components/schemas/Candidate" }
+        confidence_pct: { type: integer }
+        batch_eligible: { type: boolean }
+    DecisionInput:
+      type: object
+      required: [ext_id, decision, bu_course, reason_code, evaluator]
+      properties:
+        ext_id: { type: string }
+        decision: { type: string, enum: [Equivalent, Elective, No credit] }
+        bu_course: { type: string, pattern: "^(CAS [A-Z]{2} [0-9]{3}|CAS [A-Z]{2} [12]TR|TFRGEN 1TR|TFRGEN NOCRDT)$", description: "Must be a known BU course, a TR elective code, or TFRGEN NOCRDT; must agree with decision" }
+        reason_code: { type: string, description: "Must exist in /reason-codes and match the decision" }
+        reusable: { type: boolean, default: true }
+        evaluator: { type: string }
+        catalog_year: { type: string, example: 2025-26 }
+        note: { type: string }
+    Decision:
+      allOf:
+        - $ref: "#/components/schemas/DecisionInput"
+        - type: object
+          properties:
+            decision_id: { type: string }
+            decided_at: { type: string, format: date-time }
+            ai_suggestion: { type: string, nullable: true }
+            ai_agreed: { type: boolean, nullable: true }
+    SyllabusCheck:
+      type: object
+      properties:
+        ext_id: { type: string }
+        complete: { type: boolean }
+        missing_sections: { type: array, items: { type: string } }
+        status_code: { type: string, enum: [TP, TM] }
+        injection_detected: { type: boolean }
+    Metrics:
+      type: object
+      properties:
+        engine: { type: string }
+        n: { type: integer }
+        top1_agreement: { type: number, description: "Top-1 candidate agreement (gate metric)" }
+        strict_agreement: { type: number, description: "Suggested decision equals recorded decision; must be shown next to top1_agreement" }
+        deferrals: { type: integer, description: "Holdout items where the matcher deferred to the evaluator (50-79% band)" }
+        wrong_credit_rate: { type: number }
+        gates_met: { type: boolean }
+        by_tier: { type: object, additionalProperties: { type: object } }
+    ReasonCode:
+      type: object
+      properties:
+        reason_code: { type: string }
+        decision: { type: string }
+        meaning: { type: string }
+    Rule:
+      type: object
+      properties:
+        rule_id: { type: string }
+        category: { type: string }
+        rule: { type: string }
+        reason_code: { type: string }

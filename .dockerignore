@@ -1,0 +1,17 @@
+# Build context is the repo root (see backend/Dockerfile). Allow-list: send only what the API image needs.
+*
+!backend/
+!data/synthetic/seed/
+!data/synthetic/syllabi/
+!data/synthetic/transcripts/
+
+# ...and drop noise inside the allowed folders.
+backend/tests/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/.venv/
+backend/venv/
+backend/.pytest_cache/
+backend/.env
+backend/**/.env*
+backend/Dockerfile

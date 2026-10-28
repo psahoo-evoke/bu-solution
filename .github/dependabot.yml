@@ -1,0 +1,31 @@
+# Supply-chain hygiene: weekly update PRs, grouped to keep hackathon noise low.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      python-deps: { patterns: ["*"] }
+    labels: [dependencies, security]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      angular: { patterns: ["@angular/*", "@angular-devkit/*", "@schematics/angular"] }
+      npm-other: { patterns: ["*"], exclude-patterns: ["@angular/*", "@angular-devkit/*", "@schematics/angular"] }
+    labels: [dependencies, security]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    groups:
+      actions: { patterns: ["*"] }
+    labels: [dependencies, ci]
+
+  - package-ecosystem: docker
+    directory: /backend
+    schedule: { interval: weekly, day: monday }
+    labels: [dependencies, security]

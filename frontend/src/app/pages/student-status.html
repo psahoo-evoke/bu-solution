@@ -1,0 +1,158 @@
+<section class="page-head">
+  <div>
+    <h1>Student transfer credit status</h1>
+    <p class="muted">Every course from every transcript, with what is secured and what is still pending.</p>
+  </div>
+  <div class="field">
+    <label for="student-picker">Student</label>
+    <select id="student-picker" [value]="id()" (change)="onPick($any($event.target).value)">
+      @if (!students().length) {
+        <option [value]="id()">{{ id() }}</option>
+      }
+      @for (s of students(); track s.student_id) {
+        <option [value]="s.student_id" [selected]="s.student_id === id()">
+          {{ s.student_id }} · {{ s.name }} ({{ s.intended_major }})
+        </option>
+      }
+    </select>
+  </div>
+</section>
+
+<app-error-banner [message]="error()" (retry)="load()" />
+@if (notice()) {
+  <div class="banner banner--info" role="status">
+    {{ notice() }}
+    <button type="button" class="btn btn--small btn--ghost" (click)="notice.set(null)" aria-label="Dismiss message">Dismiss</button>
+  </div>
+}
+
+@if (evaluation(); as ev) {
+  <section class="card student-card" aria-labelledby="student-name">
+    <div>
+      <h2 id="student-name">{{ ev.student.name }}</h2>
+      <p class="muted">{{ ev.student.student_id }} · {{ ev.student.intended_major }} · starts {{ ev.student.bu_start_term }}</p>
+    </div>
+    @if (canUploadTranscript()) {
+      <label class="btn btn--primary file-btn" [class.is-busy]="uploadingTranscript()">
+        <input type="file" class="visually-hidden" accept="application/pdf,.pdf" (change)="onTranscript($event)" [disabled]="uploadingTranscript()" />
+        {{ uploadingTranscript() ? 'Reading transcript…' : 'Upload transcript (PDF)' }}
+      </label>
+    } @else {
+      <span class="muted small">Read-only view. Switch role to Student or CreditStaff to upload a transcript.</span>
+    }
+  </section>
+
+  @if (totals(); as t) {
+    <section class="totals" aria-label="Credit totals">
+      <div class="total total--secured">
+        <span class="total__label">Secured</span>
+        <span class="total__value">{{ t.secured_units | number: '1.0-2' }} units</span>
+      </div>
+      <span class="total__sep" aria-hidden="true">·</span>
+      <div class="total total--pending">
+        <span class="total__label">Pending</span>
+        <span class="total__value">{{ t.pending_units | number: '1.0-2' }} units</span>
+        @if (t.approved_units) {
+          <span class="total__note">incl. {{ t.approved_units | number: '1.0-2' }} approved, awaiting posting</span>
+        }
+      </div>
+      <span class="total__sep" aria-hidden="true">·</span>
+      <div class="total total--nocredit">
+        <span class="total__label">No credit</span>
+        <span class="total__value">{{ t.no_credit_lines }} {{ t.no_credit_lines === 1 ? 'course' : 'courses' }}</span>
+      </div>
+      @if (t.cap_units) {
+        <div class="total total--cap">
+          <span class="total__label">External cap</span>
+          <span class="total__value">{{ t.cap_units }} units</span>
+          <meter min="0" [max]="t.cap_units" [value]="t.secured_units" [attr.aria-label]="'Secured units against the ' + t.cap_units + '-unit cap'"></meter>
+        </div>
+      }
+    </section>
+  }
+
+  @for (g of groups(); track g.term) {
+    <section class="card term" [attr.aria-labelledby]="'term-' + $index">
+      <h3 [id]="'term-' + $index">{{ g.term }}</h3>
+      <div class="table-wrap">
+        <table class="table">
+          <caption class="visually-hidden">Courses taken in {{ g.term }}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Course</th>
+              <th scope="col">Status</th>
+              <th scope="col">BU course</th>
+              <th scope="col" class="num">Units</th>
+              <th scope="col">Next step</th>
+              <th scope="col">Flags</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of g.lines; track line.ext_id + line.term) {
+              <tr>
+                <td>
+                  <strong>{{ line.school_code }} {{ line.course_code }}</strong>
+                  <div>{{ line.title }}</div>
+                  <div class="muted small">
+                    {{ line.credits }} {{ line.calendar === 'Quarter' ? 'quarter' : 'semester' }} credits · grade {{ line.grade }}
+                  </div>
+                </td>
+                @let st = displayStatus(line);
+                <td><app-status-chip [code]="st.code" [label]="st.label" /></td>
+                <td>
+                  @if (line.bu_course) {
+                    {{ line.bu_course }}
+                  } @else {
+                    <span class="muted">Not yet decided</span>
+                  }
+                  @if (line.ai_tier && line.ai_overlap_pct !== null) {
+                    <div class="muted small">AI: {{ tierText(line.ai_tier) }} ({{ line.ai_overlap_pct }}% overlap)</div>
+                  }
+                </td>
+                <td class="num">
+                  {{ line.units | number: '1.0-2' }}
+                  @if (line.state === 'approved') {
+                    <div class="muted small">counts as pending until posted</div>
+                  } @else if (line.units === 0 && line.units_if_approved > 0 && line.bu_status_code !== 'TX') {
+                    <div class="muted small">{{ line.units_if_approved | number: '1.0-2' }} if approved</div>
+                  }
+                </td>
+                <td>{{ nextStepText(line) || '—' }}</td>
+                <td>
+                  @for (f of line.flags; track f) {
+                    <span class="flag">{{ f }}</span>
+                  } @empty {
+                    <span class="muted">—</span>
+                  }
+                  @if (line.reason_code) {
+                    <div class="muted small">Reason {{ line.reason_code }}</div>
+                  }
+                </td>
+                <td>
+                  @if (canUploadSyllabus(line)) {
+                    <label class="btn btn--small file-btn" [class.is-busy]="busyExtId() === line.ext_id">
+                      <input
+                        type="file"
+                        class="visually-hidden"
+                        accept="application/pdf,.pdf,.docx,.txt"
+                        [attr.aria-label]="'Upload syllabus for ' + line.course_code"
+                        (change)="onSyllabus(line, $event)"
+                        [disabled]="busyExtId() === line.ext_id"
+                      />
+                      {{ busyExtId() === line.ext_id ? 'Checking…' : 'Upload syllabus' }}
+                    </label>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  } @empty {
+    <p class="muted">No courses on file yet. Upload a transcript to start.</p>
+  }
+} @else if (loading()) {
+  <p class="muted" role="status">Loading evaluation…</p>
+}
