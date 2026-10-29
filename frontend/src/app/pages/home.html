@@ -14,8 +14,11 @@
   </ul>
 </section>
 
-@if (notice(); as msg) {
-  <div class="banner banner--warning" role="status">{{ msg }}</div>
+@if (notice() ?? auth.notice(); as msg) {
+  <div class="banner banner--warning" role="status">
+    <span>{{ msg }}</span>
+    <button type="button" class="btn btn--small btn--ghost" (click)="notice.set(null); auth.notice.set(null)">Dismiss</button>
+  </div>
 }
 
 <!-- My view -->

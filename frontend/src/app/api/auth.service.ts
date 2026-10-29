@@ -63,6 +63,8 @@ export class AuthService {
   readonly account = signal<AccountInfo | null>(null);
   readonly portalUser = signal<PortalUser | null>(null);
   readonly error = signal<string | null>(null);
+  /** One-off message for the home page, e.g. "your session has expired". */
+  readonly notice = signal<string | null>(null);
   /** The view the user chose on the home page before the sign-in redirect (Student View, Department View). */
   readonly intent = signal<DemoRole | null>(null);
 
@@ -147,6 +149,31 @@ export class AuthService {
     const res = await fetch('/api/auth/options', { cache: 'no-store' });
     if (!res.ok) throw new AuthApiError(res.status, 'Could not load the sign-up options');
     return (await res.json()) as AuthOptions;
+  }
+
+  /**
+   * The API answered 401. Signed in (portal): the session is gone server-side (expired, or the API restarted),
+   * so sign out locally and explain. Demo mode: the site was switched to sign-in after this tab loaded, so
+   * reload to pick up the current /auth-config.json. Returns true when a reload was started.
+   */
+  async handleUnauthorized(): Promise<boolean> {
+    if (this.portal()) {
+      if (this.portalUser()) this.notice.set('Your session has expired. Please sign in again.');
+      this.endPortalSession();
+      return false;
+    }
+    if (this.secured()) return false;
+    try {
+      const res = await fetch('/auth-config.json', { cache: 'no-store' });
+      const cfg = res.ok ? ((await res.json()) as AuthConfig) : null;
+      if (cfg && cfg.mode !== 'demo') {
+        window.location.reload();
+        return true;
+      }
+    } catch {
+      /* keep the current page */
+    }
+    return false;
   }
 
   /** Drop the portal session (sign-out, or the API said it expired). */

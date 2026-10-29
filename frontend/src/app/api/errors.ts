@@ -13,7 +13,7 @@ export function describeError(err: unknown, role?: string, op?: Operation): stri
       return 'The TransferIQ API is not reachable. Start the backend on http://localhost:8000 and try again.';
     }
     if (err.status === 401) {
-      return detail.startsWith('Sign in') || detail.startsWith('Invalid or expired')
+      return detail.startsWith('Sign in') || detail.startsWith('Invalid or expired') || detail.includes('session has expired')
         ? 'You are not signed in or your session has expired. Sign in again.'
         : 'No valid demo role was sent. Pick a role in the top bar (Demo role) and try again.';
     }

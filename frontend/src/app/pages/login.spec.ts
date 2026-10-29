@@ -134,6 +134,19 @@ describe('portal sign-in', () => {
     expect(String(run('SYN-24002'))).toBe('/student/SYN-24001');
   });
 
+  it('an expired session signs out and leaves a notice for the home page', async () => {
+    auth.portalUser.set(MAYA);
+    expect(await auth.handleUnauthorized()).toBe(false);
+    expect(auth.signedIn()).toBe(false);
+    expect(auth.notice()).toContain('session has expired');
+  });
+
+  it('a demo-mode tab does not reload while the site is still in demo mode', async () => {
+    auth.config.set({ mode: 'demo' });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(json(200, { mode: 'demo' }));
+    expect(await auth.handleUnauthorized()).toBe(false);
+  });
+
   it('guard: signed-out users go to the home page', () => {
     expect(String(TestBed.runInInjectionContext(() => authGuard({} as never, {} as never)))).toBe('/');
   });

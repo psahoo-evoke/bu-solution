@@ -128,6 +128,17 @@ deploy_app "$API_APP" "$ACR_SERVER/transferiq-api:$TAG" internal 8000 1 1 \
   TRANSFERIQ_ENV="$PREFIX" "${AUTH_ENV_API[@]}"
 API_FQDN="$(az containerapp show -n "$API_APP" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
 
+# Portal mode: a stable session-signing key (Container Apps secret, created once), so a restart or a new revision
+# does not sign everyone out. Never printed or committed.
+if [ "${PORTAL_AUTH:-}" = "1" ] && [ -z "${ENTRA_CLIENT_ID:-}" ]; then
+  if [ -z "$(az containerapp secret list -n "$API_APP" -g "$RG" --query "[?name=='session-secret'].name" -o tsv)" ]; then
+    az containerapp secret set -n "$API_APP" -g "$RG" --only-show-errors -o none \
+      --secrets session-secret="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  fi
+  az containerapp update -n "$API_APP" -g "$RG" --only-show-errors -o none \
+    --set-env-vars TRANSFERIQ_SESSION_SECRET=secretref:session-secret
+fi
+
 # Optional upload archive (backend/app/blob_store.py): STORAGE_ACCOUNT=<existing account> [STORAGE_RG=<its RG>].
 # The API's SYSTEM identity writes blobs (DefaultAzureCredential picks it because AZURE_CLIENT_ID is not set);
 # the user-assigned identity above stays pull-only. Roles are scoped to the two containers, not the account.
