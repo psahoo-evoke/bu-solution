@@ -299,3 +299,34 @@ def test_T18_quality_gates_on_holdout(client):
     """Scores (never tunes on) the 30 holdout decisions. Gate definitions: app/evaluation.py."""
     m = client.get("/api/evaluation/metrics").json()
     assert m["top1_agreement"] >= 0.80 and m["wrong_credit_rate"] <= 0.02 and m["gates_met"] is True
+
+
+# ------------------------------------------------------------------ syllabus upload once
+SYL25 = "/api/courses/NYU%7CPSYCH-UA%2025/syllabus"
+
+
+def _upload_25(client, r="Student"):
+    with open(os.path.join(SYLLABI, "Syllabus_NYU_PSYCH-UA-25.pdf"), "rb") as f:
+        return client.post(SYL25, files={"file": ("s.pdf", f)}, headers=role(r))
+
+
+def test_syllabus_can_be_uploaded_only_once(client, fresh_store):
+    assert _line(client, "SYN-24001", "NYU|PSYCH-UA 25")["syllabus_uploaded"] is False
+    assert _upload_25(client).status_code == 201
+    assert fresh_store.syllabi["NYU|PSYCH-UA 25"].uploaded_at
+    assert _line(client, "SYN-24001", "NYU|PSYCH-UA 25")["syllabus_uploaded"] is True
+    r = _upload_25(client, "Evaluator")                      # any role, any second attempt
+    assert r.status_code == 409 and "only be uploaded once" in r.json()["detail"]
+    r = client.post("/api/students/SYN-24001/courses/NYU%7CPSYCH-UA%2025/syllabus-request", headers=role("Student"))
+    assert r.status_code == 409                               # no "syllabus needed" email once it is uploaded
+
+
+def test_seed_syllabus_is_not_counted_as_uploaded(client):
+    # syllabi bundled with the seed data were never uploaded through the app: an incomplete one can be replaced once
+    assert all(not o["syllabus_uploaded"] for o in client.get("/api/students/SYN-24002/evaluation").json()["lines"])
+
+
+def test_demo_reset_allows_uploading_again(client):
+    assert _upload_25(client).status_code == 201
+    assert client.post("/api/demo/reset", headers=role("Registrar")).status_code == 204
+    assert _upload_25(client).status_code == 201

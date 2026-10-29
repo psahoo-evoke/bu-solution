@@ -171,6 +171,8 @@
                       />
                       {{ busyExtId() === line.ext_id ? 'Checking…' : 'Upload syllabus' }}
                     </label>
+                  } @else if (line.syllabus_uploaded) {
+                    <span class="syllabus-done" title="A syllabus can be uploaded only once">✓ Syllabus uploaded</span>
                   }
                 </td>
               </tr>

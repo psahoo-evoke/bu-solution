@@ -72,6 +72,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-29 | [developer-22](2026-10-29/developer-22.md) | Upload hardening for transcripts and syllabi: junk, hostile and scanned PDFs, file size | psahoo (POD) |
 | 2026-10-29 | [developer-23](2026-10-29/developer-23.md) | Azure AI Search picks the model's BU candidate shortlist | psahoo (POD) |
 | 2026-10-29 | [developer-24](2026-10-29/developer-24.md) | Prompt experiment: a broader definition of "covered" (rejected, reverted) | psahoo (POD) |
+| 2026-10-29 | [developer-24](2026-10-29/developer-24.md) | A syllabus can be uploaded only once; the button disappears after the upload | Sagar (spathur) |
 | 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
 <!-- INDEX:END -->
 

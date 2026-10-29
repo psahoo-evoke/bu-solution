@@ -84,9 +84,10 @@ def test_malformed_pdf_is_422_not_500(client):
 
 def test_page_limit(client):
     page = "PSYCH-UA 25: Cognitive Neuroscience page"   # a syllabus-like line, so only the page count matters
-    assert client.post(SYL_URL, files={"file": ("p.pdf", make_pdf(30, page), "application/pdf")}).status_code == 201
+    # 31 pages first: a rejected file is not an upload, so the 30-page one is still accepted (upload-once rule)
     r = client.post(SYL_URL, files={"file": ("p.pdf", make_pdf(31), "application/pdf")})
     assert r.status_code == 422 and "30 pages" in r.json()["detail"]
+    assert client.post(SYL_URL, files={"file": ("p.pdf", make_pdf(30, page), "application/pdf")}).status_code == 201
 
 
 def test_real_syllabus_still_accepted(client):

@@ -169,6 +169,7 @@ class SyllabusRecord:
     text: str = ""
     injection_detected: bool = False
     seed_state: str = ""
+    uploaded_at: str = ""    # set when someone uploaded it through the app; a syllabus is uploaded only once
 
 
 @dataclass
