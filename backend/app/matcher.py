@@ -5,6 +5,9 @@
   Model output is validated (validate_llm_output); invalid output or any error falls back to offline.
 - `offline-fallback` otherwise: deterministic lexical overlap of BU topics/outcomes against the external course.
 
+The model chooses only among a shortlist of BU courses: Azure AI Search picks it when AZURE_SEARCH_ENDPOINT is set
+(search.py), otherwise the offline ranking does. `retrieval` in the result says which ("azure-ai-search" / "offline").
+
 Inputs are restricted to non-ground-truth fields of the external course: title, description, learning_outcomes,
 topics (+ the syllabus text, if one is on file). No student names or IDs are ever passed in. `gt_*` columns are
 removed at load time in store.py and are not attributes of ExtCourse.
@@ -27,6 +30,7 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Protocol
 
+from . import search
 from .rules import elective_code
 from .store import BUCourse, ExtCourse
 
@@ -213,21 +217,41 @@ def _cache_key(messages: list[dict]) -> str:
     return hashlib.sha256(json.dumps([target, messages], sort_keys=True).encode()).hexdigest()
 
 
-def _azure_rank(course: ExtCourse, bus: list[BUCourse], syllabus_text: str) -> list[dict]:
-    shortlist = _rank_offline(course, bus, syllabus_text)[:10]       # narrow candidates (Azure AI Search in prod)
+SHORTLIST_SIZE = 10
+
+
+def candidate_shortlist(course: ExtCourse, bus: list[BUCourse], syllabus_text: str) -> tuple[list[dict], str]:
+    """The BU courses the model may choose from, and where they came from ("azure-ai-search" or "offline").
+    Azure AI Search picks them when configured; codes not in the current catalog are ignored, and a short result
+    is topped up from the offline ranking so the model always sees SHORTLIST_SIZE candidates."""
+    offline = _rank_offline(course, bus, syllabus_text)
+    codes = search.shortlist(course, syllabus_text, SHORTLIST_SIZE)
+    if not codes:
+        return offline[:SHORTLIST_SIZE], "offline"
+    by_code = {c["bu_code"]: c for c in offline}
+    picked = [by_code[c] for c in dict.fromkeys(codes) if c in by_code][:SHORTLIST_SIZE]
+    if not picked:
+        return offline[:SHORTLIST_SIZE], "offline"
+    seen = {c["bu_code"] for c in picked}
+    picked += [c for c in offline if c["bu_code"] not in seen][:SHORTLIST_SIZE - len(picked)]
+    return picked, "azure-ai-search"
+
+
+def _azure_rank(course: ExtCourse, bus: list[BUCourse], syllabus_text: str) -> tuple[list[dict], str]:
+    shortlist, retrieval = candidate_shortlist(course, bus, syllabus_text)
     by_code = {b.bu_code: b for b in bus}
     messages = build_prompt(course, shortlist, by_code, syllabus_text)
     key = _cache_key(messages)
     with _rank_lock:
         if key in _RANK_CACHE:
             _RANK_CACHE.move_to_end(key)
-            return copy.deepcopy(_RANK_CACHE[key])
+            return copy.deepcopy(_RANK_CACHE[key]), retrieval
     ranked = validate_llm_output(llm_client(messages), shortlist, by_code)
     with _rank_lock:
         _RANK_CACHE[key] = copy.deepcopy(ranked)
         while len(_RANK_CACHE) > _RANK_CACHE_MAX:
             _RANK_CACHE.popitem(last=False)
-    return ranked
+    return ranked, retrieval
 
 
 def engine_name() -> str:
@@ -241,12 +265,12 @@ def recommend(course: ExtCourse, bus: list[BUCourse], syllabus: Optional[Syllabu
     # Title and description can come from an uploaded transcript too, so they are checked like the syllabus.
     injection = detect_injection(raw) or detect_injection(f"{course.title}. {course.description}")
     clean = sanitize(raw)
-    engine = engine_name()
+    engine, retrieval = engine_name(), "offline"
     if engine == "azure-openai":
         try:
-            ranked = _azure_rank(course, bus, clean)
+            ranked, retrieval = _azure_rank(course, bus, clean)
         except Exception:                                        # network/quota failure -> deterministic fallback
-            ranked, engine = _rank_offline(course, bus, clean), "offline-fallback"
+            ranked, engine, retrieval = _rank_offline(course, bus, clean), "offline-fallback", "offline"
     else:
         ranked = _rank_offline(course, bus, clean)
     top3 = ranked[:3]
@@ -274,7 +298,7 @@ def recommend(course: ExtCourse, bus: list[BUCourse], syllabus: Optional[Syllabu
             decision, code = "Elective", course.elective_code or elective_code(bu.dept, course.level)
             confidence = 100 - top["overlap_pct"]
     preliminary = syllabus is None or syllabus.state != "complete"   # R22
-    return dict(ext_id=course.ext_id, preliminary=preliminary, engine=engine, candidates=top3,
+    return dict(ext_id=course.ext_id, preliminary=preliminary, engine=engine, retrieval=retrieval, candidates=top3,
                 suggested_decision=decision, suggested_code=code, confidence_pct=int(max(0, min(100, confidence))),
                 injection_detected=injection)
 

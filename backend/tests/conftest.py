@@ -5,6 +5,9 @@ import pytest
 
 os.environ.pop("AZURE_OPENAI_ENDPOINT", None)   # ADR 0003: tests always run on the offline engine
 os.environ.pop("AZURE_DI_ENDPOINT", None)
+os.environ.pop("AZURE_SEARCH_ENDPOINT", None)   # offline shortlist; test_search.py fakes the service
+os.environ.pop("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", None)
+os.environ.pop("AZURE_OPENAI_EMBEDDING_ENDPOINT", None)
 os.environ.pop("AZURE_STORAGE_BLOB_ENDPOINT", None)  # upload archive off; test_blob_store.py fakes it
 os.environ.pop("AZURE_COMMUNICATION_ENDPOINT", None)  # no real email; test_notify.py fakes the client
 os.environ.pop("NOTIFY_WEBHOOK_URL", None)
@@ -13,7 +16,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app import matcher  # noqa: E402
+from app import matcher, search  # noqa: E402
 from app import store as store_mod  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -27,9 +30,11 @@ SYLLABI = os.path.join(REPO, "data", "synthetic", "syllabi")
 def fresh_store():
     store_mod.reset()
     matcher.clear_cache()
+    search.reset()
     yield store_mod.STORE
     store_mod.reset()
     matcher.clear_cache()
+    search.reset()
 
 
 @pytest.fixture

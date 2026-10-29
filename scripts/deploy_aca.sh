@@ -175,6 +175,24 @@ if [ -n "${STORAGE_ACCOUNT:-}" ]; then
     AZURE_STORAGE_CONTAINER_ACCOUNTS=accounts
 fi
 
+# Optional Azure AI Search shortlist (backend/app/search.py): SEARCH_SERVICE=<existing service> [SEARCH_RG=<its RG>]
+# [SEARCH_INDEX=bu-courses] [EMBEDDING_DEPLOYMENT=<name>]. Build the index first with scripts/build_search_index.py.
+# The API's SYSTEM identity only reads (Search Index Data Reader); the service's API access control must allow
+# role-based access ("Both" or "Role-based access control"). No search key is stored in the app.
+if [ -n "${SEARCH_SERVICE:-}" ]; then
+  log "Candidate shortlist from Azure AI Search ($SEARCH_SERVICE)"
+  SR_ID="$(az search service show -n "$SEARCH_SERVICE" -g "${SEARCH_RG:-$RG}" --query id -o tsv)"
+  API_PRINCIPAL="$(az containerapp identity assign -n "$API_APP" -g "$RG" --system-assigned --query principalId -o tsv)"
+  if [ -z "$(az role assignment list --scope "$SR_ID" --role "Search Index Data Reader" \
+               --query "[?principalId=='$API_PRINCIPAL'].id | [0]" -o tsv)" ]; then
+    az role assignment create --assignee-object-id "$API_PRINCIPAL" --assignee-principal-type ServicePrincipal \
+      --role "Search Index Data Reader" --scope "$SR_ID" --only-show-errors -o none
+  fi
+  az containerapp update -n "$API_APP" -g "$RG" --only-show-errors -o none --set-env-vars \
+    AZURE_SEARCH_ENDPOINT="https://$SEARCH_SERVICE.search.windows.net" AZURE_SEARCH_INDEX="${SEARCH_INDEX:-bu-courses}" \
+    AZURE_OPENAI_EMBEDDING_DEPLOYMENT="${EMBEDDING_DEPLOYMENT:-}"
+fi
+
 log "Web container app ($WEB_APP, public)"
 deploy_app "$WEB_APP" "$ACR_SERVER/transferiq-web:$TAG" external 8080 1 3 \
   API_UPSTREAM="https://$API_FQDN" "${AUTH_ENV_WEB[@]}"
