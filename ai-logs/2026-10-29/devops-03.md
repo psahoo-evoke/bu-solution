@@ -34,7 +34,13 @@ Make both frontend and backend deployable to Azure as containers.
 ## Verification
 - `bash -n scripts/deploy_aca.sh`: OK.
 - `npx ng build --configuration production`: output in `dist/transferiq-web/browser/`, as the Dockerfile expects.
-- Not yet run: `docker build` (no Docker locally) and a real deploy to a subscription.
+- Deployed to RG `AI-F-TheSolutionauts`, reusing environment `managedEnvironment-AIFTheSolutiona-96c4`, ACR `acrsolutionauts95de2` and the placeholder app `bu-solutions` (now the web app), plus a new internal app `bu-solutions-api`.
+- Script fixes from the first deploy runs on Windows / Git Bash with RG-only rights:
+  1. Skip registering providers that are already registered (registering needs subscription rights).
+  2. Check the AcrPull assignment by principalId, which avoids a Graph lookup of a just-created identity.
+  3. Pass relative paths to `az acr build` (the Windows az CLI cannot read `/c/...` paths).
+  4. Use `az acr build --no-logs` plus a status check (the Windows az CLI crashes printing Unicode build logs).
+- `docker build` was not run locally (no Docker); the images are built by ACR.
 
 ## Commit
 not committed yet

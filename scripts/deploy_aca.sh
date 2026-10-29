@@ -67,9 +67,17 @@ fi
 log "Building images in ACR (cloud build)"
 # API: build context = repo root (bundles data/synthetic; filtered by the root .dockerignore allow-list).
 # Relative paths from the repo root: the Windows az CLI cannot read Git Bash paths such as /c/Users/...
+# --no-logs: the Windows az CLI crashes streaming Unicode build logs; it still waits, and we check the status.
+# Failed build logs: az acr task logs -r <acr> --run-id <id>
 cd "$ROOT"
-az acr build -r "$ACR" -t "transferiq-api:$TAG" -f backend/Dockerfile . --only-show-errors -o none
-az acr build -r "$ACR" -t "transferiq-web:$TAG" frontend --only-show-errors -o none
+acr_build() {
+  local status
+  status="$(az acr build -r "$ACR" --no-logs --only-show-errors --query status -o tsv "$@")"
+  echo "acr build $* -> $status"
+  [ "$status" = "Succeeded" ] || { echo "ERROR: image build failed"; exit 1; }
+}
+acr_build -t "transferiq-api:$TAG" -f backend/Dockerfile .
+acr_build -t "transferiq-web:$TAG" frontend
 
 log "Container Apps environment"
 az containerapp env show -n "$ENV_NAME" -g "$RG" -o none 2>/dev/null \
