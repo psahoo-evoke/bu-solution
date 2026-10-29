@@ -60,6 +60,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-29 | [developer-10](2026-10-29/developer-10.md) | Remove the "AI recommends, rules compute, evaluators decide" wording everywhere in the app | Sagar (spathur) |
 | 2026-10-29 | [developer-11](2026-10-29/developer-11.md) | "Syllabus needed, please upload" email when Upload syllabus is clicked | Sagar (spathur) |
 | 2026-10-29 | [developer-12](2026-10-29/developer-12.md) | Send the syllabus emails through a Logic App + Office 365 Outlook | Sagar (spathur) |
+| 2026-10-29 | [developer-13](2026-10-29/developer-13.md) | Status page title "Transfer credit status"; no student picker for students | Sagar (spathur) |
 | 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
 <!-- INDEX:END -->
 

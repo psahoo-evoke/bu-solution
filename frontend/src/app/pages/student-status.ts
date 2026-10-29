@@ -37,6 +37,8 @@ export class StudentStatusPage {
 
   protected readonly canUploadTranscript = computed(() => can(this.roles.role(), 'uploadTranscript'));
   protected readonly canUploadSyllabusRole = computed(() => can(this.roles.role(), 'uploadSyllabus'));
+  /** A student only ever sees their own record, so no student picker; staff use it to switch students. */
+  protected readonly showPicker = computed(() => this.roles.role() !== 'Student');
   protected readonly groups = computed(() => groupByTerm(this.evaluation()?.lines ?? []));
   protected readonly totals = computed(() => this.evaluation()?.totals ?? null);
   protected readonly displayStatus = displayStatus;

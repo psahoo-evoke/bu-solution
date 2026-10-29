@@ -1,21 +1,23 @@
 <section class="page-head">
   <div>
-    <h1>Student transfer credit status</h1>
+    <h1>Transfer credit status</h1>
     <p class="muted">Every course from every transcript, with what is secured and what is still pending.</p>
   </div>
-  <div class="field">
-    <label for="student-picker">Student</label>
-    <select id="student-picker" [value]="id()" (change)="onPick($any($event.target).value)">
-      @if (!students().length) {
-        <option [value]="id()">{{ id() }}</option>
-      }
-      @for (s of students(); track s.student_id) {
-        <option [value]="s.student_id" [selected]="s.student_id === id()">
-          {{ s.student_id }} · {{ s.name }} ({{ s.intended_major }})
-        </option>
-      }
-    </select>
-  </div>
+  @if (showPicker()) {
+    <div class="field">
+      <label for="student-picker">Student</label>
+      <select id="student-picker" [value]="id()" (change)="onPick($any($event.target).value)">
+        @if (!students().length) {
+          <option [value]="id()">{{ id() }}</option>
+        }
+        @for (s of students(); track s.student_id) {
+          <option [value]="s.student_id" [selected]="s.student_id === id()">
+            {{ s.student_id }} · {{ s.name }} ({{ s.intended_major }})
+          </option>
+        }
+      </select>
+    </div>
+  }
 </section>
 
 <app-error-banner [message]="error()" (retry)="load()" />

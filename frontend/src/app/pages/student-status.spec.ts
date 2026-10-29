@@ -2,7 +2,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { CourseEvaluation, StudentEvaluation } from '../api/models';
+import { CourseEvaluation, DemoRole, StudentEvaluation } from '../api/models';
+import { RoleService } from '../api/role.service';
 import { StudentStatusPage, syllabusRequestMessage } from './student-status';
 
 const maya: StudentEvaluation = {
@@ -65,5 +66,40 @@ describe('syllabusRequestMessage', () => {
   });
   it('mentions an earlier request', () => {
     expect(syllabusRequestMessage(line, { ...req, status: 'already_requested' })).toContain('already emailed');
+  });
+});
+
+describe('StudentStatusPage header', () => {
+  beforeEach(() => {
+    try {
+      localStorage.clear();
+    } catch {
+      /* ignore */
+    }
+    TestBed.configureTestingModule({
+      imports: [StudentStatusPage],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    });
+  });
+
+  function render(role: DemoRole): HTMLElement {
+    TestBed.inject(RoleService).set(role);
+    const fixture = TestBed.createComponent(StudentStatusPage);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('is titled "Transfer credit status"', () => {
+    expect(render('Student').querySelector('h1')?.textContent?.trim()).toBe('Transfer credit status');
+  });
+
+  it('hides the student picker for a student and shows it for staff', () => {
+    expect(render('Student').querySelector('#student-picker')).toBeNull();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [StudentStatusPage],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    });
+    expect(render('CreditStaff').querySelector('#student-picker')).not.toBeNull();
   });
 });
