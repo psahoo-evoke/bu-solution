@@ -21,8 +21,8 @@ jobs:
       AZURE_OPENAI_ENDPOINT: ""
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -42,7 +42,7 @@ jobs:
           if [ -f eval/run_eval.py ]; then python eval/run_eval.py; else (cd backend && python eval/run_eval.py); fi
       - name: Upload eval report
         if: always() && hashFiles('docs/quality/eval-report.md') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: eval-report
           path: docs/quality/eval-report.md
@@ -55,15 +55,15 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npx ng build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: transferiq-web
           path: frontend/dist/transferiq-web/browser
@@ -74,7 +74,7 @@ jobs:
     name: infra (bicep build)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Compile Bicep (no Azure login needed)
         run: |
           az bicep install
@@ -87,7 +87,7 @@ jobs:
     name: ai-log check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Check that code changes come with an AI log
