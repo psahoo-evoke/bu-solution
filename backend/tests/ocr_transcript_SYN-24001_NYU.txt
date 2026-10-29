@@ -1,0 +1,64 @@
+ACADEMIC TRANSCRIPT
+Institution: New York University | Semester calendar | Regionally accredited SYNTHETIC SAMPLE FOR HACKATHON USE ONLY
+Student name
+Maya R. Delgado
+Student ID
+SYN-24001-NYU
+Program
+Undergraduate (transferred out)
+Calendar
+Semester system
+Attended
+Fall 2024 to Spring 2025
+Generated
+2026-10-28
+FALL 2024
+Course
+Title
+Attempted
+Earned
+Grade
+Quality Pts
+PSYCH-UA 1
+Intro to Psychology
+4.0
+4.0
+A-
+14.80
+MATH-UA 121
+Calculus I
+4.0
+4.0
+B+
+13.20
+ECON-UA 2
+Introduction to Microeconomics
+4.0
+4.0
+B
+12.00
+Term: attempted 12.0, earned 12.0, GPA 3.33 Cumulative: earned 12.0, GPA 3.33
+SPRING 2025
+RL
+Course
+Title
+Attempted
+Earned
+SYNTHETIC SAMPLE - N'Adegree1.1. 20.0. c.F |4.0 Grad
+Quality Pts
+PSYCH-UA 10
+Statistics for the Behavioral Sciences
+4.0
+A
+16.00
+PSYCH-UA 25
+Cognitive Neuroscience
+4.0
+4.0
+B+
+13.20
+Term: attempted 8.0, earned 8.0, GPA 3.65 Cumulative: earned 20.0, GPA 3.46
+Totals: attempted 20.0, earned 20.0 credits, cumulative GPA 3.46
+Grading key: A=4.0, A -= 3.7, B+=3.3, B=3.0, B -= 2.7, C+=2.3, C=2.0, C -= 1.7, D=1.0, F=0. P = Pass (no quality points). Courses numbered below 100 are developmental and do not count toward a degree.
+EvoHack 2026 test data. Fictional student; invented grades and content. Not issued by any institution.
+Transcript - page 1

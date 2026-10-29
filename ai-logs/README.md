@@ -69,6 +69,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-29 | [developer-19](2026-10-29/developer-19.md) | Transcript upload records: previous school's student ID, duplicate detection, change summary | psahoo (POD) |
 | 2026-10-29 | [developer-20](2026-10-29/developer-20.md) | Never compare the transcript's Student ID with portal IDs | psahoo (POD) |
 | 2026-10-29 | [developer-21](2026-10-29/developer-21.md) | Loader while a transcript is read | psahoo (POD) |
+| 2026-10-29 | [developer-22](2026-10-29/developer-22.md) | Upload hardening for transcripts and syllabi: junk, hostile and scanned PDFs, file size | psahoo (POD) |
 | 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
 <!-- INDEX:END -->
 

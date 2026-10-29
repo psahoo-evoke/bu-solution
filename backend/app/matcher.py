@@ -134,7 +134,8 @@ def _openai_auth_headers() -> dict:
 def build_prompt(course: ExtCourse, shortlist: list[dict], by_code: dict, syllabus_text: str) -> list[dict]:
     """Chat messages. Course content only: no student name or ID, no grade, no gt_* field (checklist section 4).
     The syllabus is untrusted data inside <course_data> and is sanitised and truncated first (ADR 0004)."""
-    data = dict(title=course.title, description=course.description, learning_outcomes=course.learning_outcomes,
+    data = dict(title=sanitize(course.title)[:200], description=sanitize(course.description)[:2000],
+                learning_outcomes=course.learning_outcomes,
                 topics=course.topics, syllabus_excerpt=sanitize(syllabus_text)[:6000])
     cands = [dict(bu_code=c["bu_code"], title=c["title"], outcomes=by_code[c["bu_code"]].learning_outcomes) for c in shortlist]
     user = ("<course_data>\n" + json.dumps(data) + "\n</course_data>\n"
@@ -237,7 +238,8 @@ def engine_name() -> str:
 def recommend(course: ExtCourse, bus: list[BUCourse], syllabus: Optional[SyllabusInput] = None) -> dict:
     """Top-3 BU candidates with evidence, a suggested decision/code and a confidence. Recommendation only."""
     raw = syllabus.text if syllabus is not None and syllabus.state != "missing" else ""
-    injection = detect_injection(raw)
+    # Title and description can come from an uploaded transcript too, so they are checked like the syllabus.
+    injection = detect_injection(raw) or detect_injection(f"{course.title}. {course.description}")
     clean = sanitize(raw)
     engine = engine_name()
     if engine == "azure-openai":

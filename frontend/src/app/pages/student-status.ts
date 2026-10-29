@@ -93,6 +93,11 @@ export class StudentStatusPage {
   onTranscript(event: Event): void {
     const file = takeFile(event);
     if (!file) return;
+    const problem = uploadProblem(file);
+    if (problem) {
+      this.error.set(problem);
+      return;
+    }
     this.uploadingTranscript.set(true);
     this.error.set(null);
     this.api.uploadTranscript(this.id(), file).subscribe({
@@ -122,6 +127,11 @@ export class StudentStatusPage {
   onSyllabus(line: CourseEvaluation, event: Event): void {
     const file = takeFile(event);
     if (!file) return;
+    const problem = uploadProblem(file);
+    if (problem) {
+      this.error.set(problem);
+      return;
+    }
     this.busyExtId.set(line.ext_id);
     this.error.set(null);
     this.api.uploadSyllabus(line.ext_id, file).subscribe({
@@ -136,6 +146,20 @@ export class StudentStatusPage {
       },
     });
   }
+}
+
+/** Same limit as the API (backend/app/guard.py MAX_UPLOAD_BYTES); the API re-checks everything. */
+export const MAX_UPLOAD_MB = 10;
+
+/** Instant feedback before uploading: PDF only, not empty, not over the size limit. Null when the file is fine. */
+export function uploadProblem(file: File): string | null {
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  if (!isPdf) return `"${file.name}" is not a PDF. Only PDF files can be uploaded.`;
+  if (file.size === 0) return `"${file.name}" is empty.`;
+  if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+    return `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)} MB. The limit is ${MAX_UPLOAD_MB} MB.`;
+  }
+  return null;
 }
 
 function takeFile(event: Event): File | null {

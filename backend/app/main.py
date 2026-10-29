@@ -244,9 +244,15 @@ async def upload_transcript(request: Request, student_id: str = StudentIdPath, f
         raise HTTPException(e.status, e.detail)
     school = next((s for s in S().schools.values() if s.name == parsed.institution), None)
     if school is None:
-        raise HTTPException(422, f"Unknown institution '{parsed.institution}'")
+        raise HTTPException(422, f"Unknown institution '{parsed.institution[:80]}': only transcripts from schools in "
+                                 f"the catalog can be read")
     if not parsed.lines:
         raise HTTPException(422, "No course lines found in transcript")
+    # ADR 0004 for transcripts: course titles go into the AI prompt, and a real transcript never addresses an AI.
+    injected = [ln.course_code for ln in parsed.lines if detect_injection(ln.title)]
+    if injected:
+        raise HTTPException(422, f"Not accepted: the course title of {', '.join(injected)} contains instructions "
+                                 f"aimed at automated systems. Ask credit staff to review the transcript.")
     # The Student ID on a transcript is the previous school's id: it is stored, never compared with portal ids.
     # It is only checked against this student's earlier transcript from the same school.
     ref = parsed.student_ref
@@ -312,7 +318,13 @@ async def upload_syllabus(request: Request, ext_id: str = ExtIdPath, file: Uploa
     except UploadError as e:
         raise HTTPException(e.status, e.detail)
     chk = check_syllabus(text)
-    inj = detect_injection(text)
+    if not chk["looks_like_syllabus"]:
+        raise HTTPException(422, "This does not look like a syllabus: no course code line and no syllabus sections "
+                                 "(learning outcomes, schedule, …) were found.")
+    own_code = S().ext_courses[ext_id].course_code
+    if chk["course_code"] and chk["course_code"] != own_code:
+        raise HTTPException(422, f"This syllabus is for {chk['course_code']}, not {own_code}.")
+    inj = detect_injection(text)              # kept and flagged, not rejected: the sentences are sanitised (ADR 0004)
     stored = await _archive("syllabi", ext_id, data)
     rec = SyllabusRecord(ext_id=ext_id, state="complete" if chk["complete"] else "incomplete",
                          file=stored or f"upload-{uuid.uuid4().hex}.pdf", text=text, injection_detected=inj)
@@ -484,7 +496,7 @@ def _batch_problem(rec: dict) -> Optional[str]:
     if rec["preliminary"]:                                           # R22: description only, not decidable
         return "preliminary (no complete syllabus on file)"
     if rec["injection_detected"]:                                    # ADR 0004: needs a human look
-        return "syllabus flagged for injected instructions"
+        return "course text flagged for injected instructions"
     if rec["suggested_decision"] == "Evaluator decides":
         return "tier requires an evaluator decision"
     return None

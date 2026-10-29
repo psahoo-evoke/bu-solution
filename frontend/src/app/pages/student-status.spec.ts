@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { CourseEvaluation, DemoRole, StudentEvaluation } from '../api/models';
 import { RoleService } from '../api/role.service';
-import { StudentStatusPage, syllabusRequestMessage, transcriptUploadMessage } from './student-status';
+import { StudentStatusPage, syllabusRequestMessage, transcriptUploadMessage, uploadProblem } from './student-status';
 
 const maya: StudentEvaluation = {
   student: { student_id: 'SYN-24001', name: 'Maya R. Delgado', intended_major: 'Psychology', bu_start_term: 'Fall 2026' },
@@ -165,5 +165,18 @@ describe('StudentStatusPage header', () => {
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
     });
     expect(render('CreditStaff').querySelector('#student-picker')).not.toBeNull();
+  });
+});
+
+describe('uploadProblem', () => {
+  const file = (name: string, size: number, type = 'application/pdf') =>
+    ({ name, size, type }) as unknown as File;
+  it('accepts a PDF within the limit', () => {
+    expect(uploadProblem(file('t.pdf', 200_000))).toBeNull();
+  });
+  it('rejects other file types, empty files and files over 10 MB', () => {
+    expect(uploadProblem(file('notes.docx', 1000, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'))).toContain('not a PDF');
+    expect(uploadProblem(file('t.pdf', 0))).toContain('is empty');
+    expect(uploadProblem(file('big.pdf', 11 * 1024 * 1024))).toBe('"big.pdf" is 11.0 MB. The limit is 10 MB.');
   });
 });

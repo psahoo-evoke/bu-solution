@@ -47,7 +47,8 @@ paths:
             schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } }
       responses:
         "201": { description: "Extracted and evaluated, or the same file again (upload.duplicate, nothing changed)", content: { application/json: { schema: { $ref: "#/components/schemas/TranscriptUploadResult" } } } }
-        "422": { description: "Unreadable PDF, unknown institution, no course lines, or a different Student ID than this student's earlier transcript from the same school (the printed id is never compared with portal ids)" }
+        "415": { description: Not a PDF (checked by the file's first bytes) }
+        "422": { description: "Unreadable or over 30 pages, no readable text, not a transcript (no Institution line), unknown institution, no course lines or more than 60, a course title with instructions aimed at automated systems, or a different Student ID than this student's earlier transcript from the same school (the printed id is never compared with portal ids)" }
   /courses/{ext_id}/syllabus:
     post:
       summary: Upload a syllabus for an external course; checked for completeness (outcomes, schedule)
@@ -59,7 +60,9 @@ paths:
           multipart/form-data:
             schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } }
       responses:
-        "201": { description: Checked, content: { application/json: { schema: { $ref: "#/components/schemas/SyllabusCheck" } } } }
+        "201": { description: "Checked; injected sentences are removed and flagged (ADR 0004)", content: { application/json: { schema: { $ref: "#/components/schemas/SyllabusCheck" } } } }
+        "415": { description: Not a PDF (checked by the file's first bytes) }
+        "422": { description: "Unreadable or over 30 pages, no readable text, not a syllabus (no course code line and no syllabus sections), or a syllabus for a different course" }
   /students/{student_id}/courses/{ext_id}/syllabus-request:
     post:
       summary: Ask for a missing or incomplete syllabus by email (sent when someone clicks Upload syllabus)

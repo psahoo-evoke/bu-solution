@@ -23,6 +23,9 @@ import pdfplumber
 
 PdfSource = Union[str, bytes]
 MAX_PAGES = 30
+MAX_COURSE_LINES = 60     # the longest synthetic transcript has 14; a real one rarely passes 40
+MAX_TITLE_CHARS = 120     # course titles feed the AI prompt: keep them short
+MAX_REF_CHARS = 40
 PDF_MAGIC = b"%PDF-"
 COGNITIVE_SCOPE = "https://cognitiveservices.azure.com/.default"
 
@@ -109,6 +112,9 @@ def pdf_text(src: PdfSource, max_pages: int = MAX_PAGES) -> str:
                 text = di.extract_text(data)
             except Exception:
                 raise UploadError(422, "The PDF has no readable text")
+    if not text.strip():
+        raise UploadError(422, "No readable text was found in this PDF. If it is a scan or a photo, upload a "
+                               "text-based PDF instead.")
     return text
 
 
@@ -134,28 +140,62 @@ _TERM = re.compile(r"^(FALL|SPRING|SUMMER|WINTER)\s+(\d{4})$")
 _COURSE = re.compile(
     r"^(?P<code>[A-Z]{2,6}(?:-[A-Z]{2})?\s\d{1,4}[A-Z]?)\s+(?P<title>.+?)\s+(?P<att>\d+(?:\.\d+)?)\s+(?P<earn>\d+(?:\.\d+)?)"
     r"\s+(?P<grade>[A-F][+-]?|P|NP|S|U|W|I)\s+(?P<qp>\d+(?:\.\d+)?|-)$")
+# OCR (Document Intelligence) returns a table one cell per line: code / title / attempted / earned / grade / points.
+_CODE = re.compile(r"^[A-Z]{2,6}(?:-[A-Z]{2})?\s\d{1,4}[A-Z]?$")
+_NUM = re.compile(r"^\d+(?:\.\d+)?$")
+_GRADE = re.compile(r"^(?:[A-F][+-]?|P|NP|S|U|W|I)$")
+_POINTS = re.compile(r"^(?:\d+(?:\.\d+)?|-)$")
+
+
+def _cell_course(cells: list[str]) -> Optional[tuple[tuple[str, str, str, str], int]]:
+    """((code, title, attempted, grade), cells used) when consecutive OCR lines form one course row. The 'earned'
+    cell may be missing (OCR drops a cell under a watermark); only 'attempted' is used."""
+    if len(cells) < 5 or not _CODE.match(cells[0]) or not cells[1] or not _NUM.match(cells[2]):
+        return None
+    if len(cells) >= 6 and _NUM.match(cells[3]) and _GRADE.match(cells[4]) and _POINTS.match(cells[5]):
+        return (cells[0], cells[1], cells[2], cells[4]), 6
+    if _GRADE.match(cells[3]) and _POINTS.match(cells[4]):
+        return (cells[0], cells[1], cells[2], cells[3]), 5
+    return None
 
 
 def parse_transcript(src: PdfSource) -> ParsedTranscript:
-    text = pdf_text(src)
+    return parse_transcript_text(pdf_text(src))
+
+
+def parse_transcript_text(text: str) -> ParsedTranscript:
+    """Transcript text (pdfplumber: one course per line; OCR: one table cell per line) -> institution, id, lines."""
     inst, cal, ref = "", "Semester", ""
     m = re.search(r"Institution:\s*(.+?)\s*\|\s*(Semester|Quarter)\s+calendar", text)
     if m:
         inst, cal = m.group(1).strip(), m.group(2)
+    else:
+        raise UploadError(422, "This does not look like a transcript: no 'Institution:' line was found.")
     m = re.search(r"Student ID\s+(\S+)", text)
     if m:
-        ref = m.group(1)
+        ref = m.group(1)[:MAX_REF_CHARS]
     out = ParsedTranscript(inst, cal, ref)
     term = ""
-    for raw in text.splitlines():
-        line = raw.strip()
+    lines = [raw.strip() for raw in text.splitlines() if raw.strip()]
+    i = 0
+    while i < len(lines):
+        line, row, step = lines[i], None, 1
         tm = _TERM.match(line)
         if tm:
             term = f"{tm.group(1).title()} {tm.group(2)}"
+            i += 1
             continue
         cm = _COURSE.match(line)
-        if cm and term:
-            out.lines.append(ParsedLine(term, cm.group("code"), cm.group("title"), float(cm.group("att")), cm.group("grade")))
+        if cm:
+            row = cm.group("code"), cm.group("title"), cm.group("att"), cm.group("grade")
+        elif (cell := _cell_course(lines[i:i + 6])) is not None:
+            row, step = cell
+        if row and term:
+            code, title, att, grade = row
+            out.lines.append(ParsedLine(term, code, title[:MAX_TITLE_CHARS].strip(), float(att), grade))
+            if len(out.lines) > MAX_COURSE_LINES:
+                raise UploadError(422, f"The transcript has more than {MAX_COURSE_LINES} course lines.")
+        i += step
     return out
 
 
@@ -183,4 +223,7 @@ def check_syllabus(text: str) -> dict:
     m = re.search(r"^([A-Z]{2,6}(?:-[A-Z]{2})?\s\d{1,4}[A-Z]?):\s", text, re.MULTILINE)
     if m:
         code = m.group(1)
-    return dict(complete=not missing, missing_sections=missing, course_code=code)
+    # Not a syllabus at all (a recipe, an invoice, …): no "CODE: title" line and no syllabus section heading.
+    has_section = re.search(rf"^\s*{_SECTION_HEADS}\s*$", text, re.IGNORECASE | re.MULTILINE) is not None
+    return dict(complete=not missing, missing_sections=missing, course_code=code,
+                looks_like_syllabus=bool(code) or has_section)
