@@ -248,6 +248,21 @@ LINES = [
  ("SYN-24004","NYU","Fall 2025",EC250,"B+"),("SYN-24004","NYU","Fall 2025",EC240,"B"),("SYN-24004","NYU","Spring 2026","ECON-UA 980","P"),
 ]
 
+# Contact fields. Fixed values (no rng draw, so every other generated value stays the same). All fictional and unreachable:
+# emails on example.edu (RFC 2606), phones in the 555-0100..0199 fictional range, invented street names.
+CONTACT = {
+ "SYN-24001": dict(email="maya.delgado@example.edu", phone="212-555-0141", address="418 Quillfeather Row, Apt 3B, Brooklyn, NY 11215"),
+ "SYN-24002": dict(email="jordan.reyes@example.edu", phone="617-555-0122", address="27 Thistlebrook Lane, Somerville, MA 02144"),
+ "SYN-24003": dict(email="aisha.bello@example.edu", phone="857-555-0163", address="1190 Marrowind Avenue, Unit 2, Quincy, MA 02169"),
+ "SYN-24004": dict(email="liam.novak@example.edu", phone="646-555-0187", address="62 Copperkettle Street, Apt 5F, Hoboken, NJ 07030"),
+}
+TERM_ORDER = {"Winter": 0, "Spring": 1, "Summer": 2, "Fall": 3}
+def term_key(t): return (int(t.split()[1]), TERM_ORDER[t.split()[0]])
+for s in STUDENTS:
+    s.update(CONTACT[s["student_id"]])
+    # previous_school = school of the student's most recent regular (non-summer) term; summer-only stints don't count
+    s["previous_school"] = max((l for l in LINES if l[0] == s["student_id"] and not l[2].startswith("Summer")), key=lambda l: term_key(l[2]))[1]
+
 # decisions: everything on transcripts is decided (train) except the open "maybe" courses
 OPEN = {("NYU","PSYCH-UA 10"),("NYU","PSYCH-UA 25"),("NEU","CS 2100"),("NEU","CS 2700"),("NEU","CHEM 1161"),("NEU","BIOL 2301"),
         ("NEU","BIOL 3611"),("NEU","BIOL 2299"),("NEU","CHEM 2311"),("NYU","ECON-UA 266"),("NYU",EC240)}

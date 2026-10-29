@@ -46,7 +46,8 @@ paths:
           multipart/form-data:
             schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } }
       responses:
-        "201": { description: Extracted and evaluated, content: { application/json: { schema: { $ref: "#/components/schemas/StudentEvaluation" } } } }
+        "201": { description: "Extracted and evaluated, or the same file again (upload.duplicate, nothing changed)", content: { application/json: { schema: { $ref: "#/components/schemas/TranscriptUploadResult" } } } }
+        "422": { description: "Unreadable PDF, unknown institution, no course lines, another portal student's transcript, or a different Student ID than this student's earlier transcript from the same school" }
   /courses/{ext_id}/syllabus:
     post:
       summary: Upload a syllabus for an external course; checked for completeness (outcomes, schedule)
@@ -177,7 +178,13 @@ components:
         student_id: { type: string }
         name: { type: string }
         intended_major: { type: string }
+        bu_school: { type: string, example: "College of Arts & Sciences" }
         bu_start_term: { type: string }
+        email: { type: string, format: email, description: "Contact (personal data; never sent to an AI service). Synthetic data uses example.edu" }
+        phone: { type: string, example: "617-555-0122", description: "Contact (personal data; never sent to an AI service)" }
+        address: { type: string, description: "Postal address, one text field (personal data; never sent to an AI service)" }
+        previous_school: { type: string, nullable: true, description: "school_code of the most recently attended school (latest transcript term); full history is in the transcript lines" }
+        previous_school_name: { type: string, nullable: true, example: "New York University" }
     CourseEvaluation:
       type: object
       properties:
@@ -213,6 +220,23 @@ components:
             pending_units: { type: number }
             no_credit_lines: { type: integer }
             cap_units: { type: number, example: 68 }
+    TranscriptUploadResult:
+      allOf:
+        - $ref: "#/components/schemas/StudentEvaluation"
+        - type: object
+          properties:
+            upload:
+              type: object
+              properties:
+                transcript_id: { type: string, example: "TR-3f9a1c2b7d10" }
+                school_code: { type: string }
+                school_name: { type: string }
+                school_student_id: { type: string, nullable: true, description: "Student ID printed on the transcript (the previous school's id)" }
+                duplicate: { type: boolean, description: "Same file as the latest transcript from this school; nothing changed" }
+                replaced: { type: boolean, description: "This school already had course lines; they were replaced" }
+                added: { type: array, items: { type: string }, example: ["PSYCH-UA 30 (Fall 2025)"] }
+                removed: { type: array, items: { type: string } }
+                updated: { type: array, items: { type: string }, description: "Same course and term, new grade or credits" }
     Candidate:
       type: object
       properties:

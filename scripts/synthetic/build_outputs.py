@@ -138,9 +138,12 @@ demo = [
 sheet(wb, "Demo Scenario", ["Step","Stage","Action / input","Expected result"], demo, {"Action / input": 60, "Expected result": 70})
 
 # Students with formulas
-ws_s = sheet(wb, "Students", ["Student ID","Name","Intended BU major","BU school","BU start term","Story","Transcript lines","Units secured (matched)","Units pending (maybe/review)","No-credit lines"],
-             [[s["student_id"], s["name"], s["intended_major"], s["bu_school"], s["bu_start_term"], s["story"], None, None, None, None] for s in D["students"]],
-             {"Story": 70})
+# Contact columns (fictional: example.edu, 555-01xx, invented streets) go after the formula columns so G-J keep their letters.
+ws_s = sheet(wb, "Students", ["Student ID","Name","Intended BU major","BU school","BU start term","Story","Transcript lines","Units secured (matched)","Units pending (maybe/review)","No-credit lines",
+                              "Email","Phone","Address","Previous school"],
+             [[s["student_id"], s["name"], s["intended_major"], s["bu_school"], s["bu_start_term"], s["story"], None, None, None, None,
+               s["email"], s["phone"], s["address"], s["previous_school"]] for s in D["students"]],
+             {"Story": 70, "Address": 45})
 
 # Transcript lines with formula column
 hdr = ["Line ID","Student ID","School","Term","Course code","Title","Credits","Calendar","Grade","Units if approved",

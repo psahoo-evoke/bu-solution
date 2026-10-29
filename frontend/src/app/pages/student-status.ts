@@ -41,6 +41,7 @@ export class StudentStatusPage {
   protected readonly showPicker = computed(() => this.roles.role() !== 'Student');
   protected readonly groups = computed(() => groupByTerm(this.evaluation()?.lines ?? []));
   protected readonly totals = computed(() => this.evaluation()?.totals ?? null);
+  protected readonly hasCourses = computed(() => (this.evaluation()?.lines.length ?? 0) > 0);
   protected readonly displayStatus = displayStatus;
   protected readonly nextStepText = nextStepText;
 
@@ -98,7 +99,7 @@ export class StudentStatusPage {
       next: (ev) => {
         this.evaluation.set(ev);
         this.uploadingTranscript.set(false);
-        this.notice.set(`Transcript "${file.name}" read: ${ev.lines.length} courses evaluated.`);
+        this.notice.set(transcriptUploadMessage(file.name, ev));
       },
       error: (err) => {
         this.uploadingTranscript.set(false);
@@ -151,6 +152,20 @@ export function syllabusMessage(line: CourseEvaluation, check: SyllabusCheck): s
   return check.injection_detected
     ? `${base} Note: the file contained instructions aimed at the AI; they were ignored and flagged for the evaluator.`
     : base;
+}
+
+export function transcriptUploadMessage(fileName: string, ev: StudentEvaluation): string {
+  const up = ev.upload;
+  if (!up) return `Transcript "${fileName}" read: ${ev.lines.length} courses evaluated.`;
+  if (up.duplicate) return `"${fileName}" is already on file for ${up.school_name}. Nothing changed.`;
+  const courses = ev.lines.filter((l) => l.school_code === up.school_code).length;
+  if (!up.replaced) return `Transcript "${fileName}" read: ${courses} ${up.school_name} courses evaluated.`;
+  const parts = [
+    up.added.length ? `${up.added.length} added (${up.added.join(', ')})` : '',
+    up.removed.length ? `${up.removed.length} removed (${up.removed.join(', ')})` : '',
+    up.updated.length ? `${up.updated.length} with a new grade or credits (${up.updated.join(', ')})` : '',
+  ].filter(Boolean);
+  return `Replaced the earlier ${up.school_name} transcript: ${parts.length ? parts.join('; ') : 'no course changes'}.`;
 }
 
 export function syllabusRequestMessage(line: CourseEvaluation, req: SyllabusRequest): string {

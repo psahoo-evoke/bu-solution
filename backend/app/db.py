@@ -104,6 +104,18 @@ CREATE TABLE IF NOT EXISTS portal_accounts (
     department     text,
     created_at     timestamptz NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS transcripts (
+    transcript_id     text PRIMARY KEY,
+    student_id        text NOT NULL REFERENCES students,
+    school_code       text NOT NULL REFERENCES schools,
+    school_student_id text,                     -- the Student ID printed on the transcript (previous school's id)
+    sha256            text NOT NULL,            -- of the PDF: the same file uploaded again is a duplicate
+    blob_url          text,                     -- archived original, <container>/<blob>
+    course_count      integer NOT NULL,
+    uploaded_by       text,
+    uploaded_at       timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS transcripts_student_school ON transcripts (student_id, school_code, uploaded_at);
 """
 
 
@@ -117,6 +129,9 @@ def ensure_schema() -> None:
                 cur.execute(f.read())
             log.info("created the TransferIQ tables from schema.sql")
         cur.execute(EXTRA_TABLES)
+        # Students registered before registration stored their email: take it from their sign-in account.
+        cur.execute("update students s set email = a.email from portal_accounts a "
+                    "where a.student_id = s.student_id and s.email is null")
 
 
 # ------------------------------------------------------------------ load
@@ -128,7 +143,8 @@ def is_empty() -> bool:
 
 def load_store(s) -> None:
     """Fill Store s (already holding rules and reason codes) from the database."""
-    from .store import (BUCourse, Decision, ExtCourse, School, Student, SyllabusRecord, SYNTH_DIR, TranscriptLine)
+    from .store import (BUCourse, Decision, ExtCourse, School, Student, SyllabusRecord, SYNTH_DIR, TranscriptLine,
+                        TranscriptRecord)
 
     with tx() as cur:
         cur.execute("select bu_code, dept, title, program, requirement_type, level, credits, residency_rule, "
@@ -164,12 +180,16 @@ def load_store(s) -> None:
             (s.holdout_decisions if d.split == "holdout" else s.decisions).append(d)
         s.decisions.sort(key=lambda d: d.decision_id)
         s.holdout_decisions.sort(key=lambda d: d.decision_id)
-        cur.execute("select student_id, name, coalesce(intended_major,''), bu_start_term from students order by student_id")
+        cur.execute(f"select {', '.join(STUDENT_COLS)} from students order by student_id")
         for r in cur.fetchall():
-            s.students[r[0]] = Student(*r)
+            s.students[r[0]] = Student(**{k: v or "" for k, v in zip(STUDENT_COLS, r)})
         cur.execute("select student_id, school_code, term, ext_id, course_code, coalesce(title,''), credits, calendar, "
                     "grade from transcript_lines order by student_id, seq")
         s.lines = [TranscriptLine(r[0], r[1], r[2], r[3], r[4], r[5], float(r[6]), r[7], r[8]) for r in cur.fetchall()]
+        cur.execute("select transcript_id, student_id, school_code, coalesce(school_student_id,''), sha256, "
+                    "coalesce(blob_url,''), course_count, coalesce(uploaded_by,''), uploaded_at from transcripts "
+                    "order by uploaded_at, transcript_id")
+        s.transcripts = [TranscriptRecord(*r[:8], uploaded_at=r[8].isoformat()) for r in cur.fetchall()]
         cur.execute("select ext_id, state, blob_url, source_file, extracted_text, injection_detected, "
                     "coalesce(seed_state,'') from syllabi")
         for ext_id, state, blob_url, source_file, text, inj, seed_state in cur.fetchall():
@@ -189,6 +209,17 @@ def load_store(s) -> None:
 
 
 # ------------------------------------------------------------------ writes (call BEFORE changing the in-memory store)
+# One column list for every students read and insert, so a Student field cannot be dropped on one side only
+# (bu_school used to be stored as NULL that way).
+STUDENT_COLS = ("student_id", "name", "intended_major", "bu_start_term", "bu_school", "email", "phone", "address",
+                "previous_school")
+_INSERT_STUDENT = (f"insert into students ({', '.join(STUDENT_COLS)}) values ({','.join(['%s'] * len(STUDENT_COLS))})")
+
+
+def _student_row(st):
+    return tuple(getattr(st, k) or None for k in STUDENT_COLS)   # "" -> NULL for the optional profile fields
+
+
 def _ext_course_row(c):
     return (c.ext_id, c.school_code, c.course_code, c.title, c.credits, c.calendar, c.course_type, c.program_area,
             c.level, c.description, c.learning_outcomes, c.topics, c.elective_code or None)
@@ -199,9 +230,16 @@ _UPSERT_EXT = ("insert into external_courses (ext_id, school_code, course_code, 
                "values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) on conflict (ext_id) do nothing")
 
 
-def save_transcript(student_id: str, new_courses: list, student_lines: list) -> None:
-    """New external courses from an upload + the student's full, ordered transcript lines (replaces theirs)."""
+def save_transcript(student_id: str, new_courses: list, student_lines: list, record=None) -> None:
+    """New external courses from an upload + the student's full, ordered transcript lines (replaces theirs), and
+    the upload's TranscriptRecord, in one transaction."""
     with tx() as cur:
+        if record is not None:
+            cur.execute("insert into transcripts (transcript_id, student_id, school_code, school_student_id, sha256, "
+                        "blob_url, course_count, uploaded_by, uploaded_at) values (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                        (record.transcript_id, record.student_id, record.school_code, record.school_student_id or None,
+                         record.sha256, record.blob_url or None, record.course_count, record.uploaded_by or None,
+                         _ts(record.uploaded_at)))
         for c in new_courses:
             cur.execute(_UPSERT_EXT, _ext_course_row(c))
         cur.execute("delete from transcript_lines where student_id = %s", (student_id,))
@@ -270,8 +308,7 @@ def save_registration(acct, student=None) -> None:
     """A registered account (and, for a student, their new student record) in one transaction."""
     with tx() as cur:
         if student is not None:
-            cur.execute("insert into students (student_id, name, intended_major, bu_start_term) values (%s,%s,%s,%s)",
-                        (student.student_id, student.name, student.intended_major, student.bu_start_term))
+            cur.execute(_INSERT_STUDENT, _student_row(student))
         cur.execute("insert into portal_accounts (email, name, role, password_hash, student_id, department) "
                     "values (%s,%s,%s,%s,%s,%s)",
                     (acct.email, acct.name, acct.role, acct.password_hash, acct.student_id, acct.department))
@@ -289,6 +326,7 @@ def reseed(seed) -> None:
         cur.execute("delete from audit_log")
         cur.execute("delete from decision_scope")
         cur.execute("delete from decisions")
+        cur.execute("delete from transcripts")
         cur.execute("delete from transcript_lines")
         cur.execute("delete from syllabi")
         cur.execute("delete from external_courses_gt")
@@ -310,8 +348,8 @@ def reseed(seed) -> None:
                                                  float(gt["gt_overlap"]) if gt.get("gt_overlap") else None,
                                                  gt.get("gt_tier") or None))
         for st in seed.students.values():
-            cur.execute("insert into students (student_id, name, intended_major, bu_start_term) values (%s,%s,%s,%s) "
-                        "on conflict (student_id) do nothing", (st.student_id, st.name, st.intended_major, st.bu_start_term))
+            cur.execute(_INSERT_STUDENT + " on conflict (student_id) do update set "
+                        + ", ".join(f"{k} = excluded.{k}" for k in STUDENT_COLS[1:]), _student_row(st))
         for d in seed.decisions + seed.holdout_decisions:
             cur.execute("insert into decisions (decision_id, ext_id, decision, bu_course, reason_code, reusable, split, "
                         "catalog_year, decided_by, decision_date, note, overlap_pct) "

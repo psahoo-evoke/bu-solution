@@ -108,7 +108,7 @@ export class LoginPage implements OnInit {
 
   protected async signIn(): Promise<void> {
     if (!this.email || !this.password) {
-      this.error.set('Enter your BU email and password.');
+      this.error.set('Enter your email and password.');
       return;
     }
     await this.run(() => this.auth.signIn(this.email, this.password, this.kind()));

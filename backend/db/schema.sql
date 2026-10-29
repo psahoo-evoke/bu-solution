@@ -85,7 +85,7 @@ CREATE TABLE students (
     intended_major  text,
     bu_school       text,
     bu_start_term   text NOT NULL,                      -- 'Fall 2026'
-    email           text,                               -- columns below exist in bu-solution-pg; not used by the API
+    email           text,                               -- contact fields: shown to people via the API, never sent to the AI (ADR 0004)
     phone           text,
     address         text,
     previous_school text

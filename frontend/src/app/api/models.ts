@@ -14,7 +14,15 @@ export interface Student {
   student_id: string;
   name: string;
   intended_major: string;
+  bu_school?: string;
   bu_start_term: string;
+  /** Contact fields (personal data; never sent to an AI service). */
+  email?: string;
+  phone?: string;
+  address?: string;
+  /** school_code of the most recently attended school; the name is resolved by the API. */
+  previous_school?: string | null;
+  previous_school_name?: string | null;
 }
 
 export type CourseState =
@@ -68,6 +76,21 @@ export interface StudentEvaluation {
   student: Student;
   lines: CourseEvaluation[];
   totals: EvaluationTotals;
+  /** Only on the response to a transcript upload. */
+  upload?: TranscriptUpload;
+}
+
+/** What a transcript upload did. Changes are "COURSE (Term)" labels, filled only when it replaced that school's lines. */
+export interface TranscriptUpload {
+  transcript_id: string;
+  school_code: string;
+  school_name: string;
+  school_student_id: string | null;
+  duplicate: boolean;
+  replaced: boolean;
+  added: string[];
+  removed: string[];
+  updated: string[];
 }
 
 export type CandidateTier = 'equivalent' | 'evaluator_decides' | 'elective';

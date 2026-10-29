@@ -20,6 +20,7 @@ def azure(monkeypatch):
             calls.append(messages)
             return reply(messages) if callable(reply) else reply
         monkeypatch.setattr(matcher, "llm_client", fake)
+        matcher.clear_cache()                 # a new fake model must not see the previous one's cached answers
         return calls
     return install
 
@@ -101,10 +102,76 @@ def test_prompt_contains_course_data_only(azure):
         assert not re.search(r"SYN-\d+", text)
         assert "gt_" not in text and "gt_counterpart" not in text
         assert not any(re.search(rf"\b{re.escape(n)}\b", text) for n in names)
+        for st in s.students.values():                       # contact fields are personal data: never in a prompt
+            assert st.email and st.phone and st.address
+            assert st.email not in text and st.email.split("@")[0] not in text
+            assert st.phone not in text and st.phone.replace("-", "") not in text
+            assert st.address not in text and st.address.split(",")[0] not in text
         assert '"grade"' not in text
         user = msgs[1]["content"]
         assert user.startswith("<course_data>") and "</course_data>" in user
         assert "UNTRUSTED DATA" in msgs[0]["content"]
+
+
+def _top_at(pct):
+    return lambda m: json.dumps({"candidates": [{"bu_code": _shortlist_codes(m)[0], "overlap_pct": pct}]})
+
+
+def test_same_prompt_is_answered_from_cache(azure):
+    calls = azure(_top_at(70))
+    first = matcher.recommend(*_course())
+    first["candidates"][0]["overlap_pct"] = 1            # callers may mutate what they get back
+    first["past_decisions"] = ["x"]
+    second = matcher.recommend(*_course())
+    assert len(calls) == 1
+    assert second["engine"] == "azure-openai"
+    assert second["candidates"][0]["overlap_pct"] == 70 and "past_decisions" not in second
+
+
+def test_changed_syllabus_is_a_new_model_call(azure):
+    from app.store import SyllabusRecord
+    calls = azure(_top_at(70))
+    course, bus, syl = _course()
+    matcher.recommend(course, bus, syl)
+    new = SyllabusRecord(ext_id=course.ext_id, state="complete", text=syl.text + "\nWeek 15: panel data methods.")
+    matcher.recommend(course, bus, new)
+    assert len(calls) == 2
+
+
+def test_failures_are_not_cached(azure):
+    state = {"fail": True}
+
+    def flaky(messages):
+        if state["fail"]:
+            raise TimeoutError("quota")
+        return _top_at(70)(messages)
+    calls = azure(flaky)
+    assert matcher.recommend(*_course())["engine"] == "offline-fallback"
+    state["fail"] = False
+    assert matcher.recommend(*_course())["engine"] == "azure-openai"
+    assert len(calls) == 2
+
+
+def test_recommend_many_keeps_input_order(azure):
+    azure(_top_at(70))
+    s = store_mod.STORE
+    jobs = [(c, list(s.bu_courses.values()), s.syllabi.get(c.ext_id)) for c in list(s.ext_courses.values())[:12]]
+    out = matcher.recommend_many(jobs)
+    assert [r["ext_id"] for r in out] == [j[0].ext_id for j in jobs]
+    assert all(r["engine"] == "azure-openai" for r in out)
+
+
+@pytest.mark.parametrize("endpoint, expected", [("https://fake.openai.azure.com", True), (None, False)])
+def test_startup_prewarms_only_with_the_model(monkeypatch, endpoint, expected):
+    import threading
+    from fastapi.testclient import TestClient
+    from app import main
+    if endpoint:
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", endpoint)
+    ran = threading.Event()
+    monkeypatch.setattr(main, "_prewarm", ran.set)
+    with TestClient(main.app):
+        assert ran.wait(2) is expected
 
 
 def test_auth_prefers_managed_identity(monkeypatch):

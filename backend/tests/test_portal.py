@@ -40,7 +40,8 @@ def test_wrong_password_unknown_email_and_wrong_portal(anon):
     assert r.status_code == 404 and "Register" in r.json()["detail"]
     r = login(anon, "maya.delgado@bu.edu", portal="department")
     assert r.status_code == 403 and "Student sign-in" in r.json()["detail"]
-    assert login(anon, "maya@gmail.com").status_code == 422
+    assert login(anon, "not-an-email").status_code == 422
+    assert login(anon, "maya@gmail.com").status_code == 404     # any domain is a valid email, just not registered
 
 
 def test_api_needs_a_session(anon):
@@ -119,6 +120,16 @@ def test_register_student_creates_own_empty_record(anon, fresh_store):
         name="Sam", email="sam.patel@bu.edu", password="secret1", intended_major="Mathematics")).status_code == 409
 
 
+def test_register_accepts_any_email_domain(anon, fresh_store):
+    r = anon.post("/api/auth/register/student", json=dict(
+        name="Pat Lee", email="Pat.Lee@Example.com", password="secret1", intended_major="Mathematics"))
+    assert r.status_code == 201 and r.json()["user"]["email"] == "pat.lee@example.com"
+    sid = r.json()["user"]["student_id"]
+    h = {"Authorization": f"Bearer {r.json()['token']}"}
+    assert anon.get(f"/api/students/{sid}/evaluation", headers=h).json()["student"]["email"] == "pat.lee@example.com"
+    assert login(anon, "pat.lee@example.com", password="secret1").status_code == 200
+
+
 def test_registered_student_survives_demo_reset(anon):
     r = anon.post("/api/auth/register/student", json=dict(
         name="Ana Lima", email="ana.lima@bu.edu", password="admin", intended_major="Biology"))
@@ -138,7 +149,7 @@ def test_register_department(anon):
 
 
 @pytest.mark.parametrize("bad", [
-    dict(email="sam@gmail.com"), dict(password="123"), dict(name="S"), dict(intended_major=""),
+    dict(email="sam@nodomain"), dict(password="123"), dict(name="S"), dict(intended_major=""),
 ])
 def test_register_student_validation(anon, bad):
     body = dict(name="Sam Patel", email="sam@bu.edu", password="secret1", intended_major="Mathematics") | bad

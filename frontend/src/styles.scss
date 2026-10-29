@@ -164,6 +164,14 @@ input[type='checkbox'], input[type='radio'] { width: 1.05rem; height: 1.05rem; a
 
 // Student status
 .student-card { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; p { margin: 0; } }
+.start-panel {
+  border-top: 4px solid var(--brand); max-width: 42rem;
+  h2 { margin: .1rem 0 .5rem; }
+  p { margin: 0 0 1rem; }
+  .file-btn { margin-bottom: .5rem; }
+  &__step { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--brand-dark); margin-bottom: 0 !important; }
+  @media (max-width: 600px) { .file-btn { width: 100%; justify-content: center; } }
+}
 .totals {
   display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.25rem; padding: 1rem 1.25rem; margin-bottom: 1rem;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); border-top: 4px solid var(--brand);

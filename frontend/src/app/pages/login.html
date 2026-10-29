@@ -54,8 +54,8 @@
       @if (tab() === 'signin') {
         <form class="form" (ngSubmit)="signIn()" autocomplete="on">
           <div class="field">
-            <label for="email">BU email</label>
-            <input id="email" name="email" type="email" [(ngModel)]="email" autocomplete="username" placeholder="name@bu.edu" required />
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" [(ngModel)]="email" autocomplete="username" placeholder="name@example.com" required />
           </div>
           <div class="field">
             <label for="password">Password</label>
@@ -82,8 +82,8 @@
             <input id="r-name" name="name" type="text" [(ngModel)]="name" autocomplete="name" required />
           </div>
           <div class="field">
-            <label for="r-email">BU email</label>
-            <input id="r-email" name="email" type="email" [(ngModel)]="email" autocomplete="email" placeholder="name@bu.edu" required />
+            <label for="r-email">Email</label>
+            <input id="r-email" name="email" type="email" [(ngModel)]="email" autocomplete="email" placeholder="name@example.com" required />
           </div>
           @if (kind() === 'department') {
             <div class="field">

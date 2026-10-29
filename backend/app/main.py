@@ -8,11 +8,14 @@ from __future__ import annotations
 import asyncio
 import csv
 import datetime as dt
+import hashlib
 import io
 import logging
 import os
 import re
+import threading
 import uuid
+from contextlib import asynccontextmanager
 from html import escape as html_escape
 from typing import Literal, Optional
 
@@ -25,9 +28,9 @@ from . import store as store_mod
 from .evaluation import evaluate_holdout
 from .guard import MAX_UPLOAD_BYTES, RoleGuardMiddleware, auth_mode
 from .ingest import UploadError, check_pdf_bytes, check_syllabus, parse_transcript, pdf_text
-from .matcher import detect_injection, recommend
+from .matcher import detect_injection, engine_name, recommend, recommend_many
 from .rules import evaluate_student, tier_label, totals
-from .store import Decision, ExtCourse, SyllabusRecord, TranscriptLine
+from .store import Decision, ExtCourse, SyllabusRecord, TranscriptLine, TranscriptRecord
 
 # uvicorn only configures its own loggers; give ours a handler so INFO lines (e.g. stored uploads) reach the
 # container log stream.
@@ -38,9 +41,27 @@ if not _log.handlers:
     _log.addHandler(_h)
     _log.setLevel(logging.INFO)
 
+
+def _prewarm() -> None:
+    """Fill the matcher's model cache for the review queue and the holdout evaluation, so the first evaluator page
+    load does not wait on the model. Best effort: a failure here only means the first request does the work."""
+    try:
+        recommend_many([(S().ext_courses[e], _bus(), S().syllabi.get(e)) for e in _maybe_lines()])
+        evaluate_holdout(S())
+    except Exception:
+        _log.warning("prewarm failed", exc_info=True)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    if engine_name() == "azure-openai" and os.environ.get("TRANSFERIQ_PREWARM", "1") != "0":
+        threading.Thread(target=_prewarm, name="prewarm", daemon=True).start()
+    yield
+
+
 _entra = auth_mode() == "entra"
 app = FastAPI(title="TransferIQ API", version="0.3.0",
-              description="AI recommends, the rules engine computes, evaluators decide.",
+              description="AI recommends, the rules engine computes, evaluators decide.", lifespan=lifespan,
               docs_url=None if _entra else "/docs", redoc_url=None, openapi_url=None if _entra else "/openapi.json")
 
 
@@ -143,7 +164,7 @@ def build_evaluation(student_id: str) -> dict:
                 o["ai_tier"] = r["candidates"][0]["tier"]
                 o["ai_overlap_pct"] = r["candidates"][0]["overlap_pct"]
     public = [{k: v for k, v in o.items() if not k.startswith("_")} for o in lines]
-    return dict(student=st.to_api(), lines=public, totals=totals(lines))
+    return dict(student=st.to_api(S().schools), lines=public, totals=totals(lines))
 
 
 # ------------------------------------------------------------------ routes
@@ -157,8 +178,8 @@ def list_students(request: Request):
     u = _user(request)
     if u and u["role"] == "Student":           # portal: a student only ever sees their own record
         st = S().students.get(u["student_id"])
-        return [st.to_api()] if st else []
-    return [s.to_api() for s in S().students.values()]
+        return [st.to_api(S().schools)] if st else []
+    return [st.to_api(S().schools) for st in S().students.values()]
 
 
 @api.get("/students/{student_id}/evaluation")
@@ -200,8 +221,19 @@ async def _archive(kind: blob_store.Kind, key: str, data: bytes) -> Optional[str
         raise HTTPException(502, str(e))
 
 
+def _line_changes(old: list[TranscriptLine], new: list[TranscriptLine]) -> dict:
+    """What a replacing transcript changed for one school, by (course, term): added, removed, grade/credits updated."""
+    before = {(ln.ext_id, ln.term): ln for ln in old}
+    after = {(ln.ext_id, ln.term): ln for ln in new}
+    label = lambda ln: f"{ln.course_code} ({ln.term})"   # noqa: E731
+    return dict(added=[label(ln) for k, ln in after.items() if k not in before],
+                removed=[label(ln) for k, ln in before.items() if k not in after],
+                updated=[label(ln) for k, ln in after.items()
+                         if k in before and (before[k].grade, before[k].credits) != (ln.grade, ln.credits)])
+
+
 @api.post("/students/{student_id}/transcripts", status_code=201)
-async def upload_transcript(student_id: str = StudentIdPath, file: UploadFile = File(...)):
+async def upload_transcript(request: Request, student_id: str = StudentIdPath, file: UploadFile = File(...)):
     st = S().students.get(student_id)
     if st is None:
         raise HTTPException(404, f"Unknown student {student_id}")
@@ -210,14 +242,29 @@ async def upload_transcript(student_id: str = StudentIdPath, file: UploadFile = 
         parsed = await _parse_off_loop(parse_transcript, data)
     except UploadError as e:
         raise HTTPException(e.status, e.detail)
-    if parsed.student_ref and not parsed.student_ref.startswith(student_id):
-        raise HTTPException(422, f"Transcript belongs to {parsed.student_ref}, not {student_id}")
     school = next((s for s in S().schools.values() if s.name == parsed.institution), None)
     if school is None:
         raise HTTPException(422, f"Unknown institution '{parsed.institution}'")
     if not parsed.lines:
         raise HTTPException(422, "No course lines found in transcript")
-    await _archive("transcripts", student_id, data)
+    # The Student ID on a transcript is the previous school's id, so it normally differs from the portal id.
+    # Reject only what points at someone else: another portal student's id, or a different id than this
+    # student's earlier transcript from the same school.
+    ref = parsed.student_ref
+    owner = next((sid for sid in S().students if sid != student_id and (ref == sid or ref.startswith(sid + "-"))), None)
+    if ref and owner:
+        raise HTTPException(422, f"Transcript belongs to {owner}, not {student_id}")
+    digest = hashlib.sha256(data).hexdigest()
+    prev = S().latest_transcript(student_id, school.school_code)
+    if ref and prev and prev.school_student_id and prev.school_student_id != ref:
+        raise HTTPException(422, f"This {school.name} transcript has student ID {ref}, but the {school.name} transcript "
+                                 f"already on file has {prev.school_student_id}. Check it is the right student's transcript.")
+    upload = dict(school_code=school.school_code, school_name=school.name, school_student_id=ref or None,
+                  duplicate=False, replaced=False, added=[], removed=[], updated=[])
+    if prev and prev.sha256 == digest:        # the same file again: nothing to store or change
+        return dict(build_evaluation(student_id), upload=dict(upload, duplicate=True, transcript_id=prev.transcript_id))
+    blob_url = await _archive("transcripts", student_id, data)
+    u = _user(request)
     with S().lock:
         new_lines, new_courses = [], {}
         for p in parsed.lines:
@@ -239,11 +286,20 @@ async def upload_transcript(student_id: str = StudentIdPath, file: UploadFile = 
         else:
             idx = sum(1 for ln in old[:idx] if not (ln.student_id == student_id and ln.school_code == school.school_code))
         lines = kept[:idx] + new_lines + kept[idx:]
+        replaced = [ln for ln in old if ln.student_id == student_id and ln.school_code == school.school_code]
+        if replaced:                          # seeded lines have no upload record, so compare lines, not records
+            upload.update(_line_changes(replaced, new_lines), replaced=True)
+        record = TranscriptRecord(
+            transcript_id=f"TR-{uuid.uuid4().hex[:12]}", student_id=student_id, school_code=school.school_code,
+            school_student_id=ref, sha256=digest, blob_url=blob_url or "", course_count=len(new_lines),
+            uploaded_by=(u["email"] if u else request.headers.get("x-demo-role", "")),
+            uploaded_at=dt.datetime.now(dt.timezone.utc).isoformat())
         _persist(db.save_transcript, student_id, list(new_courses.values()),
-                 [ln for ln in lines if ln.student_id == student_id])
+                 [ln for ln in lines if ln.student_id == student_id], record)
         S().ext_courses.update(new_courses)
         S().lines = lines
-    return build_evaluation(student_id)
+        S().transcripts.append(record)
+    return dict(build_evaluation(student_id), upload=dict(upload, transcript_id=record.transcript_id))
 
 
 @api.post("/courses/{ext_id}/syllabus", status_code=201)
@@ -347,11 +403,11 @@ def review_queue(request: Request, department: Optional[str] = Query(None)):
     if u and u["role"] == "Department":        # portal: a department sees only its own courses
         department = u["department"]
     items = []
-    for ext_id, students in _maybe_lines().items():
+    rows = [(ext_id, students) for ext_id, students in _maybe_lines().items()
+            if not department or S().ext_courses[ext_id].program_area.lower() == department.lower()]
+    recs = recommend_many([(S().ext_courses[e], _bus(), S().syllabi.get(e)) for e, _ in rows])
+    for (ext_id, students), rec in zip(rows, recs):
         c = S().ext_courses[ext_id]
-        if department and c.program_area.lower() != department.lower():
-            continue
-        rec = _rec(ext_id)
         top = rec["candidates"][0] if rec["candidates"] else None
         items.append(dict(ext_id=ext_id, course_code=c.course_code, title=c.title, school_code=c.school_code,
                           department=c.program_area, students=students, syllabus_state=S().syllabus_state(ext_id),

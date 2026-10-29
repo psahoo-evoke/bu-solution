@@ -34,17 +34,34 @@
       <h2 id="student-name">{{ ev.student.name }}</h2>
       <p class="muted">{{ ev.student.student_id }} · {{ ev.student.intended_major }} · starts {{ ev.student.bu_start_term }}</p>
     </div>
-    @if (canUploadTranscript()) {
+    @if (!canUploadTranscript()) {
+      <span class="muted small">Read-only view. Switch role to Student or CreditStaff to upload a transcript.</span>
+    } @else if (hasCourses()) {
+      <!-- Courses are on file: the status is the main thing now, so adding a transcript is a secondary action. -->
+      <label class="btn file-btn" [class.is-busy]="uploadingTranscript()">
+        <input type="file" class="visually-hidden" accept="application/pdf,.pdf" (change)="onTranscript($event)" [disabled]="uploadingTranscript()" />
+        {{ uploadingTranscript() ? 'Reading transcript…' : 'Add another transcript (PDF)' }}
+      </label>
+    }
+  </section>
+
+  @if (!hasCourses() && canUploadTranscript()) {
+    <section class="card start-panel" aria-labelledby="start-h">
+      <p class="start-panel__step">Step 1</p>
+      <h2 id="start-h">Start here: upload your transcript</h2>
+      <p>
+        We match each course on it to BU credit and show you what is secured and what is still pending.
+        Courses with a known BU equivalent are secured straight away; the rest go to the department for review.
+      </p>
       <label class="btn btn--primary file-btn" [class.is-busy]="uploadingTranscript()">
         <input type="file" class="visually-hidden" accept="application/pdf,.pdf" (change)="onTranscript($event)" [disabled]="uploadingTranscript()" />
         {{ uploadingTranscript() ? 'Reading transcript…' : 'Upload transcript (PDF)' }}
       </label>
-    } @else {
-      <span class="muted small">Read-only view. Switch role to Student or CreditStaff to upload a transcript.</span>
-    }
-  </section>
+      <p class="muted small">PDF, up to 10 MB. One transcript per school; you can add more later.</p>
+    </section>
+  }
 
-  @if (totals(); as t) {
+  @if (hasCourses() && totals(); as t) {
     <section class="totals" aria-label="Credit totals">
       <div class="total total--secured">
         <span class="total__label">Secured</span>
@@ -154,7 +171,9 @@
       </div>
     </section>
   } @empty {
-    <p class="muted">No courses on file yet. Upload a transcript to start.</p>
+    @if (!canUploadTranscript()) {
+      <p class="muted">No courses on file yet.</p>
+    }
   }
 } @else if (loading()) {
   <p class="muted" role="status">Loading evaluation…</p>

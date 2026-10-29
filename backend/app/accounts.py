@@ -35,7 +35,7 @@ log = logging.getLogger("transferiq.accounts")
 ACCOUNTS_BLOB = "accounts.json"
 SESSION_HOURS = 8
 PASSWORD_MIN = 5
-EMAIL_RE = re.compile(r"^[a-z0-9._%+-]+@bu\.edu$")
+EMAIL_RE = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$")   # any domain, not only bu.edu
 STAFF_ROLES = ("Evaluator", "CreditStaff", "Registrar", "Advisor")
 PORTALS = {"student": {"Student"}, "department": {"Department"}, "staff": set(STAFF_ROLES)}
 
@@ -149,7 +149,7 @@ def _load_registered(reg: _Registry) -> None:
     if not doc:
         return
     for s in doc.get("students", []):
-        st = Student(s["student_id"], s["name"], s["intended_major"], s["bu_start_term"])
+        st = Student(s["student_id"], s["name"], s["intended_major"], s["bu_start_term"], email=s.get("email", ""))
         if all(x.student_id != st.student_id for x in reg.students):
             reg.students.append(st)
         with store_mod.STORE.lock:
@@ -197,7 +197,7 @@ def _save_registered(reg: _Registry, acct: Optional["Account"] = None, student: 
                        student_id=a.student_id, department=a.department)
                   for a in reg.accounts.values() if a.registered],
         students=[dict(student_id=s.student_id, name=s.name, intended_major=s.intended_major,
-                       bu_start_term=s.bu_start_term) for s in reg.students],
+                       bu_start_term=s.bu_start_term, email=s.email) for s in reg.students],
     )
     try:
         blob_store.save_json("accounts", ACCOUNTS_BLOB, doc)
@@ -238,7 +238,7 @@ def departments() -> list[str]:
 def _norm_email(email: str) -> str:
     email = (email or "").strip().lower()
     if not EMAIL_RE.match(email):
-        raise AccountError(422, "Use your BU email address (name@bu.edu)")
+        raise AccountError(422, "Enter a valid email address (name@example.com)")
     return email
 
 
@@ -276,7 +276,7 @@ def register_student(name: str, email: str, password: str, intended_major: str, 
             taken = [int(s[4:]) for s in store_mod.STORE.students if re.fullmatch(r"SYN-\d+", s)]
             taken += [int(s.student_id[4:]) for s in REGISTRY.students]   # ids survive a store reset
             sid = f"SYN-{max(taken, default=24000) + 1}"
-            st = Student(sid, name, intended_major.strip()[:60], (start_term or "Fall 2026").strip()[:20])
+            st = Student(sid, name, intended_major.strip()[:60], (start_term or "Fall 2026").strip()[:20], email=email)
             store_mod.STORE.students[sid] = st
         REGISTRY.students.append(st)
         acct = Account(email, name, "Student", hash_password(password), student_id=sid, registered=True)

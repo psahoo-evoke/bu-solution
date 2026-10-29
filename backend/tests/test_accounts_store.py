@@ -74,7 +74,8 @@ def test_registered_student_survives_restart(anon, blob):
     sid = register_student(anon).json()["user"]["student_id"]
     doc = blob.doc()
     assert [a["email"] for a in doc["accounts"]] == ["sam.patel@bu.edu"]
-    assert doc["students"] == [dict(student_id=sid, name="Sam Patel", intended_major="Mathematics", bu_start_term="Fall 2026")]
+    assert doc["students"] == [dict(student_id=sid, name="Sam Patel", intended_major="Mathematics", bu_start_term="Fall 2026",
+                                    email="sam.patel@bu.edu")]
     assert "secret1" not in json.dumps(doc) and doc["accounts"][0]["password_hash"].count("$") == 1   # hash only
 
     restart()

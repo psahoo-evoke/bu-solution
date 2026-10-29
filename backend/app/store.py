@@ -113,10 +113,20 @@ class Student:
     name: str
     intended_major: str
     bu_start_term: str
+    bu_school: str = ""
+    # Contact fields (synthetic: example.edu, 555-01xx, invented streets). Personal data: shown to people through the
+    # API, never sent to an AI service (ADR 0004); the matcher only ever receives ExtCourse/BUCourse.
+    email: str = ""
+    phone: str = ""
+    address: str = ""
+    previous_school: str = ""          # schools.school_code of the latest non-summer transcript term ("" if unknown)
 
-    def to_api(self) -> dict:
+    def to_api(self, schools: Optional[dict[str, "School"]] = None) -> dict:
+        prev = (schools or {}).get(self.previous_school)
         return dict(student_id=self.student_id, name=self.name, intended_major=self.intended_major,
-                    bu_start_term=self.bu_start_term)
+                    bu_school=self.bu_school, bu_start_term=self.bu_start_term, email=self.email, phone=self.phone,
+                    address=self.address, previous_school=self.previous_school or None,
+                    previous_school_name=prev.name if prev else None)
 
 
 @dataclass
@@ -130,6 +140,25 @@ class TranscriptLine:
     credits: float
     calendar: str
     grade: str
+
+
+@dataclass
+class TranscriptRecord:
+    """One accepted transcript upload. The latest record per (student, school) is the source of that school's lines."""
+    transcript_id: str
+    student_id: str                    # portal / BU student id the transcript was uploaded for
+    school_code: str
+    school_student_id: str             # the "Student ID" printed on the transcript (the previous school's id; "" if none)
+    sha256: str                        # of the PDF bytes: the same file again is a duplicate
+    blob_url: str                      # archived original (<container>/<blob>), "" when the archive is off
+    course_count: int
+    uploaded_by: str                   # portal email, or the demo role
+    uploaded_at: str                   # ISO 8601 UTC
+
+    def to_api(self) -> dict:
+        return dict(transcript_id=self.transcript_id, school_code=self.school_code,
+                    school_student_id=self.school_student_id or None, course_count=self.course_count,
+                    uploaded_by=self.uploaded_by, uploaded_at=self.uploaded_at)
 
 
 @dataclass
@@ -152,6 +181,7 @@ class Store:
     holdout_decisions: list[Decision] = field(default_factory=list)  # eval only
     students: dict[str, Student] = field(default_factory=dict)
     lines: list[TranscriptLine] = field(default_factory=list)
+    transcripts: list[TranscriptRecord] = field(default_factory=list)   # uploads, oldest first (seed: none)
     syllabi: dict[str, SyllabusRecord] = field(default_factory=dict)
     rules: list[dict] = field(default_factory=list)
     reason_codes: dict[str, dict] = field(default_factory=dict)
@@ -167,6 +197,10 @@ class Store:
 
     def lines_for(self, student_id: str) -> list[TranscriptLine]:
         return [ln for ln in self.lines if ln.student_id == student_id]
+
+    def latest_transcript(self, student_id: str, school_code: str) -> Optional[TranscriptRecord]:
+        return next((t for t in reversed(self.transcripts)
+                     if t.student_id == student_id and t.school_code == school_code), None)
 
     def syllabus_state(self, ext_id: str) -> str:
         rec = self.syllabi.get(ext_id)
@@ -218,7 +252,10 @@ def load() -> Store:
             overlap_pct=int(float(r["overlap_pct"])) if r.get("overlap_pct") else None)
         (s.holdout_decisions if d.split == "holdout" else s.decisions).append(d)
     for r in _read("students.csv"):
-        s.students[r["student_id"]] = Student(r["student_id"], r["name"], r["intended_major"], r["bu_start_term"])
+        s.students[r["student_id"]] = Student(
+            r["student_id"], r["name"], r["intended_major"], r["bu_start_term"], bu_school=r.get("bu_school", ""),
+            email=r.get("email", ""), phone=r.get("phone", ""), address=r.get("address", ""),
+            previous_school=r.get("previous_school", ""))
     # Seeded transcript lines: only the INPUT columns of transcript_lines_expected.csv are loaded.
     # The expected outcome columns (status, bu_course, units, ...) are test oracles, not app state.
     for r in _read("transcript_lines_expected.csv"):

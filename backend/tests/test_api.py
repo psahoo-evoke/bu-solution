@@ -25,6 +25,36 @@ def test_health_students_rules(client):
     assert len(client.get("/api/rules").json()) == 24
 
 
+TERM_ORDER = {"Winter": 0, "Spring": 1, "Summer": 2, "Fall": 3}
+
+
+def test_student_profile_fields(client):
+    st = {s["student_id"]: s for s in client.get("/api/students").json()}
+    s = store_mod.STORE
+    for sid, x in st.items():
+        assert x["bu_school"] == "College of Arts & Sciences"
+        assert x["email"].endswith(("@example.edu", "@example.com"))                       # RFC 2606: unreachable
+        assert x["phone"][-8:-2] == "555-01"                                               # fictional 555-0100..0199
+        assert x["address"]
+        regular = [ln for ln in s.lines_for(sid) if not ln.term.startswith("Summer")]  # summer-only stints do not count
+        latest = max(regular, key=lambda ln: (int(ln.term.split()[1]), TERM_ORDER[ln.term.split()[0]]))
+        assert x["previous_school"] == latest.school_code                                  # most recent regular term's school
+        assert x["previous_school_name"] == s.schools[latest.school_code].name
+    assert st["SYN-24001"]["previous_school"] == "NYU"                                     # NYU, not the PSC summer course
+    assert st["SYN-24004"]["previous_school"] == "NYU"                                     # NEU -> SOI -> NYU
+    ev = client.get("/api/students/SYN-24004/evaluation").json()
+    assert ev["student"] == st["SYN-24004"]
+
+
+def test_audit_log_has_no_contact_data(client, fresh_store):
+    client.post("/api/decisions", json=DEC, headers=role("Evaluator"))
+    client.post("/api/postings", json={"student_id": "SYN-24001"}, headers=role("Registrar"))
+    text = repr(fresh_store.audit_log)
+    assert "posting" in text
+    for st in fresh_store.students.values():
+        assert st.email not in text and st.phone not in text and st.address not in text
+
+
 def test_evaluation_shape(client):
     ev = client.get("/api/students/SYN-24001/evaluation").json()
     assert len(ev["lines"]) == 6
@@ -154,6 +184,74 @@ def test_upload_transcript(client, fresh_store):
 def test_upload_transcript_wrong_student(client):
     with open(MAYA_NYU, "rb") as f:
         assert client.post("/api/students/SYN-24002/transcripts", files={"file": ("t.pdf", f)}, headers=role("Student")).status_code == 422
+
+
+def _upload(client, sid="SYN-24001", extra=b""):
+    """`extra` bytes make a different file (different sha256) with the same parse."""
+    with open(MAYA_NYU, "rb") as f:
+        data = f.read() + extra
+    return client.post(f"/api/students/{sid}/transcripts", files={"file": ("t.pdf", data)}, headers=role("CreditStaff"))
+
+
+def _parsed_as(monkeypatch, ref, edit=None):
+    """Make the upload parse as Maya's NYU transcript with Student ID `ref`, optionally edited."""
+    from app import main
+    parsed = parse_transcript(MAYA_NYU)
+    parsed.student_ref = ref
+    if edit:
+        edit(parsed)
+    monkeypatch.setattr(main, "parse_transcript", lambda _src: parsed)
+
+
+def test_transcript_upload_is_recorded_with_the_schools_student_id(client, fresh_store):
+    r = _upload(client)
+    assert r.status_code == 201
+    up = r.json()["upload"]
+    assert up["school_code"] == "NYU" and up["school_student_id"] == "SYN-24001-NYU" and not up["duplicate"]
+    [rec] = fresh_store.transcripts
+    assert (rec.transcript_id, rec.student_id, rec.school_code) == (up["transcript_id"], "SYN-24001", "NYU")
+    assert rec.school_student_id == "SYN-24001-NYU" and len(rec.sha256) == 64 and rec.course_count == 5
+    assert rec.uploaded_by == "CreditStaff"
+
+
+def test_same_transcript_again_is_a_duplicate(client, fresh_store):
+    first = _upload(client).json()
+    again = _upload(client)
+    assert again.status_code == 201 and again.json()["upload"]["duplicate"] is True
+    assert again.json()["upload"]["transcript_id"] == first["upload"]["transcript_id"]
+    assert len(fresh_store.transcripts) == 1 and again.json()["lines"] == first["lines"]
+
+
+def test_previous_schools_student_id_differs_from_the_portal_id(client, fresh_store, monkeypatch):
+    _parsed_as(monkeypatch, "N12345678")      # a real NYU id, not the BU / portal id
+    r = _upload(client)
+    assert r.status_code == 201 and r.json()["upload"]["school_student_id"] == "N12345678"
+
+
+def test_a_different_id_for_the_same_school_is_rejected(client, fresh_store, monkeypatch):
+    _parsed_as(monkeypatch, "N12345678")
+    assert _upload(client).status_code == 201
+    _parsed_as(monkeypatch, "N99999999", edit=lambda p: p.lines.pop())   # different file, different id
+    r = _upload(client)
+    assert r.status_code == 422 and "N12345678" in r.json()["detail"]
+    assert len(fresh_store.transcripts) == 1
+
+
+def test_replacing_transcript_reports_what_changed(client, fresh_store, monkeypatch):
+    assert _upload(client).json()["upload"]["replaced"] is True   # seeded NYU lines, same courses: no changes
+    from app.ingest import ParsedLine
+
+    def edit(p):
+        p.lines = [ln for ln in p.lines if ln.course_code != "PSYCH-UA 25"]
+        p.lines[0].grade = "B"
+        p.lines.append(ParsedLine("Fall 2025", "PSYCH-UA 30", "Social Psychology", 4.0, "A"))
+    _parsed_as(monkeypatch, "SYN-24001-NYU", edit)
+    up = _upload(client, extra=b"\n% updated copy\n").json()["upload"]
+    assert up["replaced"] and not up["duplicate"]
+    assert up["added"] == ["PSYCH-UA 30 (Fall 2025)"]
+    assert up["removed"] == ["PSYCH-UA 25 (Spring 2025)"]
+    assert up["updated"] == ["PSYCH-UA 1 (Fall 2024)"]
+    assert len(fresh_store.transcripts) == 2
 
 
 def test_late_syllabus_upload_moves_ts_to_review(client):

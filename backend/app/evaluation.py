@@ -17,7 +17,7 @@ The matcher sees only non-ground-truth fields. Holdout decisions are only scored
 """
 from __future__ import annotations
 
-from .matcher import engine_name, recommend
+from .matcher import engine_name, recommend_many
 from .store import Store
 
 GATE_TOP1 = 0.80
@@ -38,9 +38,8 @@ def _band(pct) -> str:
 def evaluate_holdout(store: Store) -> dict:
     bus = list(store.bu_courses.values())
     rows = []
-    for d in store.holdout_decisions:
-        course = store.ext_courses[d.ext_id]
-        rec = recommend(course, bus, store.syllabi.get(d.ext_id))
+    recs = recommend_many([(store.ext_courses[d.ext_id], bus, store.syllabi.get(d.ext_id)) for d in store.holdout_decisions])
+    for d, rec in zip(store.holdout_decisions, recs):
         sd, sc = rec["suggested_decision"], rec["suggested_code"]
         top = rec["candidates"][0]["bu_code"] if rec["candidates"] else ""
         if d.decision == "Equivalent":

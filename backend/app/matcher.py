@@ -16,10 +16,15 @@ sentences are removed before scoring, so an injected line cannot change the tier
 """
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
 import os
 import re
+import threading
 import urllib.request
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Protocol
 
 from .rules import elective_code
@@ -188,11 +193,40 @@ def validate_llm_output(content: str, shortlist: list[dict], by_code: dict) -> l
     return out
 
 
+# Validated model rankings, keyed by a hash of the exact prompt + endpoint/deployment. The prompt carries every input
+# that affects the answer (course fields, sanitised syllabus excerpt, shortlist + BU outcomes), so a changed syllabus
+# or catalogue is a new key and nothing needs invalidating. Only validated output is stored: a failure that fell back
+# to offline is retried on the next request. Hits are deep copies, so callers may mutate what they get.
+_RANK_CACHE: OrderedDict[str, list[dict]] = OrderedDict()
+_RANK_CACHE_MAX = 1024
+_rank_lock = threading.Lock()
+
+
+def clear_cache() -> None:
+    with _rank_lock:
+        _RANK_CACHE.clear()
+
+
+def _cache_key(messages: list[dict]) -> str:
+    target = [os.environ.get(k, "") for k in ("AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT", "AZURE_OPENAI_API_VERSION")]
+    return hashlib.sha256(json.dumps([target, messages], sort_keys=True).encode()).hexdigest()
+
+
 def _azure_rank(course: ExtCourse, bus: list[BUCourse], syllabus_text: str) -> list[dict]:
     shortlist = _rank_offline(course, bus, syllabus_text)[:10]       # narrow candidates (Azure AI Search in prod)
     by_code = {b.bu_code: b for b in bus}
-    content = llm_client(build_prompt(course, shortlist, by_code, syllabus_text))
-    return validate_llm_output(content, shortlist, by_code)
+    messages = build_prompt(course, shortlist, by_code, syllabus_text)
+    key = _cache_key(messages)
+    with _rank_lock:
+        if key in _RANK_CACHE:
+            _RANK_CACHE.move_to_end(key)
+            return copy.deepcopy(_RANK_CACHE[key])
+    ranked = validate_llm_output(llm_client(messages), shortlist, by_code)
+    with _rank_lock:
+        _RANK_CACHE[key] = copy.deepcopy(ranked)
+        while len(_RANK_CACHE) > _RANK_CACHE_MAX:
+            _RANK_CACHE.popitem(last=False)
+    return ranked
 
 
 def engine_name() -> str:
@@ -241,3 +275,15 @@ def recommend(course: ExtCourse, bus: list[BUCourse], syllabus: Optional[Syllabu
     return dict(ext_id=course.ext_id, preliminary=preliminary, engine=engine, candidates=top3,
                 suggested_decision=decision, suggested_code=code, confidence_pct=int(max(0, min(100, confidence))),
                 injection_detected=injection)
+
+
+MAX_PARALLEL = 8
+
+
+def recommend_many(jobs: list[tuple[ExtCourse, list[BUCourse], Optional[SyllabusInput]]]) -> list[dict]:
+    """recommend() for many courses, in input order. Model calls run concurrently (a cold review queue or holdout
+    evaluation would otherwise wait on each call in turn); the offline engine stays sequential."""
+    if engine_name() != "azure-openai" or len(jobs) < 2:
+        return [recommend(*j) for j in jobs]
+    with ThreadPoolExecutor(max_workers=min(MAX_PARALLEL, len(jobs))) as pool:
+        return list(pool.map(lambda j: recommend(*j), jobs))
