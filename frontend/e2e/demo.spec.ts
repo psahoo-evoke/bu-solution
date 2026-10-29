@@ -24,7 +24,7 @@ test('student sees secured vs pending and every course status', async ({ page })
   await page.goto('/');
   await expect(page).toHaveURL(/\/student\/SYN-24001$/);
   await setRole(page, 'Student');
-  await expect(page.getByText('Synthetic data – EvoHack 2026')).toBeVisible();
+  await expect(page.getByText(/synthetic/i)).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Maya R. Delgado' })).toBeVisible();
 
   const totals = page.getByLabel('Credit totals');
@@ -121,5 +121,5 @@ test('registrar downloads the MyBU CSV and resets the demo', async ({ page }) =>
 
   page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Reset demo data' }).click();
-  await expect(page.getByText('Demo reset to the seeded synthetic state.')).toBeVisible();
+  await expect(page.getByText('Demo reset to the original data.')).toBeVisible();
 });

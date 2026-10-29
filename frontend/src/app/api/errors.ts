@@ -17,7 +17,7 @@ export function describeError(err: unknown, role?: string, op?: Operation): stri
       const who = role ? `The ${role} role can't do this. ` : '';
       return op ? `${who}${switchRoleMessage(op)}` : `${who}Switch role in the top bar.`;
     }
-    if (err.status === 404) return 'Not found. The record may not exist in the synthetic data set.';
+    if (err.status === 404) return 'Not found. The record may not exist.';
     if (err.status === 422) {
       const detail = typeof err.error === 'object' && err.error?.detail ? ` ${stringifyDetail(err.error.detail)}` : '';
       return `The request was rejected.${detail}`;

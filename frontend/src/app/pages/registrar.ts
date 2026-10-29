@@ -97,7 +97,7 @@ export class RegistrarPage {
         this.resetting.set(false);
         this.preview.set([]);
         this.posted.set(null);
-        this.message.set('Demo reset to the seeded synthetic state.');
+        this.message.set('Demo reset to the original data.');
       },
       error: (err) => {
         this.resetting.set(false);

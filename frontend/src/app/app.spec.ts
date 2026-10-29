@@ -14,13 +14,13 @@ describe('App shell', () => {
     }).compileComponents();
   });
 
-  it('shows the synthetic-data badge and the role switcher', async () => {
+  it('shows the role switcher and no synthetic-data wording', async () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     TestBed.inject(HttpTestingController).expectOne('/api/health').flush({ status: 'ok' });
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.textContent).toContain('Synthetic data – EvoHack 2026');
+    expect(el.textContent?.toLowerCase()).not.toContain('synthetic');
     const options = Array.from(el.querySelectorAll('#role-select option')).map((o) => o.textContent?.trim());
     expect(options).toEqual(['Student', 'CreditStaff', 'Evaluator', 'Department', 'Registrar', 'Advisor']);
   });

@@ -72,7 +72,6 @@ code { font-size: .9em; background: #eef1f4; padding: 0 .25em; border-radius: 4p
 .topbar__role { display: flex; align-items: center; gap: .5rem; font-size: .9rem; }
 .badge {
   display: inline-block; font-size: .75rem; padding: .15rem .5rem; border-radius: 999px; font-weight: 600;
-  &--synthetic { background: #fff3d6; color: #7a4a00; border: 1px dashed #c48a00; }
 }
 
 .container { max-width: 1280px; margin: 0 auto; padding: 1.25rem; &:focus { outline: none; } }

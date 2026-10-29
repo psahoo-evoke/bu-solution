@@ -53,7 +53,7 @@
 
   <section class="card" aria-labelledby="reset-h">
     <h2 id="reset-h">Demo reset</h2>
-    <p class="muted small">Restores the seeded synthetic data and removes decisions made during the demo.</p>
+    <p class="muted small">Restores the original data and removes decisions made during the demo.</p>
     <button type="button" class="btn btn--danger" (click)="reset()" [disabled]="resetting() || !canReset()" [attr.aria-describedby]="canReset() ? null : 'reset-hint'">
       {{ resetting() ? 'Resetting…' : 'Reset demo data' }}
     </button>
