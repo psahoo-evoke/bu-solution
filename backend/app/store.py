@@ -1,7 +1,10 @@
-"""In-memory repository loaded from the synthetic seed CSVs (data/synthetic/seed/).
+"""In-memory repository the rules engine and matcher work on.
 
-Production target is PostgreSQL (see backend/db/schema.sql). For the hackathon slice everything lives in
-memory and `reset()` restores the seeded state.
+Source of truth:
+- POSTGRES_HOST set: PostgreSQL (backend/db/schema.sql, app/db.py). The store is loaded from the tables at start-up
+  (an empty database is seeded from the CSVs first) and every change is written to the database before memory.
+- Otherwise: the synthetic seed CSVs (data/synthetic/seed/), in memory only (tests, local runs).
+`reset()` restores the seeded state (in the database too).
 
 Data-hygiene guarantees (AGENTS.md, ADR 0002):
 - `gt_*` columns of external_courses.csv are split off into `ground_truth` at load time. The matcher only ever
@@ -245,12 +248,35 @@ def syllabus_file_for(ext_id: str) -> Optional[str]:
     return None
 
 
-STORE: Store = load()
+def load_db() -> Store:
+    """Store from PostgreSQL. Rules and reason codes are not in the schema and still come from the seed CSVs."""
+    from . import db
+    db.ensure_schema()
+    if db.is_empty():
+        db.reseed(load())
+    s = Store()
+    s.rules = _read("rules.csv")
+    s.reason_codes = {r["reason_code"]: r for r in _read("reason_codes.csv")}
+    db.load_store(s)
+    return s
+
+
+def _initial() -> Store:
+    from . import db
+    return load_db() if db.enabled() else load()
+
+
+STORE: Store = _initial()
 
 
 def reset() -> Store:
     global STORE
-    new = load()
+    from . import db
+    if db.enabled():
+        db.reseed(load())       # seed rows back; registered students and accounts are kept
+        new = load_db()
+    else:
+        new = load()
     with STORE.lock:
         STORE.__dict__.update({k: v for k, v in new.__dict__.items() if k != "lock"})
     return STORE

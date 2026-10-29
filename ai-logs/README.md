@@ -61,6 +61,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-29 | [developer-11](2026-10-29/developer-11.md) | "Syllabus needed, please upload" email when Upload syllabus is clicked | Sagar (spathur) |
 | 2026-10-29 | [developer-12](2026-10-29/developer-12.md) | Send the syllabus emails through a Logic App + Office 365 Outlook | Sagar (spathur) |
 | 2026-10-29 | [developer-13](2026-10-29/developer-13.md) | Status page title "Transfer credit status"; no student picker for students | Sagar (spathur) |
+| 2026-10-29 | [developer-14](2026-10-29/developer-14.md) | Persist all changing data in PostgreSQL (bu-solution-pg / butransfer) | Sagar (spathur) |
 | 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
 <!-- INDEX:END -->
 

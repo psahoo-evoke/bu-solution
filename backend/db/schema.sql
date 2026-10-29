@@ -63,7 +63,8 @@ CREATE TABLE decisions (
     decision_date   timestamptz NOT NULL DEFAULT now(),
     ai_suggestion   text,
     ai_agreed       boolean,
-    note            text NOT NULL DEFAULT ''
+    note            text NOT NULL DEFAULT '',
+    overlap_pct     integer                              -- evaluator-recorded overlap (seed decisions)
 );
 CREATE INDEX decisions_lookup ON decisions (ext_id, catalog_year, decision_date) WHERE split <> 'holdout';
 
@@ -83,7 +84,11 @@ CREATE TABLE students (
     name            text NOT NULL,
     intended_major  text,
     bu_school       text,
-    bu_start_term   text NOT NULL                       -- 'Fall 2026'
+    bu_start_term   text NOT NULL,                      -- 'Fall 2026'
+    email           text,                               -- columns below exist in bu-solution-pg; not used by the API
+    phone           text,
+    address         text,
+    previous_school text
 );
 
 CREATE TABLE transcript_lines (
@@ -106,7 +111,21 @@ CREATE TABLE syllabi (
     blob_url            text,
     missing_sections    text[] NOT NULL DEFAULT '{}',
     injection_detected  boolean NOT NULL DEFAULT false,
-    received_at         timestamptz
+    received_at         timestamptz,
+    source_file         text,                           -- bundled seed PDF, relative to data/synthetic
+    seed_state          text,                           -- state in syllabi_index.csv (e.g. complete-late)
+    extracted_text      text NOT NULL DEFAULT ''        -- text the matcher reads (untrusted, ADR 0004)
+);
+
+-- Registrar posting step (app/main.py POST /postings): an approved line becomes posted (T).
+CREATE TABLE postings (
+    student_id   text NOT NULL,
+    ext_id       text NOT NULL,
+    term         text NOT NULL,
+    decision_id  text,
+    posted_at    timestamptz NOT NULL,
+    actor_role   text NOT NULL,
+    PRIMARY KEY (student_id, ext_id, term)
 );
 
 CREATE TABLE audit_log (

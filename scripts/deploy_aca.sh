@@ -139,6 +139,18 @@ if [ "${PORTAL_AUTH:-}" = "1" ] && [ -z "${ENTRA_CLIENT_ID:-}" ]; then
     --set-env-vars TRANSFERIQ_SESSION_SECRET=secretref:session-secret
 fi
 
+# Optional PostgreSQL (backend/app/db.py): PG_HOST, PG_DB, PG_USER, PG_PASSWORD. The password goes into a Container
+# Apps secret (never printed); the server firewall must allow Azure services. Without PG_HOST the API keeps whatever
+# database settings it already has (or runs in memory).
+if [ -n "${PG_HOST:-}" ]; then
+  log "PostgreSQL ($PG_HOST / ${PG_DB:-postgres})"
+  az containerapp secret set -n "$API_APP" -g "$RG" --secrets postgres-password="${PG_PASSWORD:?set PG_PASSWORD}" \
+    -o none --only-show-errors
+  az containerapp update -n "$API_APP" -g "$RG" --only-show-errors -o none --set-env-vars \
+    POSTGRES_HOST="$PG_HOST" POSTGRES_DB="${PG_DB:-postgres}" POSTGRES_USER="${PG_USER:?set PG_USER}" \
+    POSTGRES_PASSWORD=secretref:postgres-password
+fi
+
 # Optional upload archive (backend/app/blob_store.py): STORAGE_ACCOUNT=<existing account> [STORAGE_RG=<its RG>].
 # The API's SYSTEM identity writes blobs (DefaultAzureCredential picks it because AZURE_CLIENT_ID is not set);
 # the user-assigned identity above stays pull-only. Roles are scoped to the two containers, not the account.

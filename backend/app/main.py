@@ -20,7 +20,7 @@ from fastapi import APIRouter, FastAPI, File, Header, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from . import accounts, blob_store, notify
+from . import accounts, blob_store, db, notify
 from . import store as store_mod
 from .evaluation import evaluate_holdout
 from .guard import MAX_UPLOAD_BYTES, RoleGuardMiddleware, auth_mode
@@ -96,9 +96,23 @@ def _own_department_only(request: Request, ext_ids: list[str]) -> None:
                                  f"(not {', '.join(other)})")
 
 
+def _persist(fn, *args) -> None:
+    """Write a change to PostgreSQL (when configured) BEFORE the in-memory store changes; a failed write fails the
+    request with nothing changed."""
+    if not db.enabled():
+        return
+    try:
+        fn(*args)
+    except db.DBError as e:
+        raise HTTPException(503, str(e))
+
+
 def _audit(role: str, action: str, ext_id: str, before, after):
-    S().audit_log.append(dict(actor_role=role, action=action, ext_id=ext_id, before=before, after=after,
-                              at=dt.datetime.now(dt.timezone.utc).isoformat()))
+    entry = dict(actor_role=role, action=action, ext_id=ext_id, before=before, after=after,
+                 at=dt.datetime.now(dt.timezone.utc).isoformat())
+    S().audit_log.append(entry)
+    if db.enabled():
+        db.save_audit(entry)   # best-effort, logged on failure
 
 
 def build_evaluation(student_id: str) -> dict:
@@ -205,14 +219,14 @@ async def upload_transcript(student_id: str = StudentIdPath, file: UploadFile = 
         raise HTTPException(422, "No course lines found in transcript")
     await _archive("transcripts", student_id, data)
     with S().lock:
-        new_lines = []
+        new_lines, new_courses = [], {}
         for p in parsed.lines:
             ext_id = f"{school.school_code}|{p.course_code}"
-            if ext_id not in S().ext_courses:
+            if ext_id not in S().ext_courses and ext_id not in new_courses:
                 num = int("".join(ch for ch in p.course_code.split()[-1] if ch.isdigit()) or 0)
-                S().ext_courses[ext_id] = ExtCourse(ext_id, school.school_code, p.course_code, p.title, p.credits,
-                                                    parsed.calendar, "", "Academic", 100 if num < 200 else 200,
-                                                    p.title, [], [])
+                new_courses[ext_id] = ExtCourse(ext_id, school.school_code, p.course_code, p.title, p.credits,
+                                                parsed.calendar, "", "Academic", 100 if num < 200 else 200,
+                                                p.title, [], [])
             new_lines.append(TranscriptLine(student_id, school.school_code, p.term, ext_id, p.course_code, p.title,
                                             p.credits, parsed.calendar, p.grade))
         # Re-uploading a school's transcript replaces that school's lines, keeping transcript order.
@@ -224,7 +238,11 @@ async def upload_transcript(student_id: str = StudentIdPath, file: UploadFile = 
             idx = last + 1
         else:
             idx = sum(1 for ln in old[:idx] if not (ln.student_id == student_id and ln.school_code == school.school_code))
-        S().lines = kept[:idx] + new_lines + kept[idx:]
+        lines = kept[:idx] + new_lines + kept[idx:]
+        _persist(db.save_transcript, student_id, list(new_courses.values()),
+                 [ln for ln in lines if ln.student_id == student_id])
+        S().ext_courses.update(new_courses)
+        S().lines = lines
     return build_evaluation(student_id)
 
 
@@ -244,10 +262,11 @@ async def upload_syllabus(request: Request, ext_id: str = ExtIdPath, file: Uploa
     chk = check_syllabus(text)
     inj = detect_injection(text)
     stored = await _archive("syllabi", ext_id, data)
+    rec = SyllabusRecord(ext_id=ext_id, state="complete" if chk["complete"] else "incomplete",
+                         file=stored or f"upload-{uuid.uuid4().hex}.pdf", text=text, injection_detected=inj)
     with S().lock:
-        S().syllabi[ext_id] = SyllabusRecord(ext_id=ext_id, state="complete" if chk["complete"] else "incomplete",
-                                             file=stored or f"upload-{uuid.uuid4().hex}.pdf", text=text,
-                                             injection_detected=inj)
+        _persist(db.save_syllabus, rec, stored, chk["missing_sections"])
+        S().syllabi[ext_id] = rec
     return dict(ext_id=ext_id, complete=chk["complete"], missing_sections=chk["missing_sections"],
                 status_code="TP" if chk["complete"] else "TM", injection_detected=inj)
 
@@ -388,6 +407,7 @@ def _save_decision(inp: DecisionInput, role: str, rec: Optional[dict]) -> Decisi
                  decided_by=inp.evaluator, decision_date=dt.datetime.now(dt.timezone.utc).isoformat(),
                  split="runtime", note=inp.note, ai_suggestion=sugg, ai_agreed=agreed, applies_to=applies_to)
     with s.lock:
+        _persist(db.save_decisions, [d])
         s.decisions.append(d)
     _audit(role, "decision", inp.ext_id, None, d.to_api())   # actor role recorded (checklist section 1)
     return d
@@ -474,16 +494,16 @@ def post_postings(inp: Optional[PostingInput] = None, x_demo_role: str = Header(
     now = dt.datetime.now(dt.timezone.utc).isoformat()
     posted = 0
     with s.lock:
-        for sid in ids:
-            for o in evaluate_student(s, s.students[sid]):
-                if o["state"] != "approved":
-                    continue
-                s.postings[(sid, o["ext_id"], o["term"])] = dict(decision_id=o["_decision_id"], posted_at=now,
-                                                                 actor_role=x_demo_role)
-                w.writerow([_csv_safe(v) for v in (sid, o["ext_id"], o["bu_course"], f"{o['units']:.2f}", "T")])
-                _audit(x_demo_role, "posting", o["ext_id"], dict(student_id=sid, state="approved"),
-                       dict(student_id=sid, state="posted", bu_course=o["bu_course"], units=o["units"]))
-                posted += 1
+        todo = [(sid, o) for sid in ids for o in evaluate_student(s, s.students[sid]) if o["state"] == "approved"]
+        items = [((sid, o["ext_id"], o["term"]), dict(decision_id=o["_decision_id"], posted_at=now,
+                                                       actor_role=x_demo_role)) for sid, o in todo]
+        _persist(db.save_postings, items)            # all postings of this request in one transaction
+        for (key, val), (sid, o) in zip(items, todo):
+            s.postings[key] = val
+            w.writerow([_csv_safe(v) for v in (sid, o["ext_id"], o["bu_course"], f"{o['units']:.2f}", "T")])
+            _audit(x_demo_role, "posting", o["ext_id"], dict(student_id=sid, state="approved"),
+                   dict(student_id=sid, state="posted", bu_course=o["bu_course"], units=o["units"]))
+            posted += 1
     return dict(posted=posted, csv=buf.getvalue())
 
 
@@ -525,7 +545,10 @@ def reason_codes():
 def demo_reset():
     if auth_mode() == "entra":       # ADR 0005: disabled outside the demo
         raise HTTPException(403, "Demo reset is disabled in entra mode")
-    store_mod.reset()
+    try:
+        store_mod.reset()                    # PostgreSQL mode: seed rows restored in the database too
+    except db.DBError as e:
+        raise HTTPException(503, str(e))
     accounts.restore_registered_students()   # registered accounts survive a demo reset
     return Response(status_code=204)
 

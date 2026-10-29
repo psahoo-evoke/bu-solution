@@ -26,7 +26,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
-from . import blob_store
+from . import blob_store, db
 from . import store as store_mod
 from .store import Student
 
@@ -115,7 +115,30 @@ def _seed() -> _Registry:
 # ------------------------------------------------------------------ persistence (Blob Storage)
 def _load_registered(reg: _Registry) -> None:
     """Merge stored registrations into the registry and the store. On a read error the registry is marked not
-    loaded; registration stays refused until a later read succeeds."""
+    loaded; registration stays refused until a later read succeeds.
+    PostgreSQL mode: accounts come from the portal_accounts table (student records are already in the store);
+    accounts saved earlier in Blob Storage are copied into the table once."""
+    if db.enabled():
+        try:
+            rows = db.load_accounts()
+            if not rows and blob_store.enabled():
+                _import_blob_accounts()
+                rows = db.load_accounts()
+        except (db.DBError, blob_store.BlobStoreError, ValueError) as e:
+            reg.loaded = False
+            log.error("stored accounts could not be read; registration is paused: %s", e)
+            return
+        reg.loaded = True
+        for a in rows:
+            if a["email"] not in reg.accounts:
+                reg.accounts[a["email"]] = Account(a["email"], a["name"], a["role"], a["password_hash"],
+                                                   student_id=a["student_id"], department=a["department"],
+                                                   registered=True)
+                st = store_mod.STORE.students.get(a["student_id"] or "")
+                if st is not None and st not in reg.students:
+                    reg.students.append(st)
+        log.info("loaded %d registered account(s) from PostgreSQL", len(rows))
+        return
     try:
         doc = blob_store.load_json("accounts", ACCOUNTS_BLOB)
     except (blob_store.BlobStoreError, ValueError) as e:      # ValueError: unreadable JSON
@@ -139,8 +162,33 @@ def _load_registered(reg: _Registry) -> None:
     log.info("loaded %d registered account(s) from storage", sum(a.registered for a in reg.accounts.values()))
 
 
-def _save_registered(reg: _Registry) -> None:
-    """Write all registrations. Caller holds reg.lock. Raises AccountError when they cannot be stored."""
+def _import_blob_accounts() -> None:
+    """One-off move of accounts registered before PostgreSQL was used (accounts/accounts.json) into the table."""
+    doc = blob_store.load_json("accounts", ACCOUNTS_BLOB)
+    if not doc:
+        return
+    students = {s["student_id"]: Student(s["student_id"], s["name"], s["intended_major"], s["bu_start_term"])
+                for s in doc.get("students", [])}
+    for a in doc.get("accounts", []):
+        acct = Account(a["email"], a["name"], a["role"], a["password_hash"], student_id=a.get("student_id"),
+                       department=a.get("department"), registered=True)
+        st = students.get(acct.student_id or "")
+        db.save_registration(acct, st if st and st.student_id not in store_mod.STORE.students else None)
+        if st:
+            with store_mod.STORE.lock:
+                store_mod.STORE.students.setdefault(st.student_id, st)
+    log.info("copied %d account(s) from Blob Storage to PostgreSQL", len(doc.get("accounts", [])))
+
+
+def _save_registered(reg: _Registry, acct: Optional["Account"] = None, student: Optional[Student] = None) -> None:
+    """Store a new registration. Caller holds reg.lock. Raises AccountError when it cannot be stored.
+    PostgreSQL: this account (+ its student record) in one transaction. Blob: the whole document."""
+    if db.enabled():
+        try:
+            db.save_registration(acct, student)
+        except db.DBError:
+            raise AccountError(503, "Could not save your account. Please try again.")
+        return
     if not blob_store.enabled():
         return
     doc = dict(
@@ -234,7 +282,7 @@ def register_student(name: str, email: str, password: str, intended_major: str, 
         acct = Account(email, name, "Student", hash_password(password), student_id=sid, registered=True)
         REGISTRY.accounts[email] = acct
         try:
-            _save_registered(REGISTRY)
+            _save_registered(REGISTRY, acct, st)
         except AccountError:                                     # not stored -> not registered
             del REGISTRY.accounts[email]
             REGISTRY.students.remove(st)
@@ -258,7 +306,7 @@ def register_department(name: str, email: str, password: str, department: str) -
         acct = Account(email, name, "Department", hash_password(password), department=department, registered=True)
         REGISTRY.accounts[email] = acct
         try:
-            _save_registered(REGISTRY)
+            _save_registered(REGISTRY, acct)
         except AccountError:                                     # not stored -> not registered
             del REGISTRY.accounts[email]
             raise
