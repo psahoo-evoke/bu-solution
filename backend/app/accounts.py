@@ -6,13 +6,18 @@
 - Self-registration: a student account creates a new (empty) student record; a department account is bound to one
   department. Passwords are stored as salted PBKDF2-SHA256 hashes.
 - Sessions: HS256 JWT signed with TRANSFERIQ_SESSION_SECRET (random per process when unset, so a restart signs
-  everyone out). Accounts live in memory like the rest of the store (ADR: in-memory demo store); a demo reset keeps
-  them and re-creates registered students' records.
+  everyone out).
+- Persistence: registered accounts and the student records they created are saved to Blob Storage
+  (<accounts container>/accounts.json, via app/blob_store.py) BEFORE a registration is accepted, and loaded at start-up,
+  so they survive restarts. Only password hashes are stored. If the document cannot be read, registration is refused
+  (never overwrite stored accounts with a partial list). Without a blob endpoint (tests, local) they stay in memory.
+  A demo reset keeps them and re-creates registered students' records.
 """
 from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import os
 import re
 import secrets
@@ -21,9 +26,13 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
+from . import blob_store
 from . import store as store_mod
 from .store import Student
 
+log = logging.getLogger("transferiq.accounts")
+
+ACCOUNTS_BLOB = "accounts.json"
 SESSION_HOURS = 8
 PASSWORD_MIN = 5
 EMAIL_RE = re.compile(r"^[a-z0-9._%+-]+@bu\.edu$")
@@ -70,6 +79,7 @@ class _Registry:
     accounts: dict[str, Account] = field(default_factory=dict)
     students: list[Student] = field(default_factory=list)       # records created by registration
     lock: threading.Lock = field(default_factory=threading.Lock)
+    loaded: bool = True                                          # False: stored accounts could not be read yet
 
 
 def dept_email(department: str) -> str:
@@ -98,7 +108,62 @@ def _seed() -> _Registry:
                                                  department=dept)
     for role, email in STAFF_ACCOUNTS.items():
         reg.accounts[email] = Account(email, STAFF_NAMES[role], role, pw)
+    _load_registered(reg)
     return reg
+
+
+# ------------------------------------------------------------------ persistence (Blob Storage)
+def _load_registered(reg: _Registry) -> None:
+    """Merge stored registrations into the registry and the store. On a read error the registry is marked not
+    loaded; registration stays refused until a later read succeeds."""
+    try:
+        doc = blob_store.load_json("accounts", ACCOUNTS_BLOB)
+    except (blob_store.BlobStoreError, ValueError) as e:      # ValueError: unreadable JSON
+        reg.loaded = False
+        log.error("stored accounts could not be read; registration is paused: %s", e)
+        return
+    reg.loaded = True
+    if not doc:
+        return
+    for s in doc.get("students", []):
+        st = Student(s["student_id"], s["name"], s["intended_major"], s["bu_start_term"])
+        if all(x.student_id != st.student_id for x in reg.students):
+            reg.students.append(st)
+        with store_mod.STORE.lock:
+            store_mod.STORE.students.setdefault(st.student_id, st)
+    for a in doc.get("accounts", []):
+        if a["email"] not in reg.accounts:                       # seeded accounts always win
+            reg.accounts[a["email"]] = Account(a["email"], a["name"], a["role"], a["password_hash"],
+                                               student_id=a.get("student_id"), department=a.get("department"),
+                                               registered=True)
+    log.info("loaded %d registered account(s) from storage", sum(a.registered for a in reg.accounts.values()))
+
+
+def _save_registered(reg: _Registry) -> None:
+    """Write all registrations. Caller holds reg.lock. Raises AccountError when they cannot be stored."""
+    if not blob_store.enabled():
+        return
+    doc = dict(
+        version=1,
+        accounts=[dict(email=a.email, name=a.name, role=a.role, password_hash=a.password_hash,
+                       student_id=a.student_id, department=a.department)
+                  for a in reg.accounts.values() if a.registered],
+        students=[dict(student_id=s.student_id, name=s.name, intended_major=s.intended_major,
+                       bu_start_term=s.bu_start_term) for s in reg.students],
+    )
+    try:
+        blob_store.save_json("accounts", ACCOUNTS_BLOB, doc)
+    except blob_store.BlobStoreError:
+        raise AccountError(502, "Could not save your account. Please try again.")
+
+
+def _ensure_loaded(reg: _Registry) -> None:
+    """Caller holds reg.lock. Before accepting a registration, stored accounts must be known (duplicate check and
+    no overwrite with a partial list): retry a failed start-up read, refuse while storage stays unreadable."""
+    if blob_store.enabled() and not reg.loaded:
+        _load_registered(reg)
+        if not reg.loaded:
+            raise AccountError(503, "Registration is temporarily unavailable. Please try again in a few minutes.")
 
 
 REGISTRY = _seed()
@@ -156,16 +221,26 @@ def register_student(name: str, email: str, password: str, intended_major: str, 
         raise AccountError(422, "Choose your intended major")
     _check_new_password(password)
     with REGISTRY.lock:
+        _ensure_loaded(REGISTRY)
         if email in REGISTRY.accounts:
             raise AccountError(409, "An account with this email already exists. Sign in instead.")
         with store_mod.STORE.lock:
             taken = [int(s[4:]) for s in store_mod.STORE.students if re.fullmatch(r"SYN-\d+", s)]
+            taken += [int(s.student_id[4:]) for s in REGISTRY.students]   # ids survive a store reset
             sid = f"SYN-{max(taken, default=24000) + 1}"
             st = Student(sid, name, intended_major.strip()[:60], (start_term or "Fall 2026").strip()[:20])
             store_mod.STORE.students[sid] = st
         REGISTRY.students.append(st)
         acct = Account(email, name, "Student", hash_password(password), student_id=sid, registered=True)
         REGISTRY.accounts[email] = acct
+        try:
+            _save_registered(REGISTRY)
+        except AccountError:                                     # not stored -> not registered
+            del REGISTRY.accounts[email]
+            REGISTRY.students.remove(st)
+            with store_mod.STORE.lock:
+                store_mod.STORE.students.pop(sid, None)
+            raise
     return acct
 
 
@@ -177,10 +252,16 @@ def register_department(name: str, email: str, password: str, department: str) -
         raise AccountError(422, "Choose a department from the list")
     _check_new_password(password)
     with REGISTRY.lock:
+        _ensure_loaded(REGISTRY)
         if email in REGISTRY.accounts:
             raise AccountError(409, "An account with this email already exists. Sign in instead.")
         acct = Account(email, name, "Department", hash_password(password), department=department, registered=True)
         REGISTRY.accounts[email] = acct
+        try:
+            _save_registered(REGISTRY)
+        except AccountError:                                     # not stored -> not registered
+            del REGISTRY.accounts[email]
+            raise
     return acct
 
 

@@ -16,8 +16,8 @@ from typing import Literal, Optional
 
 log = logging.getLogger("transferiq.blob")
 
-Kind = Literal["transcripts", "syllabi"]
-_DEFAULT_CONTAINERS = {"transcripts": "transcripts", "syllabi": "syllabi"}
+Kind = Literal["transcripts", "syllabi", "accounts"]
+_DEFAULT_CONTAINERS = {"transcripts": "transcripts", "syllabi": "syllabi", "accounts": "accounts"}
 _CLIENT = None
 
 
@@ -71,3 +71,39 @@ def save_pdf(kind: Kind, key: str, data: bytes) -> Optional[str]:
         raise BlobStoreError(f"Could not store the file ({type(e).__name__})") from e
     log.info("stored upload %s/%s (%d bytes)", container, name, len(data))
     return f"{container}/{name}"
+
+
+def save_json(kind: Kind, name: str, doc: dict) -> None:
+    """Overwrite one JSON document (e.g. accounts/accounts.json). No-op when the archive is not configured."""
+    if not enabled():
+        return
+    import json
+
+    from azure.storage.blob import ContentSettings  # noqa: WPS433
+
+    container = container_for(kind)
+    try:
+        _service().get_blob_client(container, name).upload_blob(
+            json.dumps(doc, separators=(",", ":")).encode(), overwrite=True,
+            content_settings=ContentSettings(content_type="application/json"))
+    except Exception as e:
+        log.error("blob write failed: %s/%s: %s", container, name, type(e).__name__)
+        raise BlobStoreError(f"Could not save {name} ({type(e).__name__})") from e
+
+
+def load_json(kind: Kind, name: str) -> Optional[dict]:
+    """Read one JSON document. None when it does not exist yet or the archive is not configured;
+    BlobStoreError when it exists but cannot be read (callers must not overwrite it then)."""
+    if not enabled():
+        return None
+    import json
+
+    container = container_for(kind)
+    try:
+        data = _service().get_blob_client(container, name).download_blob().readall()
+    except Exception as e:
+        if type(e).__name__ == "ResourceNotFoundError":   # azure.core.exceptions; no import needed offline
+            return None
+        log.error("blob read failed: %s/%s: %s", container, name, type(e).__name__)
+        raise BlobStoreError(f"Could not read {name} ({type(e).__name__})") from e
+    return json.loads(data)

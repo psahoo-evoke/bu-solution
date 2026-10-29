@@ -148,7 +148,7 @@ if [ -n "${STORAGE_ACCOUNT:-}" ]; then
   ST_ID="$(az storage account show -n "$STORAGE_ACCOUNT" -g "$ST_RG" --query id -o tsv)"
   BLOB_EP="$(az storage account show -n "$STORAGE_ACCOUNT" -g "$ST_RG" --query primaryEndpoints.blob -o tsv)"
   API_PRINCIPAL="$(az containerapp identity assign -n "$API_APP" -g "$RG" --system-assigned --query principalId -o tsv)"
-  for c in transcripts syllabi; do
+  for c in transcripts syllabi accounts; do
     az storage container-rm show --storage-account "$ST_ID" -n "$c" -o none 2>/dev/null \
       || az storage container-rm create --storage-account "$ST_ID" -n "$c" --public-access off --only-show-errors -o none
     scope="$ST_ID/blobServices/default/containers/$c"
@@ -159,7 +159,8 @@ if [ -n "${STORAGE_ACCOUNT:-}" ]; then
     fi
   done
   az containerapp update -n "$API_APP" -g "$RG" --only-show-errors -o none --set-env-vars \
-    AZURE_STORAGE_BLOB_ENDPOINT="$BLOB_EP" AZURE_STORAGE_CONTAINER_TRANSCRIPTS=transcripts AZURE_STORAGE_CONTAINER_SYLLABI=syllabi
+    AZURE_STORAGE_BLOB_ENDPOINT="$BLOB_EP" AZURE_STORAGE_CONTAINER_TRANSCRIPTS=transcripts AZURE_STORAGE_CONTAINER_SYLLABI=syllabi \
+    AZURE_STORAGE_CONTAINER_ACCOUNTS=accounts
 fi
 
 log "Web container app ($WEB_APP, public)"
