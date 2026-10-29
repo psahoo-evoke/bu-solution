@@ -53,6 +53,25 @@ describe('StudentStatusPage', () => {
     expect(text).not.toContain('Reminders are sent');
     expect((fixture.nativeElement as HTMLElement).querySelector('input[aria-label="Upload syllabus for PSYCH-UA 25"]')).not.toBeNull();
   });
+
+  it('removes Upload syllabus once a syllabus was uploaded for the course (upload once)', async () => {
+    TestBed.configureTestingModule({
+      imports: [StudentStatusPage],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    });
+    const fixture = TestBed.createComponent(StudentStatusPage);
+    fixture.componentRef.setInput('id', 'SYN-24001');
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    const uploaded = { ...maya, lines: maya.lines.map((l) => (l.state === 'maybe_ts' ? { ...l, syllabus_uploaded: true } : l)) };
+    http.expectOne('/api/students').flush([maya.student]);
+    http.expectOne('/api/students/SYN-24001/evaluation').flush(uploaded);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('input[aria-label="Upload syllabus for PSYCH-UA 25"]')).toBeNull();
+    expect(el.textContent).not.toContain('Upload syllabus');
+    expect(el.textContent).toContain('✓ Syllabus uploaded');
+  });
 });
 
 describe('transcriptUploadMessage', () => {

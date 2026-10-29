@@ -87,7 +87,8 @@ export class StudentStatusPage {
   }
 
   canUploadSyllabus(line: CourseEvaluation): boolean {
-    return this.canUploadSyllabusRole() && SYLLABUS_STATES.has(line.state);
+    // Upload once: after a syllabus was uploaded for this course the button is gone (the API refuses repeats too).
+    return this.canUploadSyllabusRole() && SYLLABUS_STATES.has(line.state) && !line.syllabus_uploaded;
   }
 
   onTranscript(event: Event): void {

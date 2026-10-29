@@ -60,6 +60,8 @@ export interface CourseEvaluation {
   next_step: string;
   ai_tier: string | null;
   ai_overlap_pct: number | null;
+  /** A syllabus was already uploaded for this course through the app (it can be uploaded only once). */
+  syllabus_uploaded?: boolean;
 }
 
 export interface EvaluationTotals {

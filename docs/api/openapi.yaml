@@ -63,6 +63,7 @@ paths:
         "201": { description: "Checked; injected sentences are removed and flagged (ADR 0004)", content: { application/json: { schema: { $ref: "#/components/schemas/SyllabusCheck" } } } }
         "415": { description: Not a PDF (checked by the file's first bytes) }
         "422": { description: "Unreadable or over 30 pages, no readable text, not a syllabus (no course code line and no syllabus sections), or a syllabus for a different course" }
+        "409": { description: "A syllabus was already uploaded for this course through the app; it can be uploaded only once (seed syllabi do not count; a demo reset clears uploads)" }
   /students/{student_id}/courses/{ext_id}/syllabus-request:
     post:
       summary: Ask for a missing or incomplete syllabus by email (sent when someone clicks Upload syllabus)
@@ -77,6 +78,7 @@ paths:
         "201": { description: Request recorded, content: { application/json: { schema: { $ref: "#/components/schemas/SyllabusRequest" } } } }
         "404": { description: Unknown student, or the course is not on this student's transcript }
         "502": { description: The mail service rejected the email }
+        "409": { description: A syllabus was already uploaded for this course; nothing to request }
   /courses/{ext_id}/recommendation:
     get:
       summary: AI recommendation for an external course (top-3 BU candidates with evidence)
@@ -210,6 +212,7 @@ components:
         next_step: { type: string }
         ai_tier: { type: string, nullable: true }
         ai_overlap_pct: { type: integer, nullable: true }
+        syllabus_uploaded: { type: boolean, description: "A syllabus was uploaded for this course through the app; the UI hides Upload syllabus (upload once)" }
     StudentEvaluation:
       type: object
       properties:

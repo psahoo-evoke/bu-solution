@@ -191,13 +191,15 @@ def load_store(s) -> None:
                     "order by uploaded_at, transcript_id")
         s.transcripts = [TranscriptRecord(*r[:8], uploaded_at=r[8].isoformat()) for r in cur.fetchall()]
         cur.execute("select ext_id, state, blob_url, source_file, extracted_text, injection_detected, "
-                    "coalesce(seed_state,'') from syllabi")
-        for ext_id, state, blob_url, source_file, text, inj, seed_state in cur.fetchall():
+                    "coalesce(seed_state,''), received_at from syllabi")
+        for ext_id, state, blob_url, source_file, text, inj, seed_state, received_at in cur.fetchall():
             state = "complete" if state == "complete-injection" else state
             # blob_url = uploaded copy (<container>/<name>); source_file = bundled seed PDF relative to data/synthetic
             path = blob_url or (os.path.join(SYNTH_DIR, source_file) if source_file else "")
+            # received_at is only set by an upload through the app (seed rows: NULL) -> upload-once rule
             s.syllabi[ext_id] = SyllabusRecord(ext_id=ext_id, state=state, file=path if state != "missing" else "",
-                                               text=text or "", injection_detected=bool(inj), seed_state=seed_state)
+                                               text=text or "", injection_detected=bool(inj), seed_state=seed_state,
+                                               uploaded_at=received_at.isoformat() if received_at else "")
         cur.execute("select student_id, ext_id, term, decision_id, posted_at, actor_role from postings")
         for sid, ext_id, term, did, posted_at, actor in cur.fetchall():
             s.postings[(sid, ext_id, term)] = dict(decision_id=did, posted_at=posted_at.isoformat(), actor_role=actor)

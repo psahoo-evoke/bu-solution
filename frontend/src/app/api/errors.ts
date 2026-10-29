@@ -25,6 +25,7 @@ export function describeError(err: unknown, role?: string, op?: Operation): stri
       return op ? `${who}${switchRoleMessage(op)}` : `${who}Switch role in the top bar.`;
     }
     if (err.status === 404) return 'Not found. The record may not exist.';
+    if (err.status === 409 && detail) return detail;   // e.g. "A syllabus for X has already been uploaded…"
     if (err.status === 422) {
       const detail = typeof err.error === 'object' && err.error?.detail ? ` ${stringifyDetail(err.error.detail)}` : '';
       return `The request was rejected.${detail}`;

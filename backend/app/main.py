@@ -163,6 +163,8 @@ def build_evaluation(student_id: str) -> dict:
             if r and r["candidates"]:
                 o["ai_tier"] = r["candidates"][0]["tier"]
                 o["ai_overlap_pct"] = r["candidates"][0]["overlap_pct"]
+    for o in lines:
+        o["syllabus_uploaded"] = _syllabus_uploaded(o["ext_id"])   # the UI hides Upload syllabus (upload once)
     public = [{k: v for k, v in o.items() if not k.startswith("_")} for o in lines]
     return dict(student=st.to_api(S().schools), lines=public, totals=totals(lines))
 
@@ -304,6 +306,18 @@ async def upload_transcript(request: Request, student_id: str = StudentIdPath, f
     return dict(build_evaluation(student_id), upload=dict(upload, transcript_id=record.transcript_id))
 
 
+def _syllabus_uploaded(ext_id: str) -> bool:
+    rec = S().syllabi.get(ext_id)
+    return bool(rec and rec.uploaded_at)
+
+
+def _syllabus_not_uploaded_yet(ext_id: str) -> None:
+    """A syllabus is uploaded through the app only once per course (no duplicates). Seed syllabi do not count."""
+    if _syllabus_uploaded(ext_id):
+        code = S().ext_courses[ext_id].course_code if ext_id in S().ext_courses else ext_id
+        raise HTTPException(409, f"A syllabus for {code} has already been uploaded. It can only be uploaded once.")
+
+
 @api.post("/courses/{ext_id}/syllabus", status_code=201)
 async def upload_syllabus(request: Request, ext_id: str = ExtIdPath, file: UploadFile = File(...)):
     if ext_id not in S().ext_courses:
@@ -312,6 +326,7 @@ async def upload_syllabus(request: Request, ext_id: str = ExtIdPath, file: Uploa
     if u and u["role"] == "Student" and not any(
             ln.student_id == u["student_id"] and ln.ext_id == ext_id for ln in S().lines):
         raise HTTPException(403, "You can only add a syllabus for a course on your own transcript")
+    _syllabus_not_uploaded_yet(ext_id)
     data = await _read_upload(file)
     try:
         text = await _parse_off_loop(pdf_text, data)
@@ -327,8 +342,10 @@ async def upload_syllabus(request: Request, ext_id: str = ExtIdPath, file: Uploa
     inj = detect_injection(text)              # kept and flagged, not rejected: the sentences are sanitised (ADR 0004)
     stored = await _archive("syllabi", ext_id, data)
     rec = SyllabusRecord(ext_id=ext_id, state="complete" if chk["complete"] else "incomplete",
-                         file=stored or f"upload-{uuid.uuid4().hex}.pdf", text=text, injection_detected=inj)
+                         file=stored or f"upload-{uuid.uuid4().hex}.pdf", text=text, injection_detected=inj,
+                         uploaded_at=dt.datetime.now(dt.timezone.utc).isoformat())
     with S().lock:
+        _syllabus_not_uploaded_yet(ext_id)    # again under the lock: two uploads at the same moment -> one wins
         _persist(db.save_syllabus, rec, stored, chk["missing_sections"])
         S().syllabi[ext_id] = rec
     return dict(ext_id=ext_id, complete=chk["complete"], missing_sections=chk["missing_sections"],
@@ -350,6 +367,7 @@ async def request_syllabus(request: Request, student_id: str = StudentIdPath, ex
     line = next((ln for ln in S().lines if ln.student_id == student_id and ln.ext_id == ext_id), None)
     if line is None:
         raise HTTPException(404, f"Course {ext_id} is not on {student_id}'s transcript")
+    _syllabus_not_uploaded_yet(ext_id)       # nothing to ask for once it is uploaded (409)
     to, cc = notify.recipients()
     now = dt.datetime.now(dt.timezone.utc)
     key = (student_id, ext_id)
