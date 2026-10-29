@@ -1,0 +1,135 @@
+<section class="hero" aria-labelledby="hero-h">
+  <div class="hero__text">
+    <p class="hero__eyebrow">Transfer credit co-pilot</p>
+    <h1 id="hero-h">Know where every transfer credit stands.</h1>
+    <p class="hero__lead">
+      TransferIQ pre-matches every transfer course, shows students what is secured and what is pending, and gives
+      departments an evidence-backed recommendation. <strong>The AI recommends, the rules compute, people decide.</strong>
+    </p>
+  </div>
+  <ul class="hero__pillars" aria-label="Principles">
+    <li><span class="pill-ico" aria-hidden="true">✦</span><span><strong>AI recommends</strong> and never posts credit</span></li>
+    <li><span class="pill-ico" aria-hidden="true">≡</span><span><strong>Rules compute</strong> credit the same way every time</span></li>
+    <li><span class="pill-ico" aria-hidden="true">✓</span><span><strong>People decide</strong>, with a reason code and audit trail</span></li>
+  </ul>
+</section>
+
+@if (notice(); as msg) {
+  <div class="banner banner--warning" role="status">{{ msg }}</div>
+}
+
+<!-- My view -->
+<section class="myview" aria-labelledby="myview-h">
+  <h2 id="myview-h">My view</h2>
+  @if (noRole()) {
+    <p>
+      You are signed in as <strong>{{ auth.userName() }}</strong>, but your account has no TransferIQ role yet.
+      Ask an administrator to assign you a role (for example Student or Department) in Microsoft Entra ID, then
+      sign out and sign in again.
+    </p>
+    <button type="button" class="btn" (click)="auth.logout()">Sign out</button>
+  } @else if (myView(); as me) {
+    <div class="myview__row">
+      <div class="avatar" aria-hidden="true">{{ (me.name || labels[me.role]).charAt(0) }}</div>
+      <div class="myview__who">
+        @if (me.name) {
+          <p class="myview__name">Welcome back, {{ me.name }}</p>
+        } @else {
+          <p class="myview__name">You are exploring as <strong>{{ labels[me.role] }}</strong></p>
+        }
+        @if (auth.entra()) {
+          <p class="muted small">Your roles:
+            @for (r of me.roles; track r) {
+              <button type="button" class="role-chip" [class.is-active]="r === me.role" (click)="open(r)">{{ labels[r] }}</button>
+            }
+          </p>
+        } @else {
+          <p class="muted small">Demo mode: pick any view below, or change the role in the top bar.</p>
+        }
+      </div>
+      <button type="button" class="btn btn--primary" (click)="open(me.role)">Continue to my view →</button>
+    </div>
+  } @else {
+    <div class="myview__row">
+      <div class="avatar avatar--empty" aria-hidden="true">?</div>
+      <div class="myview__who">
+        <p class="myview__name">You are not signed in</p>
+        <p class="muted small">Choose Student View or Department View to sign in with your university Microsoft account.</p>
+      </div>
+    </div>
+  }
+</section>
+
+<!-- Student View / Department View -->
+<div class="views">
+  @for (v of views; track v.role) {
+    <section class="view" [class.view--dept]="v.role === 'Department'" [attr.aria-labelledby]="'view-' + v.role">
+      <div class="view__icon" aria-hidden="true">
+        @if (v.role === 'Student') {
+          <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M12 3 1 8.5 12 14l9-4.5V16h2V8.5L12 3Zm-6.5 8.9V16c0 1.9 2.9 4 6.5 4s6.5-2.1 6.5-4v-4.1L12 15.2l-6.5-3.3Z"/></svg>
+        } @else {
+          <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M12 2 2 7v2h20V7L12 2ZM4 11v7h3v-7H4Zm6.5 0v7h3v-7h-3ZM17 11v7h3v-7h-3ZM2 20v2h20v-2H2Z"/></svg>
+        }
+      </div>
+      <h2 [id]="'view-' + v.role">{{ v.title }}</h2>
+      <p class="view__lead">{{ v.lead }}</p>
+      <ul class="view__points">
+        @for (p of v.points; track p) {
+          <li>{{ p }}</li>
+        }
+      </ul>
+      <button type="button" class="btn btn--primary btn--block" (click)="open(v.role)">
+        @if (auth.entra() && !auth.signedIn()) {
+          <svg class="ms-logo" viewBox="0 0 21 21" width="16" height="16" aria-hidden="true">
+            <rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+            <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+          </svg>
+        }
+        {{ buttonLabel(v.role) }}
+      </button>
+      @if (auth.entra()) {
+        <p class="view__sso muted small">Single sign-on with your university Microsoft account</p>
+      }
+    </section>
+  }
+</div>
+
+<!-- How it works -->
+<section class="how" aria-labelledby="how-h">
+  <h2 id="how-h">How it works</h2>
+  <ol class="how__steps">
+    <li>
+      <span class="how__num" aria-hidden="true">1</span>
+      <div><strong>Upload</strong><p>The student or credit staff uploads the transcript; syllabi are added as they come in.</p></div>
+    </li>
+    <li>
+      <span class="how__num" aria-hidden="true">2</span>
+      <div><strong>Pre-match</strong><p>Known equivalencies are secured straight away; the AI compares the rest with the BU catalog and past decisions.</p></div>
+    </li>
+    <li>
+      <span class="how__num" aria-hidden="true">3</span>
+      <div><strong>Decide</strong><p>The department reviews the evidence and decides; strong matches can be approved as a batch.</p></div>
+    </li>
+    <li>
+      <span class="how__num" aria-hidden="true">4</span>
+      <div><strong>Post</strong><p>The registrar posts approved credit and exports it for MyBU. Every step is on the audit trail.</p></div>
+    </li>
+  </ol>
+</section>
+
+<!-- Other staff roles -->
+<section class="staff" aria-labelledby="staff-h">
+  <h2 id="staff-h">Other staff</h2>
+  <div class="staff__list">
+    @for (s of staff; track s.role) {
+      <button type="button" class="staff__item" (click)="open(s.role)">
+        <strong>{{ labels[s.role] }}</strong>
+        <span class="muted small">{{ s.what }}</span>
+      </button>
+    }
+    <a class="staff__item" routerLink="/evaluation">
+      <strong>AI evaluation</strong>
+      <span class="muted small">How well the matcher agrees with past decisions</span>
+    </a>
+  </div>
+</section>

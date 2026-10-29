@@ -22,8 +22,11 @@ async function setRole(page: import('@playwright/test').Page, role: string) {
 
 test('student sees secured vs pending and every course status', async ({ page }) => {
   await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Student View' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Department View' })).toBeVisible();
+  await page.getByRole('button', { name: 'Continue as Student' }).click();
   await expect(page).toHaveURL(/\/student\/SYN-24001$/);
-  await setRole(page, 'Student');
+  await expect(page.getByLabel('Demo role')).toHaveValue('Student');
   await expect(page.getByText(/synthetic/i)).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Maya R. Delgado' })).toBeVisible();
 

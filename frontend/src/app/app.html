@@ -1,14 +1,17 @@
 <a class="skip-link" href="#main">Skip to main content</a>
 <header class="topbar">
-  <div class="topbar__brand">
+  <a class="topbar__brand" routerLink="/" aria-label="TransferIQ home">
     <span class="logo" aria-hidden="true">TIQ</span>
     <span class="topbar__title">TransferIQ</span>
-  </div>
+  </a>
   <nav class="topbar__nav" aria-label="Main">
-    <a routerLink="/student" routerLinkActive="active" ariaCurrentWhenActive="page">Student status</a>
-    <a routerLink="/review" routerLinkActive="active" ariaCurrentWhenActive="page">Evaluator workbench</a>
-    <a routerLink="/evaluation" routerLinkActive="active" ariaCurrentWhenActive="page">AI evaluation</a>
-    <a routerLink="/registrar" routerLinkActive="active" ariaCurrentWhenActive="page">Registrar</a>
+    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Home</a>
+    @if (!auth.entra() || (auth.signedIn() && roleService.available().length > 0)) {
+      <a routerLink="/student" routerLinkActive="active" ariaCurrentWhenActive="page">Student status</a>
+      <a routerLink="/review" routerLinkActive="active" ariaCurrentWhenActive="page">Evaluator workbench</a>
+      <a routerLink="/evaluation" routerLinkActive="active" ariaCurrentWhenActive="page">AI evaluation</a>
+      <a routerLink="/registrar" routerLinkActive="active" ariaCurrentWhenActive="page">Registrar</a>
+    }
   </nav>
   <div class="topbar__role">
     @if (!auth.entra() || (auth.signedIn() && roleService.available().length > 0)) {
@@ -43,23 +46,8 @@
 }
 
 <main id="main" class="container" tabindex="-1">
-  @if (auth.entra() && !auth.signedIn()) {
-    <section class="card" aria-labelledby="signin-h">
-      <h1 id="signin-h">Sign in to TransferIQ</h1>
-      <p>Use your organisation account. What you can see and do depends on the role you are assigned
-        (Student, Department, Evaluator, …).</p>
-      <button type="button" class="btn btn--primary" (click)="auth.login()">Sign in with Microsoft</button>
-    </section>
-  } @else if (auth.entra() && roleService.available().length === 0) {
-    <section class="card" aria-labelledby="norole-h">
-      <h1 id="norole-h">No TransferIQ role assigned</h1>
-      <p>You are signed in as <strong>{{ auth.userName() }}</strong>, but your account has no TransferIQ role.
-        Ask an administrator to assign you a role (for example Student or Department) in Microsoft Entra ID,
-        then sign out and sign in again.</p>
-    </section>
-  } @else {
-    <router-outlet />
-  }
+  <!-- Entra mode: app pages are guarded (api/auth.guard.ts); the home page handles sign-in and "no role". -->
+  <router-outlet />
 </main>
 
 <footer class="footer">

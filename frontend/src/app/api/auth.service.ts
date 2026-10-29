@@ -2,6 +2,8 @@ import { Injectable, computed, signal } from '@angular/core';
 import type { AccountInfo, IPublicClientApplication } from '@azure/msal-browser';
 import { DEMO_ROLES, DemoRole } from './models';
 
+const INTENT_KEY = 'transferiq.loginIntent';
+
 /** /auth-config.json: rendered by nginx from env in the container, public/auth-config.json (demo) in dev. */
 export interface AuthConfig {
   mode: 'demo' | 'entra';
@@ -21,6 +23,8 @@ export class AuthService {
   readonly config = signal<AuthConfig>({ mode: 'demo' });
   readonly account = signal<AccountInfo | null>(null);
   readonly error = signal<string | null>(null);
+  /** The view the user chose on the home page before the sign-in redirect (Student View, Department View). */
+  readonly intent = signal<DemoRole | null>(null);
   readonly entra = computed(() => this.config().mode === 'entra');
   readonly signedIn = computed(() => this.account() !== null);
   readonly userName = computed(() => this.account()?.name || this.account()?.username || '');
@@ -62,13 +66,39 @@ export class AuthService {
       const account = result?.account ?? this.msal.getActiveAccount() ?? this.msal.getAllAccounts()[0] ?? null;
       if (account) this.msal.setActiveAccount(account);
       this.account.set(account);
+      if (result) this.intent.set(AuthService.takeIntent());
     } catch (e) {
       this.error.set(`Sign-in failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
-  login(): Promise<void> {
-    return this.msal ? this.msal.loginRedirect({ scopes: [this.scope()] }) : Promise.resolve();
+  /** Microsoft sign-in (redirect). `intent` = the view to open afterwards; it survives the redirect. */
+  login(intent?: DemoRole): Promise<void> {
+    if (!this.msal) return Promise.resolve();
+    try {
+      if (intent) sessionStorage.setItem(INTENT_KEY, intent);
+      else sessionStorage.removeItem(INTENT_KEY);
+    } catch {
+      /* storage blocked: the user just lands on the home page */
+    }
+    return this.msal.loginRedirect({ scopes: [this.scope()], prompt: 'select_account' });
+  }
+
+  /** Returns and clears the view chosen before sign-in. */
+  consumeIntent(): DemoRole | null {
+    const intent = this.intent();
+    this.intent.set(null);
+    return intent;
+  }
+
+  private static takeIntent(): DemoRole | null {
+    try {
+      const value = sessionStorage.getItem(INTENT_KEY) as DemoRole | null;
+      sessionStorage.removeItem(INTENT_KEY);
+      return value && DEMO_ROLES.includes(value) ? value : null;
+    } catch {
+      return null;
+    }
   }
 
   logout(): Promise<void> {
