@@ -56,6 +56,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-29 | [developer-06](2026-10-29/developer-06.md) | Fix "You are not signed in or your session has expired" | Sagar (spathur) |
 | 2026-10-29 | [developer-07](2026-10-29/developer-07.md) | Persist registered portal accounts in Blob Storage | Sagar (spathur) |
 | 2026-10-29 | [developer-08](2026-10-29/developer-08.md) | Remove the top-bar Sign in link (portal mode) | Sagar (spathur) |
+| 2026-10-29 | [developer-09](2026-10-29/developer-09.md) | Remove the page footer line | Sagar (spathur) |
 | 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
 <!-- INDEX:END -->
 
