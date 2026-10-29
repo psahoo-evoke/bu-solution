@@ -15,6 +15,7 @@ import {
   Student,
   StudentEvaluation,
   SyllabusCheck,
+  SyllabusRequest,
 } from './models';
 
 export const API_BASE = '/api';
@@ -54,6 +55,14 @@ export class ApiService {
     const form = new FormData();
     form.append('file', file, file.name);
     return this.http.post<SyllabusCheck>(`${API_BASE}/courses/${encodeExtId(extId)}/syllabus`, form);
+  }
+
+  /** Email "syllabus needed, please upload" to the notification list (sent when Upload syllabus is clicked). */
+  requestSyllabus(studentId: string, extId: string): Observable<SyllabusRequest> {
+    return this.http.post<SyllabusRequest>(
+      `${API_BASE}/students/${encodeURIComponent(studentId)}/courses/${encodeExtId(extId)}/syllabus-request`,
+      {},
+    );
   }
 
   getRecommendation(extId: string): Observable<Recommendation> {

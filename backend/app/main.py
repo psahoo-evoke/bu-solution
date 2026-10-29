@@ -13,13 +13,14 @@ import logging
 import os
 import re
 import uuid
+from html import escape as html_escape
 from typing import Literal, Optional
 
 from fastapi import APIRouter, FastAPI, File, Header, HTTPException, Path, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from . import accounts, blob_store
+from . import accounts, blob_store, notify
 from . import store as store_mod
 from .evaluation import evaluate_holdout
 from .guard import MAX_UPLOAD_BYTES, RoleGuardMiddleware, auth_mode
@@ -249,6 +250,57 @@ async def upload_syllabus(request: Request, ext_id: str = ExtIdPath, file: Uploa
                                              injection_detected=inj)
     return dict(ext_id=ext_id, complete=chk["complete"], missing_sections=chk["missing_sections"],
                 status_code="TP" if chk["complete"] else "TM", injection_detected=inj)
+
+
+SYLLABUS_REQUEST_COOLDOWN = dt.timedelta(minutes=15)
+_syllabus_requests: dict[tuple[str, str], dt.datetime] = {}
+
+
+@api.post("/students/{student_id}/courses/{ext_id}/syllabus-request", status_code=201)
+async def request_syllabus(request: Request, student_id: str = StudentIdPath, ext_id: str = ExtIdPath,
+                           x_demo_role: str = Header(...)):
+    """Email "syllabus needed, please upload" to the notification list (app/notify.py). Triggered from the
+    Upload syllabus button. Never emails the student's own address in this build."""
+    st = S().students.get(student_id)
+    if st is None:
+        raise HTTPException(404, f"Unknown student {student_id}")
+    line = next((ln for ln in S().lines if ln.student_id == student_id and ln.ext_id == ext_id), None)
+    if line is None:
+        raise HTTPException(404, f"Course {ext_id} is not on {student_id}'s transcript")
+    to, cc = notify.recipients()
+    now = dt.datetime.now(dt.timezone.utc)
+    key = (student_id, ext_id)
+    last = _syllabus_requests.get(key)
+    if last and now - last < SYLLABUS_REQUEST_COOLDOWN:
+        return dict(student_id=student_id, ext_id=ext_id, status="already_requested", to=to, cc=cc,
+                    requested_at=last.isoformat())
+
+    school = next((s.name for s in S().schools.values() if s.school_code == line.school_code), line.school_code)
+    state = S().syllabus_state(ext_id)
+    need = "an updated, complete syllabus" if state == "incomplete" else "the syllabus"
+    u = _user(request)
+    by = f"{u['name']} ({u['role']})" if u else x_demo_role
+    link = notify.app_link(f"/student/{student_id}")
+    subject = f"Syllabus needed: {line.course_code} for {st.name} ({student_id})"
+    text = (f"Hello,\n\nTransferIQ needs {need} for {line.course_code} \"{line.title}\" ({school}, {line.term}) "
+            f"on the transcript of {st.name} ({student_id}).\n\nPlease upload it as a PDF on the student's status page"
+            f"{': ' + link if link else ''}.\nUntil it arrives this course stays pending.\n\nRequested by {by}.\n"
+            f"TransferIQ transfer credit evaluation")
+    e = html_escape
+    link_html = f': <a href="{e(link)}">{e(link)}</a>' if link else ""
+    html = (f"<p>Hello,</p><p>TransferIQ needs <strong>{e(need)}</strong> for <strong>{e(line.course_code)} "
+            f"&ldquo;{e(line.title)}&rdquo;</strong> ({e(school)}, {e(line.term)}) on the transcript of "
+            f"<strong>{e(st.name)}</strong> ({e(student_id)}).</p>"
+            f"<p>Please upload it as a PDF on the student's status page{link_html}. "
+            f"Until it arrives this course stays pending.</p>"
+            f'<p style="color:#5a6370">Requested by {e(by)}.<br>TransferIQ transfer credit evaluation</p>')
+    try:
+        status = await asyncio.to_thread(notify.send, subject, text, html)
+    except notify.NotifyError as err:
+        raise HTTPException(502, str(err))
+    _syllabus_requests[key] = now
+    _audit(x_demo_role, "syllabus_request", ext_id, None, dict(student_id=student_id, status=status, to=to, cc=cc))
+    return dict(student_id=student_id, ext_id=ext_id, status=status, to=to, cc=cc, requested_at=now.isoformat())
 
 
 @api.get("/courses/{ext_id}/recommendation")

@@ -3,7 +3,7 @@ import { Component, computed, effect, inject, input, signal, untracked } from '@
 import { Router } from '@angular/router';
 import { ApiService } from '../api/api.service';
 import { describeError } from '../api/errors';
-import { CourseEvaluation, Student, StudentEvaluation, SyllabusCheck } from '../api/models';
+import { CourseEvaluation, Student, StudentEvaluation, SyllabusCheck, SyllabusRequest } from '../api/models';
 import { can } from '../api/permissions';
 import { RoleService } from '../api/role.service';
 import { DEFAULT_STUDENT } from '../app.routes';
@@ -105,6 +105,17 @@ export class StudentStatusPage {
     });
   }
 
+  /** Clicking Upload syllabus also emails "syllabus needed, please upload" to the notification list. The file
+   * picker still opens (the click is not prevented); the API skips repeats within 15 minutes. */
+  onSyllabusClick(line: CourseEvaluation): void {
+    const studentId = this.id();
+    if (!studentId) return;
+    this.api.requestSyllabus(studentId, line.ext_id).subscribe({
+      next: (req) => this.notice.set(syllabusRequestMessage(line, req)),
+      error: (err) => this.error.set(describeError(err, this.roles.role(), 'uploadSyllabus')),
+    });
+  }
+
   onSyllabus(line: CourseEvaluation, event: Event): void {
     const file = takeFile(event);
     if (!file) return;
@@ -138,4 +149,16 @@ export function syllabusMessage(line: CourseEvaluation, check: SyllabusCheck): s
   return check.injection_detected
     ? `${base} Note: the file contained instructions aimed at the AI; they were ignored and flagged for the evaluator.`
     : base;
+}
+
+export function syllabusRequestMessage(line: CourseEvaluation, req: SyllabusRequest): string {
+  const who = [req.to.join(', '), req.cc.length ? `cc ${req.cc.join(', ')}` : ''].filter(Boolean).join(', ');
+  switch (req.status) {
+    case 'sent':
+      return `Syllabus request for ${line.course_code} emailed to ${who}.`;
+    case 'already_requested':
+      return `A syllabus request for ${line.course_code} was already emailed in the last 15 minutes.`;
+    default:
+      return `Syllabus request for ${line.course_code} recorded. Email is not set up yet, so no email was sent.`;
+  }
 }

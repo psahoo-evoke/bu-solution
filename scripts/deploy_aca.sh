@@ -168,6 +168,14 @@ deploy_app "$WEB_APP" "$ACR_SERVER/transferiq-web:$TAG" external 8080 1 3 \
   API_UPSTREAM="https://$API_FQDN" "${AUTH_ENV_WEB[@]}"
 WEB_URL="https://$(az containerapp show -n "$WEB_APP" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
 
+# "Syllabus needed" emails (backend/app/notify.py): NOTIFY_TO / NOTIFY_CC = comma-separated recipients. The link in
+# the mail points at the web app. Sending also needs the mail service: scripts/setup_email.sh (one-off).
+if [ -n "${NOTIFY_TO:-}" ]; then
+  log "Syllabus request emails -> ${NOTIFY_TO}${NOTIFY_CC:+ (cc ${NOTIFY_CC})}"
+  az containerapp update -n "$API_APP" -g "$RG" --only-show-errors -o none --set-env-vars \
+    SYLLABUS_REQUEST_TO="$NOTIFY_TO" SYLLABUS_REQUEST_CC="${NOTIFY_CC:-}" APP_BASE_URL="$WEB_URL"
+fi
+
 log "Smoke test"
 for i in 1 2 3 4 5 6 7 8 9 10; do
   code="$(curl -s -o /dev/null -w '%{http_code}' "$WEB_URL/api/health" || true)"

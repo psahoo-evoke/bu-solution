@@ -6,6 +6,7 @@ import pytest
 os.environ.pop("AZURE_OPENAI_ENDPOINT", None)   # ADR 0003: tests always run on the offline engine
 os.environ.pop("AZURE_DI_ENDPOINT", None)
 os.environ.pop("AZURE_STORAGE_BLOB_ENDPOINT", None)  # upload archive off; test_blob_store.py fakes it
+os.environ.pop("AZURE_COMMUNICATION_ENDPOINT", None)  # no real email; test_notify.py fakes the client
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from fastapi.testclient import TestClient  # noqa: E402

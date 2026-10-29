@@ -39,6 +39,7 @@ ROUTE_ROLES: list[tuple[str, str, set[str]]] = [
     ("GET", "/students/{student_id}/evaluation", EVERYONE),
     ("POST", "/students/{student_id}/transcripts", {"Student", "CreditStaff"}),
     ("POST", "/courses/{ext_id}/syllabus", {"Student", "CreditStaff", "Evaluator", "Department"}),
+    ("POST", "/students/{student_id}/courses/{ext_id}/syllabus-request", {"Student", "CreditStaff", "Evaluator", "Department"}),
     ("GET", "/courses/{ext_id}/recommendation", {"CreditStaff", "Evaluator", "Department"}),
     ("GET", "/review-queue", {"CreditStaff", "Evaluator", "Department"}),
     ("POST", "/decisions", {"Evaluator", "Department"}),

@@ -59,6 +59,20 @@ paths:
             schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } }
       responses:
         "201": { description: Checked, content: { application/json: { schema: { $ref: "#/components/schemas/SyllabusCheck" } } } }
+  /students/{student_id}/courses/{ext_id}/syllabus-request:
+    post:
+      summary: Ask for a missing or incomplete syllabus by email (sent when someone clicks Upload syllabus)
+      description: |
+        Emails the configured notification list (SYLLABUS_REQUEST_TO / SYLLABUS_REQUEST_CC) naming the student and course,
+        with a link to the student's status page. Never emails the student's own address in this hackathon build.
+        Repeated clicks for the same student and course within 15 minutes are not re-sent (status already_requested).
+        Without a mail service configured the request is recorded and status is not_sent.
+      x-roles: [Student, CreditStaff, Evaluator, Department]
+      parameters: [ { $ref: "#/components/parameters/StudentId" }, { $ref: "#/components/parameters/ExtId" } ]
+      responses:
+        "201": { description: Request recorded, content: { application/json: { schema: { $ref: "#/components/schemas/SyllabusRequest" } } } }
+        "404": { description: Unknown student, or the course is not on this student's transcript }
+        "502": { description: The mail service rejected the email }
   /courses/{ext_id}/recommendation:
     get:
       summary: AI recommendation for an external course (top-3 BU candidates with evidence)
@@ -147,6 +161,16 @@ components:
     StudentId: { name: student_id, in: path, required: true, schema: { type: string, example: SYN-24001 } }
     ExtId: { name: ext_id, in: path, required: true, description: "School code and course code joined by '|', URL-encoded", schema: { type: string, example: "NYU|PSYCH-UA 10" } }
   schemas:
+    SyllabusRequest:
+      type: object
+      required: [student_id, ext_id, status, to, cc, requested_at]
+      properties:
+        student_id: { type: string }
+        ext_id: { type: string }
+        status: { type: string, enum: [sent, not_sent, already_requested], description: "not_sent = no mail service configured yet; the request is still recorded" }
+        to: { type: array, items: { type: string } }
+        cc: { type: array, items: { type: string } }
+        requested_at: { type: string, format: date-time }
     Student:
       type: object
       properties:

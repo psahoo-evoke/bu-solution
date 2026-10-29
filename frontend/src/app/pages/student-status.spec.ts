@@ -2,8 +2,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { StudentEvaluation } from '../api/models';
-import { StudentStatusPage } from './student-status';
+import { CourseEvaluation, StudentEvaluation } from '../api/models';
+import { StudentStatusPage, syllabusRequestMessage } from './student-status';
 
 const maya: StudentEvaluation = {
   student: { student_id: 'SYN-24001', name: 'Maya R. Delgado', intended_major: 'Psychology', bu_start_term: 'Fall 2026' },
@@ -51,5 +51,19 @@ describe('StudentStatusPage', () => {
     expect(text).toContain('email sending not enabled in this prototype');
     expect(text).not.toContain('Reminders are sent');
     expect((fixture.nativeElement as HTMLElement).querySelector('input[aria-label="Upload syllabus for PSYCH-UA 25"]')).not.toBeNull();
+  });
+});
+
+describe('syllabusRequestMessage', () => {
+  const line = { course_code: 'PSYCH-UA 25' } as CourseEvaluation;
+  const req = { student_id: 'SYN-24001', ext_id: 'NYU|PSYCH-UA 25', to: ['a@x.com'], cc: ['b@x.com'], requested_at: '' };
+  it('says who was emailed', () => {
+    expect(syllabusRequestMessage(line, { ...req, status: 'sent' })).toBe('Syllabus request for PSYCH-UA 25 emailed to a@x.com, cc b@x.com.');
+  });
+  it('is honest when email is not set up', () => {
+    expect(syllabusRequestMessage(line, { ...req, status: 'not_sent' })).toContain('no email was sent');
+  });
+  it('mentions an earlier request', () => {
+    expect(syllabusRequestMessage(line, { ...req, status: 'already_requested' })).toContain('already emailed');
   });
 });

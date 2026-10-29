@@ -150,6 +150,17 @@ export interface SyllabusCheck {
   injection_detected: boolean;
 }
 
+/** openapi: components.schemas.SyllabusRequest (POST /students/{id}/courses/{ext_id}/syllabus-request). */
+export interface SyllabusRequest {
+  student_id: string;
+  ext_id: string;
+  /** not_sent = no mail service configured yet (the request is still recorded) */
+  status: 'sent' | 'not_sent' | 'already_requested';
+  to: string[];
+  cc: string[];
+  requested_at: string;
+}
+
 export interface Metrics {
   engine: string;
   n: number;

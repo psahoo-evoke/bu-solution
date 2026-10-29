@@ -172,7 +172,8 @@ Set by `main.bicep` on the container app (developer agent: read these, never har
 | `AZURE_KEY_VAULT_URI` | for any runtime secret lookups | not yet |
 | `POSTGRES_HOST`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_AUTH=entra` | password = Entra token: `DefaultAzureCredential().get_token("https://ossrdbms-aad.database.windows.net/.default").token`, `sslmode=require`; refresh before expiry | not yet (in-memory store) |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING`, `ACS_CONNECTION_STRING` | Key Vault references (secretRef) | not yet (no telemetry SDK, no email sender) |
-| `AZURE_COMMUNICATION_ENDPOINT`, `ACS_SENDER_ADDRESS` | email reminders | not yet |
+| `AZURE_COMMUNICATION_ENDPOINT`, `ACS_SENDER_ADDRESS` | ACS Email endpoint and verified sender (managed identity, role "Communication and Email Service Owner") | yes, `notify.py`: "syllabus needed" emails, sent when **Upload syllabus** is clicked. Set by `scripts/setup_email.sh` (needs the `Microsoft.Communication` provider registered by a subscription admin). Unset = the request is recorded and reported as `not_sent`. |
+| `SYLLABUS_REQUEST_TO`, `SYLLABUS_REQUEST_CC`, `APP_BASE_URL` | recipients (comma-separated) and the web URL for the link in the mail | yes, `notify.py`. Set by `deploy_aca.sh` from `NOTIFY_TO` / `NOTIFY_CC`. The student's own address is never emailed in this build (the sample addresses are on the real bu.edu domain). |
 
 The SPA calls relative `/api/...` URLs (`frontend/src/app/api/api.service.ts` `API_BASE = '/api'`), and the SWA linked backend proxies them to the container app.
 
