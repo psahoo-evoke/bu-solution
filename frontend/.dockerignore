@@ -1,8 +1,9 @@
-node_modules/
-dist/
-.angular/
-e2e/
-test-results/
-playwright-report/
+# No trailing slashes: az acr build does not match "dir/" patterns.
+node_modules
+dist
+.angular
+e2e
+test-results
+playwright-report
 Dockerfile
 .dockerignore

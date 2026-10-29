@@ -10,7 +10,10 @@ FROM node:22-alpine AS build
 WORKDIR /src
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
-COPY . .
+# Copy only build inputs: a COPY . . would overwrite the Linux node_modules with any local (e.g. Windows) one.
+COPY angular.json tsconfig.json tsconfig.app.json ./
+COPY src ./src
+COPY public ./public
 RUN npx ng build --configuration production
 
 # ---- Runtime stage (non-root nginx, listens on 8080) ----
