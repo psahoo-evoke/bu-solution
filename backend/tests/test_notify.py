@@ -105,3 +105,55 @@ def test_portal_student_only_for_own_record(anon, monkeypatch):
     h = {"Authorization": f"Bearer {tok}"}
     assert anon.post(URL, headers=h).status_code == 403                    # Maya's course, Jordan's session
     accounts.reset_accounts()
+
+
+# ------------------------------------------------------------------ Logic App webhook (Office 365 connector)
+class FakeResp:
+    def __init__(self, status):
+        self.status = status
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+@pytest.fixture
+def webhook(monkeypatch):
+    import json
+    import urllib.error
+    import urllib.request
+
+    calls = {"bodies": [], "status": 200, "error": None}
+
+    def fake_urlopen(req, timeout):
+        if calls["error"]:
+            raise urllib.error.HTTPError(req.full_url, calls["error"], "boom", {}, None)
+        calls["bodies"].append(json.loads(req.data))
+        calls["url"] = req.full_url
+        return FakeResp(calls["status"])
+
+    monkeypatch.setenv("NOTIFY_WEBHOOK_URL", "https://logic.example/trigger?sig=SECRET")
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    return calls
+
+
+def test_webhook_sends_to_and_cc(client, webhook):
+    r = client.post(URL, headers=role("Student"))
+    assert r.status_code == 201 and r.json()["status"] == "sent"
+    [body] = webhook["bodies"]
+    assert (body["to"], body["cc"]) == (TO, CC)
+    assert body["subject"] == "Syllabus needed: PSYCH-UA 25 for Maya R. Delgado (SYN-24001)" and "<strong>" in body["html"]
+
+
+def test_webhook_failure_is_502_and_hides_the_url(client, webhook, caplog):
+    webhook["error"] = 502
+    r = client.post(URL, headers=role("Student"))
+    assert r.status_code == 502 and "answered 502" in r.json()["detail"]
+    assert "SECRET" not in caplog.text and "SECRET" not in r.text
+
+
+def test_acs_wins_when_both_are_configured(client, webhook, acs):
+    assert client.post(URL, headers=role("Student")).json()["status"] == "sent"
+    assert len(acs.sent) == 1 and webhook["bodies"] == []
