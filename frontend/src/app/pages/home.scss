@@ -1,7 +1,7 @@
 :host { display: block; }
 
 .hero {
-  display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 1.5rem 2.5rem; align-items: center;
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem 2.5rem; align-items: center;
   padding: 2rem 2rem 2.2rem; margin-bottom: 1.25rem; border-radius: 14px; color: #fff;
   background:
     radial-gradient(circle at 100% 0%, rgba(255, 255, 255, .14), transparent 45%),
@@ -12,17 +12,6 @@
 }
 .hero__eyebrow { margin: 0; text-transform: uppercase; letter-spacing: .12em; font-size: .75rem; font-weight: 700; opacity: .85; }
 .hero__lead { margin: 0; font-size: 1.02rem; max-width: 46rem; opacity: .95; }
-.hero__pillars {
-  list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem;
-  li {
-    display: flex; gap: .65rem; align-items: center; padding: .65rem .8rem; border-radius: 10px;
-    background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .22); font-size: .92rem;
-  }
-}
-.pill-ico {
-  flex: none; display: inline-grid; place-items: center; width: 1.8rem; height: 1.8rem; border-radius: 50%;
-  background: #fff; color: var(--brand); font-weight: 700;
-}
 
 .myview {
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;
