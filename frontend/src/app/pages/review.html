@@ -143,13 +143,26 @@
         <div class="candidates" role="radiogroup" aria-label="BU candidate course">
           @for (c of r.candidates.slice(0, 3); track c.bu_code) {
             <article class="candidate" [class.is-selected]="candidateCode() === c.bu_code">
-              <label class="candidate__head">
-                <input type="radio" name="candidate" [value]="c.bu_code" [checked]="candidateCode() === c.bu_code" (change)="pickCandidate(c)" />
-                <span>
-                  <strong>{{ c.bu_code }}</strong> {{ c.title }}
-                  <span class="tier tier--{{ c.tier }}">{{ tierLabel(c.tier) }}</span>
-                </span>
-              </label>
+              <div class="candidate__top">
+                <label class="candidate__head">
+                  <input type="radio" name="candidate" [value]="c.bu_code" [checked]="candidateCode() === c.bu_code" (change)="pickCandidate(c)" />
+                  <span>
+                    <strong>{{ c.bu_code }}</strong> {{ c.title }}
+                    <span class="tier tier--{{ c.tier }}">{{ tierLabel(c.tier) }}</span>
+                  </span>
+                </label>
+                @if (isDepartment() && candidateCode() === c.bu_code) {
+                  <button
+                    type="button"
+                    class="btn btn--primary candidate__approve"
+                    [disabled]="saving() || notDecidable() || !reasonCodes().length"
+                    [attr.aria-label]="'Approve ' + c.bu_code + ' as equivalent'"
+                    (click)="approveCandidate(c)"
+                  >
+                    {{ saving() ? 'Saving…' : 'Approve' }}
+                  </button>
+                }
+              </div>
               <div class="overlap">
                 <meter min="0" max="100" low="50" high="80" optimum="100" [value]="c.overlap_pct" [attr.aria-label]="c.bu_code + ' overlap'"></meter>
                 <span><strong>{{ c.overlap_pct }}%</strong> outcome overlap</span>

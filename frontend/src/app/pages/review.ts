@@ -67,6 +67,8 @@ export class ReviewPage {
   protected readonly canRecommend = computed(() => can(this.roles.role(), 'recommendation'));
   protected readonly canDecide = computed(() => can(this.roles.role(), 'decide'));
   protected readonly canBatch = computed(() => can(this.roles.role(), 'batch'));
+  /** Department approvers get a one-click Approve on the selected BU candidate. */
+  protected readonly isDepartment = computed(() => this.roles.role() === 'Department');
   protected readonly queueHint = switchRoleMessage('reviewQueue');
   protected readonly decideHint = switchRoleMessage('decide');
   protected readonly decideRole = suggestedRole('decide');
@@ -253,6 +255,13 @@ export class ReviewPage {
     this.candidateCode.set(c.bu_code);
     this.electiveCode.set(electiveCodeFor(c.bu_code));
     this.setDecision(this.decision(), c);
+  }
+
+  /** Department one-click: record the picked candidate as Equivalent, using the form's catalog year, note and reusable flag. */
+  approveCandidate(c: Candidate): void {
+    this.candidateCode.set(c.bu_code);
+    this.setDecision('Equivalent', c);
+    this.submit();
   }
 
   submit(): void {

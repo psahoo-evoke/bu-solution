@@ -119,6 +119,27 @@ def test_T15_reuse_after_approval(client):
     assert "NYU|PSYCH-UA 10" not in {i["ext_id"] for i in client.get("/api/review-queue").json()}
 
 
+def test_department_approve_is_written_to_postgres(client, fresh_store, monkeypatch):
+    """The workbench's candidate Approve (Department) is a POST /api/decisions: with POSTGRES_HOST set it must reach
+    db.save_decisions (decisions table) and the audit log, and a failed write must fail the request."""
+    from app import db
+    saved, audited = [], []
+    monkeypatch.setattr(db, "enabled", lambda: True)
+    monkeypatch.setattr(db, "save_decisions", lambda ds: saved.extend(ds))
+    monkeypatch.setattr(db, "save_audit", lambda e: audited.append(e))
+    r = client.post("/api/decisions", json=DEC, headers=role("Department"))
+    assert r.status_code == 201
+    assert [(d.decision_id, d.decision, d.bu_course) for d in saved] == [(r.json()["decision_id"], "Equivalent", "CAS PS 211")]
+    assert [(e["actor_role"], e["action"]) for e in audited] == [("Department", "decision")]
+
+    def down(_):
+        raise db.DBError("database unavailable")
+    monkeypatch.setattr(db, "save_decisions", down)
+    before = len(fresh_store.decisions)
+    assert client.post("/api/decisions", json=DEC, headers=role("Department")).status_code == 503
+    assert len(fresh_store.decisions) == before   # nothing changed in memory
+
+
 def test_non_reusable_decision_only_for_waiting_students(client, fresh_store):
     body = dict(DEC, reusable=False)
     assert client.post("/api/decisions", json=body, headers=role("Evaluator")).status_code == 201
