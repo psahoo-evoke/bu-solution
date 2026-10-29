@@ -1,0 +1,50 @@
+name: deploy-containers
+
+# Lean deployment: frontend + backend as two Azure Container Apps (scripts/deploy_aca.sh).
+# Manual trigger only, so it does not race deploy.yml (full Bicep platform) on pushes to main.
+# Uses the same OIDC setup as deploy.yml (see infra/README.md):
+#   secrets AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID (identifiers, not credentials)
+#   the identity needs Contributor + Role Based Access Control Administrator on the resource group.
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group:
+        description: Resource group (created if missing)
+        default: rg-transferiq-aca
+      location:
+        description: Azure region
+        default: eastus2
+      prefix:
+        description: Name prefix for the apps (lowercase letters/digits)
+        default: tiq
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-containers-${{ inputs.resource_group }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: demo
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build images in ACR and deploy both container apps
+        env:
+          RG: ${{ inputs.resource_group }}
+          LOCATION: ${{ inputs.location }}
+          PREFIX: ${{ inputs.prefix }}
+          TAG: ${{ github.sha }}
+        run: bash scripts/deploy_aca.sh

@@ -5,6 +5,44 @@ Owner: DevOps agent · Human owner: Tech lead
 Everything is in `infra/main.bicep` (resource-group scope) with one module per concern in `infra/modules/`.
 Parameters live in `infra/main.bicepparam`.
 
+## Two ways to deploy
+
+| | Containers only (`scripts/deploy_aca.sh`) | Full platform (`infra/main.bicep`) |
+| --- | --- | --- |
+| Frontend | Container App `ca-<prefix>-web` (nginx + SPA, `frontend/Dockerfile`) | Static Web App |
+| Backend | Container App `ca-<prefix>-api`, **internal** ingress, 1 replica | Container App, external ingress |
+| Other resources | ACR Basic, Container Apps environment (+ its Log Analytics), one AcrPull identity | Postgres, OpenAI, Search, Doc Intelligence, Key Vault, Storage, ACS, App Insights |
+| AI | offline matcher (ADR 0003) | Azure OpenAI when `deployOpenAi = true` |
+| Cost | ≈ 30–60 USD/month | ≈ 130–170 USD/month |
+| How | `az login` then `scripts/deploy_aca.sh`, or the `deploy-containers` workflow (manual) | `deploy.yml` or the steps below |
+
+Use the containers-only path for the demo. The backend keeps all state in memory today, so the services the full platform creates would sit idle.
+
+### Containers only
+
+```
+Internet --HTTPS--> ca-tiq-web  (nginx :8080, serves the SPA, proxies /api/* -> API_UPSTREAM)
+                        |
+                        v
+                    ca-tiq-api  (FastAPI :8000, internal ingress, not reachable from the internet)
+```
+
+```bash
+az login
+az account set -s <subscription>
+scripts/deploy_aca.sh                                   # defaults: RG=rg-transferiq-aca LOCATION=eastus2 PREFIX=tiq
+RG=rg-tiq-test LOCATION=westeurope scripts/deploy_aca.sh   # overrides
+```
+
+- Runs in Git Bash, WSL, macOS/Linux or Azure Cloud Shell. Images are built with `az acr build`, so you don't need Docker locally.
+- Re-running is safe: it builds new image tags and rolls both apps to a new revision.
+- The web image reads `API_UPSTREAM` at container start, so the same image works with `docker compose` (`http://api:8000`) and in Azure (`https://<api internal fqdn>`).
+- The API runs with **exactly one replica**, because `backend/app/store.py` is in memory and every restart re-seeds it. Don't raise `--max-replicas` until the store moves to Postgres.
+- Locally with Docker: `docker compose up --build` gives http://localhost:8080.
+- Tear down: `az group delete -n rg-transferiq-aca --yes`.
+
+The rest of this file describes the full platform.
+
 | Module | Resources |
 | --- | --- |
 | `monitoring.bicep` | Log Analytics (1 GB/day cap) + workspace-based Application Insights |

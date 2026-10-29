@@ -47,6 +47,7 @@ Agent roles are defined in [`.claude/agents/`](../.claude/agents/). Each role ha
 | 2026-10-28 | [synthetic-data-01](2026-10-28/synthetic-data-01.md) | First synthetic data set (fictional colleges) | Data / QA lead |
 | 2026-10-28 | [synthetic-data-02](2026-10-28/synthetic-data-02.md) | Rebuild on Northeastern + NYU | Data / QA lead |
 | 2026-10-28 | [synthetic-data-03](2026-10-28/synthetic-data-03.md) | Transcript layout change | Data / QA lead |
+| 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
 <!-- INDEX:END -->
 
 Regenerate the index with `python scripts/build_log_index.py`.

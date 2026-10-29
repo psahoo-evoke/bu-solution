@@ -1,0 +1,25 @@
+# Local run of the same two images that go to Azure Container Apps.
+#   docker compose up --build        -> http://localhost:8080  (API at http://localhost:8000/api/health)
+services:
+  api:
+    build:
+      context: .                     # repo root: the image also bundles data/synthetic
+      dockerfile: backend/Dockerfile
+    image: transferiq-api:local
+    environment:
+      TRANSFERIQ_AUTH_MODE: demo
+      TRANSFERIQ_CORS_ORIGINS: http://localhost:8080
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: frontend
+    image: transferiq-web:local
+    environment:
+      API_UPSTREAM: http://api:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      api:
+        condition: service_healthy

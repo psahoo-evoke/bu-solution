@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# Lean container deployment of TransferIQ to Azure Container Apps (frontend + backend as two containers).
+#
+#   Internet --HTTPS--> ca-<prefix>-web (nginx + Angular SPA, external ingress :8080)
+#                           |  /api/*  (proxied, same origin, no CORS)
+#                           v
+#                       ca-<prefix>-api (FastAPI, INTERNAL ingress only :8000, exactly 1 replica)
+#
+# Images are built in Azure Container Registry (az acr build), so local Docker is NOT required.
+# The API pulls nothing at runtime: offline matcher, synthetic data baked into the image (ADR 0003).
+# For the full platform (Postgres, OpenAI, Search, Key Vault, SWA ...) use infra/main.bicep instead.
+#
+# Usage (Git Bash, WSL, macOS/Linux or Azure Cloud Shell), from anywhere in the repo, after `az login`:
+#   scripts/deploy_aca.sh
+#   RG=rg-tiq-test LOCATION=westeurope PREFIX=tiqt scripts/deploy_aca.sh
+# Re-running is safe: it rebuilds the images with a new tag and rolls both apps to a new revision.
+#
+# Needs: Azure CLI >= 2.60, and Contributor + Role Based Access Control Administrator (or Owner) on the
+# resource group, because it grants AcrPull to the apps' pull identity.
+set -euo pipefail
+export MSYS_NO_PATHCONV=1   # Git Bash on Windows: don't rewrite /subscriptions/... resource IDs into file paths
+export PYTHONIOENCODING=utf-8 PYTHONUTF8=1   # Windows az CLI crashes (cp1252) printing build logs with Unicode
+
+RG="${RG:-rg-transferiq-aca}"
+LOCATION="${LOCATION:-eastus2}"
+PREFIX="${PREFIX:-tiq}"                       # lowercase letters/digits
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+TAG="${TAG:-$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)-$(date +%H%M%S)}"
+
+SUB_ID="$(az account show --query id -o tsv)"
+ACR="${ACR:-cr${PREFIX}$(printf '%s' "$SUB_ID/$RG" | md5sum | cut -c1-8)}"   # globally unique, stable per RG
+ENV_NAME="${ENV_NAME:-cae-${PREFIX}}"         # override to reuse an existing environment / registry / apps
+ID_NAME="${ID_NAME:-id-${PREFIX}-acrpull}"
+API_APP="${API_APP:-ca-${PREFIX}-api}"
+WEB_APP="${WEB_APP:-ca-${PREFIX}-web}"
+
+log() { printf '\n==> %s\n' "$*"; }
+
+log "Subscription $(az account show --query name -o tsv) | RG $RG | $LOCATION | tag $TAG"
+az extension add --name containerapp --upgrade --only-show-errors -y >/dev/null
+# Registering needs subscription-level rights; skip providers that are already registered (RG-scoped users).
+for p in Microsoft.App Microsoft.OperationalInsights Microsoft.ContainerRegistry Microsoft.ManagedIdentity; do
+  [ "$(az provider show -n "$p" --query registrationState -o tsv 2>/dev/null)" = "Registered" ] && continue
+  az provider register -n "$p" --only-show-errors >/dev/null \
+    || echo "WARNING: could not register $p (needs subscription rights); ask a subscription owner if later steps fail"
+done
+
+log "Resource group, registry and pull identity"
+az group show -n "$RG" -o none 2>/dev/null \
+  || az group create -n "$RG" -l "$LOCATION" --tags project=transferiq --only-show-errors -o none
+az acr show -n "$ACR" -g "$RG" -o none 2>/dev/null \
+  || az acr create -n "$ACR" -g "$RG" -l "$LOCATION" --sku Basic --admin-enabled false --only-show-errors -o none
+ACR_SERVER="$(az acr show -n "$ACR" -g "$RG" --query loginServer -o tsv)"
+ACR_ID="$(az acr show -n "$ACR" -g "$RG" --query id -o tsv)"
+
+az identity show -n "$ID_NAME" -g "$RG" -o none 2>/dev/null \
+  || az identity create -n "$ID_NAME" -g "$RG" -l "$LOCATION" --only-show-errors -o none
+ID_ID="$(az identity show -n "$ID_NAME" -g "$RG" --query id -o tsv)"
+ID_PRINCIPAL="$(az identity show -n "$ID_NAME" -g "$RG" --query principalId -o tsv)"
+# Filter by principalId instead of --assignee: no Graph lookup (new identities take a while to replicate there).
+if [ -z "$(az role assignment list --scope "$ACR_ID" --role AcrPull --query "[?principalId=='$ID_PRINCIPAL'].id | [0]" -o tsv)" ]; then
+  az role assignment create --assignee-object-id "$ID_PRINCIPAL" --assignee-principal-type ServicePrincipal \
+    --role AcrPull --scope "$ACR_ID" --only-show-errors -o none
+  echo "AcrPull granted; waiting 30s for RBAC propagation"; sleep 30
+fi
+
+log "Building images in ACR (cloud build)"
+# API: build context = repo root (bundles data/synthetic; filtered by the root .dockerignore allow-list).
+# Relative paths from the repo root: the Windows az CLI cannot read Git Bash paths such as /c/Users/...
+cd "$ROOT"
+az acr build -r "$ACR" -t "transferiq-api:$TAG" -f backend/Dockerfile . --only-show-errors -o none
+az acr build -r "$ACR" -t "transferiq-web:$TAG" frontend --only-show-errors -o none
+
+log "Container Apps environment"
+az containerapp env show -n "$ENV_NAME" -g "$RG" -o none 2>/dev/null \
+  || az containerapp env create -n "$ENV_NAME" -g "$RG" -l "$LOCATION" --only-show-errors -o none
+
+# deploy_app <name> <image> <ingress> <port> <min> <max> <env vars...>
+deploy_app() {
+  local name="$1" image="$2" ingress="$3" port="$4" min="$5" max="$6"; shift 6
+  if az containerapp show -n "$name" -g "$RG" -o none 2>/dev/null; then
+    # Existing app (possibly a portal placeholder): make sure pull identity, registry and ingress are set.
+    az containerapp identity assign -n "$name" -g "$RG" --user-assigned "$ID_ID" --only-show-errors -o none
+    az containerapp registry set -n "$name" -g "$RG" --server "$ACR_SERVER" --identity "$ID_ID" --only-show-errors -o none
+    az containerapp ingress enable -n "$name" -g "$RG" --type "$ingress" --target-port "$port" --transport auto \
+      --only-show-errors -o none
+    az containerapp update -n "$name" -g "$RG" --image "$image" \
+      --min-replicas "$min" --max-replicas "$max" --set-env-vars "$@" --only-show-errors -o none
+  else
+    az containerapp create -n "$name" -g "$RG" --environment "$ENV_NAME" --image "$image" \
+      --user-assigned "$ID_ID" --registry-server "$ACR_SERVER" --registry-identity "$ID_ID" \
+      --ingress "$ingress" --target-port "$port" --cpu 0.5 --memory 1.0Gi \
+      --min-replicas "$min" --max-replicas "$max" --env-vars "$@" --tags project=transferiq \
+      --only-show-errors -o none
+  fi
+}
+
+log "API container app ($API_APP, internal only)"
+# Exactly one replica: the store is in memory (backend/app/store.py), so replicas would not share state.
+deploy_app "$API_APP" "$ACR_SERVER/transferiq-api:$TAG" internal 8000 1 1 \
+  TRANSFERIQ_ENV="$PREFIX" TRANSFERIQ_AUTH_MODE=demo
+API_FQDN="$(az containerapp show -n "$API_APP" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
+
+log "Web container app ($WEB_APP, public)"
+deploy_app "$WEB_APP" "$ACR_SERVER/transferiq-web:$TAG" external 8080 1 3 \
+  API_UPSTREAM="https://$API_FQDN"
+WEB_URL="https://$(az containerapp show -n "$WEB_APP" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
+
+log "Smoke test"
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  code="$(curl -s -o /dev/null -w '%{http_code}' "$WEB_URL/api/health" || true)"
+  echo "GET $WEB_URL/api/health -> $code"
+  [ "$code" = "200" ] && break
+  sleep 10
+done
+
+cat <<EOF
+
+Done.
+  App:        $WEB_URL
+  API (int.): https://$API_FQDN  (reachable only from inside $ENV_NAME, via the web app's /api)
+  Images:     $ACR_SERVER/transferiq-{api,web}:$TAG
+  Logs:       az containerapp logs show -n $API_APP -g $RG --follow
+  Tear down:  az group delete -n $RG --yes
+EOF
