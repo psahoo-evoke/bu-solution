@@ -47,7 +47,7 @@ paths:
             schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } }
       responses:
         "201": { description: "Extracted and evaluated, or the same file again (upload.duplicate, nothing changed)", content: { application/json: { schema: { $ref: "#/components/schemas/TranscriptUploadResult" } } } }
-        "422": { description: "Unreadable PDF, unknown institution, no course lines, another portal student's transcript, or a different Student ID than this student's earlier transcript from the same school" }
+        "422": { description: "Unreadable PDF, unknown institution, no course lines, or a different Student ID than this student's earlier transcript from the same school (the printed id is never compared with portal ids)" }
   /courses/{ext_id}/syllabus:
     post:
       summary: Upload a syllabus for an external course; checked for completeness (outcomes, schedule)

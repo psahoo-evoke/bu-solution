@@ -91,6 +91,6 @@ def test_store_failure_rejects_upload_and_changes_nothing(client, blob, fresh_st
 
 
 def test_rejected_upload_is_not_stored(client, blob):
-    with open(MAYA_NYU, "rb") as f:   # Maya's transcript posted for another student -> 422, nothing archived
-        r = client.post("/api/students/SYN-24002/transcripts", files={"file": ("t.pdf", f)}, headers=role("Student"))
+    with open(SYL_25, "rb") as f:   # a syllabus posted as a transcript -> 422 (no institution), nothing archived
+        r = client.post("/api/students/SYN-24001/transcripts", files={"file": ("t.pdf", f)}, headers=role("Student"))
     assert r.status_code == 422 and blob.saved == []

@@ -110,16 +110,34 @@ describe('StudentStatusPage header', () => {
     expect(render('Student').querySelector('h1')?.textContent?.trim()).toBe('Transfer credit status');
   });
 
-  async function renderEvaluation(lines: StudentEvaluation['lines']): Promise<HTMLElement> {
+  async function renderEvaluation(lines: StudentEvaluation['lines'], uploading = false): Promise<HTMLElement> {
     TestBed.inject(RoleService).set('Student');
     const fixture = TestBed.createComponent(StudentStatusPage);
     fixture.componentRef.setInput('id', 'SYN-24001');
     fixture.detectChanges();
     TestBed.inject(HttpTestingController).expectOne('/api/students/SYN-24001/evaluation').flush({ ...maya, lines });
     await fixture.whenStable();
+    (fixture.componentInstance as unknown as { uploadingTranscript: { set(v: boolean): void } }).uploadingTranscript.set(uploading);
     fixture.detectChanges();
     return fixture.nativeElement as HTMLElement;
   }
+
+  it('shows a loader in place of the start panel while a first transcript is read', async () => {
+    const el = await renderEvaluation([], true);
+    const loader = el.querySelector('.loader-panel');
+    expect(loader?.getAttribute('role')).toBe('status');
+    expect(loader?.textContent).toContain('Reading your transcript');
+    expect(el.querySelector('.start-panel')).toBeNull();
+  });
+
+  it('keeps the courses visible but dimmed and busy while another transcript is read', async () => {
+    const el = await renderEvaluation(maya.lines, true);
+    expect(el.querySelector('.loader-panel')).not.toBeNull();
+    expect(el.querySelector('.student-card .file-btn .spinner')).not.toBeNull();
+    const term = el.querySelector('section.term');
+    expect(term?.classList).toContain('is-stale');
+    expect(term?.getAttribute('aria-busy')).toBe('true');
+  });
 
   it('leads a new student with no courses to the transcript upload, without empty totals', async () => {
     const el = await renderEvaluation([]);

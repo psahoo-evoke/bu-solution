@@ -40,12 +40,21 @@
       <!-- Courses are on file: the status is the main thing now, so adding a transcript is a secondary action. -->
       <label class="btn file-btn" [class.is-busy]="uploadingTranscript()">
         <input type="file" class="visually-hidden" accept="application/pdf,.pdf" (change)="onTranscript($event)" [disabled]="uploadingTranscript()" />
+        @if (uploadingTranscript()) { <span class="spinner" aria-hidden="true"></span> }
         {{ uploadingTranscript() ? 'Reading transcript…' : 'Add another transcript (PDF)' }}
       </label>
     }
   </section>
 
-  @if (!hasCourses() && canUploadTranscript()) {
+  @if (uploadingTranscript()) {
+    <section class="card loader-panel" role="status" aria-live="polite">
+      <span class="spinner spinner--lg" aria-hidden="true"></span>
+      <div>
+        <strong>Reading your transcript…</strong>
+        <p class="muted small">Extracting the courses and matching each one to BU credit. This can take up to a minute.</p>
+      </div>
+    </section>
+  } @else if (!hasCourses() && canUploadTranscript()) {
     <section class="card start-panel" aria-labelledby="start-h">
       <p class="start-panel__step">Step 1</p>
       <h2 id="start-h">Start here: upload your transcript</h2>
@@ -53,16 +62,16 @@
         We match each course on it to BU credit and show you what is secured and what is still pending.
         Courses with a known BU equivalent are secured straight away; the rest go to the department for review.
       </p>
-      <label class="btn btn--primary file-btn" [class.is-busy]="uploadingTranscript()">
-        <input type="file" class="visually-hidden" accept="application/pdf,.pdf" (change)="onTranscript($event)" [disabled]="uploadingTranscript()" />
-        {{ uploadingTranscript() ? 'Reading transcript…' : 'Upload transcript (PDF)' }}
+      <label class="btn btn--primary file-btn">
+        <input type="file" class="visually-hidden" accept="application/pdf,.pdf" (change)="onTranscript($event)" />
+        Upload transcript (PDF)
       </label>
       <p class="muted small">PDF, up to 10 MB. One transcript per school; you can add more later.</p>
     </section>
   }
 
   @if (hasCourses() && totals(); as t) {
-    <section class="totals" aria-label="Credit totals">
+    <section class="totals" aria-label="Credit totals" [class.is-stale]="uploadingTranscript()" [attr.aria-busy]="uploadingTranscript()">
       <div class="total total--secured">
         <span class="total__label">Secured</span>
         <span class="total__value">{{ t.secured_units | number: '1.0-2' }} units</span>
@@ -91,7 +100,7 @@
   }
 
   @for (g of groups(); track g.term) {
-    <section class="card term" [attr.aria-labelledby]="'term-' + $index">
+    <section class="card term" [attr.aria-labelledby]="'term-' + $index" [class.is-stale]="uploadingTranscript()" [attr.aria-busy]="uploadingTranscript()">
       <h3 [id]="'term-' + $index">{{ g.term }}</h3>
       <div class="table-wrap">
         <table class="table">

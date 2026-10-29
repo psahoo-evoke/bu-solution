@@ -247,13 +247,9 @@ async def upload_transcript(request: Request, student_id: str = StudentIdPath, f
         raise HTTPException(422, f"Unknown institution '{parsed.institution}'")
     if not parsed.lines:
         raise HTTPException(422, "No course lines found in transcript")
-    # The Student ID on a transcript is the previous school's id, so it normally differs from the portal id.
-    # Reject only what points at someone else: another portal student's id, or a different id than this
-    # student's earlier transcript from the same school.
+    # The Student ID on a transcript is the previous school's id: it is stored, never compared with portal ids.
+    # It is only checked against this student's earlier transcript from the same school.
     ref = parsed.student_ref
-    owner = next((sid for sid in S().students if sid != student_id and (ref == sid or ref.startswith(sid + "-"))), None)
-    if ref and owner:
-        raise HTTPException(422, f"Transcript belongs to {owner}, not {student_id}")
     digest = hashlib.sha256(data).hexdigest()
     prev = S().latest_transcript(student_id, school.school_code)
     if ref and prev and prev.school_student_id and prev.school_student_id != ref:

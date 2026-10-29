@@ -181,9 +181,12 @@ def test_upload_transcript(client, fresh_store):
         assert len(client.post("/api/students/SYN-24001/transcripts", files={"file": ("t.pdf", f)}, headers=role("CreditStaff")).json()["lines"]) == 6
 
 
-def test_upload_transcript_wrong_student(client):
+def test_transcript_student_id_is_not_compared_with_portal_ids(client, fresh_store):
+    # The printed id (SYN-24001-NYU) is the previous school's id: stored, never matched against portal ids.
     with open(MAYA_NYU, "rb") as f:
-        assert client.post("/api/students/SYN-24002/transcripts", files={"file": ("t.pdf", f)}, headers=role("Student")).status_code == 422
+        r = client.post("/api/students/SYN-24002/transcripts", files={"file": ("t.pdf", f)}, headers=role("CreditStaff"))
+    assert r.status_code == 201 and r.json()["upload"]["school_student_id"] == "SYN-24001-NYU"
+    assert fresh_store.transcripts[-1].student_id == "SYN-24002"
 
 
 def _upload(client, sid="SYN-24001", extra=b""):
