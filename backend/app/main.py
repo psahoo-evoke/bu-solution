@@ -9,6 +9,7 @@ import asyncio
 import csv
 import datetime as dt
 import io
+import logging
 import os
 import re
 import uuid
@@ -18,6 +19,7 @@ from fastapi import APIRouter, FastAPI, File, Header, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from . import blob_store
 from . import store as store_mod
 from .evaluation import evaluate_holdout
 from .guard import MAX_UPLOAD_BYTES, RoleGuardMiddleware, auth_mode
@@ -25,6 +27,15 @@ from .ingest import UploadError, check_pdf_bytes, check_syllabus, parse_transcri
 from .matcher import detect_injection, recommend
 from .rules import evaluate_student, tier_label, totals
 from .store import Decision, ExtCourse, SyllabusRecord, TranscriptLine
+
+# uvicorn only configures its own loggers; give ours a handler so INFO lines (e.g. stored uploads) reach the
+# container log stream.
+_log = logging.getLogger("transferiq")
+if not _log.handlers:
+    _h = logging.StreamHandler()
+    _h.setFormatter(logging.Formatter("%(levelname)s:     %(name)s %(message)s"))
+    _log.addHandler(_h)
+    _log.setLevel(logging.INFO)
 
 _entra = auth_mode() == "entra"
 app = FastAPI(title="TransferIQ API", version="0.3.0",
@@ -145,6 +156,15 @@ async def _read_upload(file: UploadFile) -> bytes:
     return head
 
 
+async def _archive(kind: blob_store.Kind, key: str, data: bytes) -> Optional[str]:
+    """Keep the original PDF in Blob Storage before any state changes. A configured archive that fails -> 502 and
+    nothing is recorded, so an accepted upload is always stored. Not configured (offline) -> None."""
+    try:
+        return await asyncio.to_thread(blob_store.save_pdf, kind, key, data)
+    except blob_store.BlobStoreError as e:
+        raise HTTPException(502, str(e))
+
+
 @api.post("/students/{student_id}/transcripts", status_code=201)
 async def upload_transcript(student_id: str = StudentIdPath, file: UploadFile = File(...)):
     st = S().students.get(student_id)
@@ -162,6 +182,7 @@ async def upload_transcript(student_id: str = StudentIdPath, file: UploadFile = 
         raise HTTPException(422, f"Unknown institution '{parsed.institution}'")
     if not parsed.lines:
         raise HTTPException(422, "No course lines found in transcript")
+    await _archive("transcripts", student_id, data)
     with S().lock:
         new_lines = []
         for p in parsed.lines:
@@ -197,9 +218,11 @@ async def upload_syllabus(ext_id: str = ExtIdPath, file: UploadFile = File(...))
         raise HTTPException(e.status, e.detail)
     chk = check_syllabus(text)
     inj = detect_injection(text)
+    stored = await _archive("syllabi", ext_id, data)
     with S().lock:
         S().syllabi[ext_id] = SyllabusRecord(ext_id=ext_id, state="complete" if chk["complete"] else "incomplete",
-                                             file=f"upload-{uuid.uuid4().hex}.pdf", text=text, injection_detected=inj)
+                                             file=stored or f"upload-{uuid.uuid4().hex}.pdf", text=text,
+                                             injection_detected=inj)
     return dict(ext_id=ext_id, complete=chk["complete"], missing_sections=chk["missing_sections"],
                 status_code="TP" if chk["complete"] else "TM", injection_detected=inj)
 

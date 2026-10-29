@@ -13,6 +13,7 @@
 # Usage (Git Bash, WSL, macOS/Linux or Azure Cloud Shell), from anywhere in the repo, after `az login`:
 #   scripts/deploy_aca.sh
 #   RG=rg-tiq-test LOCATION=westeurope PREFIX=tiqt scripts/deploy_aca.sh
+#   STORAGE_ACCOUNT=<account> scripts/deploy_aca.sh   # also keep uploaded transcripts/syllabi in Blob Storage
 # Re-running is safe: it rebuilds the images with a new tag and rolls both apps to a new revision.
 #
 # Needs: Azure CLI >= 2.60, and Contributor + Role Based Access Control Administrator (or Owner) on the
@@ -108,6 +109,29 @@ log "API container app ($API_APP, internal only)"
 deploy_app "$API_APP" "$ACR_SERVER/transferiq-api:$TAG" internal 8000 1 1 \
   TRANSFERIQ_ENV="$PREFIX" TRANSFERIQ_AUTH_MODE=demo
 API_FQDN="$(az containerapp show -n "$API_APP" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
+
+# Optional upload archive (backend/app/blob_store.py): STORAGE_ACCOUNT=<existing account> [STORAGE_RG=<its RG>].
+# The API's SYSTEM identity writes blobs (DefaultAzureCredential picks it because AZURE_CLIENT_ID is not set);
+# the user-assigned identity above stays pull-only. Roles are scoped to the two containers, not the account.
+if [ -n "${STORAGE_ACCOUNT:-}" ]; then
+  log "Upload archive in Blob Storage ($STORAGE_ACCOUNT)"
+  ST_RG="${STORAGE_RG:-$RG}"
+  ST_ID="$(az storage account show -n "$STORAGE_ACCOUNT" -g "$ST_RG" --query id -o tsv)"
+  BLOB_EP="$(az storage account show -n "$STORAGE_ACCOUNT" -g "$ST_RG" --query primaryEndpoints.blob -o tsv)"
+  API_PRINCIPAL="$(az containerapp identity assign -n "$API_APP" -g "$RG" --system-assigned --query principalId -o tsv)"
+  for c in transcripts syllabi; do
+    az storage container-rm show --storage-account "$ST_ID" -n "$c" -o none 2>/dev/null \
+      || az storage container-rm create --storage-account "$ST_ID" -n "$c" --public-access off --only-show-errors -o none
+    scope="$ST_ID/blobServices/default/containers/$c"
+    if [ -z "$(az role assignment list --scope "$scope" --role "Storage Blob Data Contributor" \
+                 --query "[?principalId=='$API_PRINCIPAL'].id | [0]" -o tsv)" ]; then
+      az role assignment create --assignee-object-id "$API_PRINCIPAL" --assignee-principal-type ServicePrincipal \
+        --role "Storage Blob Data Contributor" --scope "$scope" --only-show-errors -o none
+    fi
+  done
+  az containerapp update -n "$API_APP" -g "$RG" --only-show-errors -o none --set-env-vars \
+    AZURE_STORAGE_BLOB_ENDPOINT="$BLOB_EP" AZURE_STORAGE_CONTAINER_TRANSCRIPTS=transcripts AZURE_STORAGE_CONTAINER_SYLLABI=syllabi
+fi
 
 log "Web container app ($WEB_APP, public)"
 deploy_app "$WEB_APP" "$ACR_SERVER/transferiq-web:$TAG" external 8080 1 3 \

@@ -38,6 +38,13 @@ RG=rg-tiq-test LOCATION=westeurope scripts/deploy_aca.sh   # overrides
 - Re-running is safe: it builds new image tags and rolls both apps to a new revision.
 - The web image reads `API_UPSTREAM` at container start, so the same image works with `docker compose` (`http://api:8000`) and in Azure (`https://<api internal fqdn>`).
 - The API runs with **exactly one replica**, because `backend/app/store.py` is in memory and every restart re-seeds it. Don't raise `--max-replicas` until the store moves to Postgres.
+- **Upload archive:** add `STORAGE_ACCOUNT=<existing account>` (and `STORAGE_RG` if it's in another resource group). The script then:
+  - creates the `transcripts` and `syllabi` containers if they're missing (private)
+  - turns on the API's system-assigned identity
+  - grants that identity **Storage Blob Data Contributor** on those two containers only
+  - sets the `AZURE_STORAGE_*` variables
+
+  The API then stores every uploaded transcript and syllabus PDF in Blob Storage.
 - Locally with Docker: `docker compose up --build` gives http://localhost:8080.
 - Tear down: `az group delete -n rg-transferiq-aca --yes`.
 
@@ -147,7 +154,7 @@ Set by `main.bicep` on the container app (developer agent: read these, never har
 | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_API_VERSION` | only present when `deployOpenAi = true` (absent ⇒ offline fallback) | yes, `matcher.py` (managed identity via `DefaultAzureCredential`) |
 | `AZURE_DI_ENDPOINT` | Document Intelligence endpoint (OCR for scanned PDFs) | yes, `ingest.py` (managed identity) |
 | `AZURE_SEARCH_ENDPOINT` | AI Search endpoint | not yet (shortlist is lexical in-process) |
-| `AZURE_STORAGE_BLOB_ENDPOINT`, `AZURE_STORAGE_CONTAINER_TRANSCRIPTS`, `AZURE_STORAGE_CONTAINER_SYLLABI` | blob endpoint + container names | not yet (uploads kept in memory) |
+| `AZURE_STORAGE_BLOB_ENDPOINT`, `AZURE_STORAGE_CONTAINER_TRANSCRIPTS`, `AZURE_STORAGE_CONTAINER_SYLLABI` | blob endpoint + container names | yes, `blob_store.py`. Every accepted transcript or syllabus PDF is stored as `<container>/<student or course>/<UTC time>-<id>.pdf` via managed identity. If the write fails, the upload is rejected (502) and nothing is recorded. Unset = no archive (offline). |
 | `AZURE_KEY_VAULT_URI` | for any runtime secret lookups | not yet |
 | `POSTGRES_HOST`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_AUTH=entra` | password = Entra token: `DefaultAzureCredential().get_token("https://ossrdbms-aad.database.windows.net/.default").token`, `sslmode=require`; refresh before expiry | not yet (in-memory store) |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING`, `ACS_CONNECTION_STRING` | Key Vault references (secretRef) | not yet (no telemetry SDK, no email sender) |
@@ -193,4 +200,4 @@ Tear down after the hackathon: `az group delete -n $RG`. Key Vault and Cognitive
 - `deployApi=true` with an empty `apiImage` fails; the workflow always passes it.
 - This template was compiled with the Bicep CLI (0.48.1) with zero errors or linter warnings but has **not** been deployed to a subscription yet; expect first-run fixes (region/model/quota).
 - ~~Backend alignment needed~~ **Resolved** in developer-03 (dd962e6): `matcher.py` and `ingest.py` now use `DefaultAzureCredential`. The key env vars are only an optional local-dev fallback and are not set by this template. Re-checked in devops-02.
-- Several provisioned services (Postgres, Blob, AI Search, ACS, App Insights) are not yet used by the backend (in-memory store). They cost money while idle; see the cost note.
+- Several provisioned services (Postgres, AI Search, ACS, App Insights) are not yet used by the backend (in-memory store). Blob Storage is used, but only to archive uploaded PDFs. They cost money while idle; see the cost note.
