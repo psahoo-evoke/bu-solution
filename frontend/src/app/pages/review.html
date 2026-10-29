@@ -154,7 +154,7 @@
                 @if (isDepartment() && candidateCode() === c.bu_code) {
                   <button
                     type="button"
-                    class="btn btn--primary candidate__approve"
+                    class="btn btn--success candidate__approve"
                     [disabled]="saving() || notDecidable() || !reasonCodes().length"
                     [attr.aria-label]="'Approve ' + c.bu_code + ' as equivalent'"
                     (click)="approveCandidate(c)"

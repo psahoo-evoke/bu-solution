@@ -74,6 +74,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-29 | [developer-24](2026-10-29/developer-24.md) | A syllabus can be uploaded only once; the button disappears after the upload | Sagar (spathur) |
 | 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
 | 2026-10-30 | [developer-01](2026-10-30/developer-01.md) | One-click Approve on the selected BU candidate for Department approvers | Sagar (spathur) |
+| 2026-10-30 | [developer-02](2026-10-30/developer-02.md) | Green candidate Approve button | Sagar (spathur) |
 <!-- INDEX:END -->
 
 Regenerate the index with `python scripts/build_log_index.py`.
