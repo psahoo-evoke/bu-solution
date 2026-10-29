@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-log rule (CLAUDE.md "Logging is mandatory"), enforced by CI job `log-check`:
+# AI-log rule (AGENTS.md "Logging is mandatory"), enforced by CI job `log-check`:
 #   If a push / PR range changes any file under backend/, frontend/src/ or infra/,
 #   the SAME range must also add or change at least one file under ai-logs/.
 # Usage: scripts/check_ai_logs.sh <base-sha> <head-sha>

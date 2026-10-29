@@ -3,18 +3,18 @@
 Every agent run that produced or changed something in this repo has a log here, one file per run:
 `ai-logs/<date>/<agent>-<NN>.md`, written from [TEMPLATE.md](TEMPLATE.md).
 
-Agent roles are defined in [`.claude/agents/`](../.claude/agents/). Each role has a human owner who reviews its output.
+Agent roles are defined in [`agents/`](../agents/). Each role has a human owner who reviews its output.
 
 | Role | Definition | Human owner |
 | --- | --- | --- |
-| BA / Discovery | [ba-discovery.md](../.claude/agents/ba-discovery.md) | Product lead |
-| Synthetic Data | [synthetic-data.md](../.claude/agents/synthetic-data.md) | Data / QA lead |
-| Architect | [architect.md](../.claude/agents/architect.md) | Tech lead |
-| Developer | [developer.md](../.claude/agents/developer.md) | Backend + front-end devs |
-| QA | [qa.md](../.claude/agents/qa.md) | QA lead |
-| Security | [security.md](../.claude/agents/security.md) | Tech lead |
-| DevOps | [devops.md](../.claude/agents/devops.md) | Tech lead |
-| Adoption | [adoption.md](../.claude/agents/adoption.md) | Product lead |
+| BA / Discovery | [ba-discovery.md](../agents/ba-discovery.md) | Product lead |
+| Synthetic Data | [synthetic-data.md](../agents/synthetic-data.md) | Data / QA lead |
+| Architect | [architect.md](../agents/architect.md) | Tech lead |
+| Developer | [developer.md](../agents/developer.md) | Backend + front-end devs |
+| QA | [qa.md](../agents/qa.md) | QA lead |
+| Security | [security.md](../agents/security.md) | Tech lead |
+| DevOps | [devops.md](../agents/devops.md) | Tech lead |
+| Adoption | [adoption.md](../agents/adoption.md) | Product lead |
 
 ## Index
 <!-- INDEX:START -->
@@ -47,6 +47,7 @@ Agent roles are defined in [`.claude/agents/`](../.claude/agents/). Each role ha
 | 2026-10-28 | [synthetic-data-01](2026-10-28/synthetic-data-01.md) | First synthetic data set (fictional colleges) | Data / QA lead |
 | 2026-10-28 | [synthetic-data-02](2026-10-28/synthetic-data-02.md) | Rebuild on Northeastern + NYU | Data / QA lead |
 | 2026-10-28 | [synthetic-data-03](2026-10-28/synthetic-data-03.md) | Transcript layout change | Data / QA lead |
+| 2026-10-29 | [adoption-01](2026-10-29/adoption-01.md) | Rename the agent folder, name the assistant, rewrite README around the problem statement | Sagar (spathur) |
 | 2026-10-29 | [developer-01](2026-10-29/developer-01.md) | Remove "synthetic data" wording from the UI | Sagar (spathur) |
 | 2026-10-29 | [developer-02](2026-10-29/developer-02.md) | Store uploaded transcripts and syllabi in Azure Blob Storage | Sagar (spathur) |
 | 2026-10-29 | [developer-03](2026-10-29/developer-03.md) | Entra ID sign-in with app roles (Student, Department, …) | Sagar (spathur) |

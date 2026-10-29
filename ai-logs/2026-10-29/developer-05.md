@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-29 |
 | Agent (role) | developer (backend + frontend) + devops (deploy script) |
-| Tool / model | Claude Code (Opus 5.5) |
+| Tool / model | Solutionauts AI (CLI) |
 | Human owner | Sagar (spathur) |
 | Trigger | User: "for student login refer student_loginsample.txt and create per student sso, inside portal that student view should be viewed and password can be admin and if student not registered give to register for student; same way do for department login" |
 

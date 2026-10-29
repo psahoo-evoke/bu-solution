@@ -69,7 +69,7 @@ Team solutionauts · EvoHack 2026 · Synthetic data only.
 
 ## Slide 3 · AI agents used: from business analysis to adoption (2:30)
 
-**Visual: a pipeline of 8 role agents**, each a file in `.claude/agents/`, each run logged in `ai-logs/` from one template, each with a human owner. CI fails if code changes without a log entry (`scripts/check_ai_logs.sh`).
+**Visual: a pipeline of 8 role agents**, each a file in `agents/`, each run logged in `ai-logs/` from one template, each with a human owner. CI fails if code changes without a log entry (`scripts/check_ai_logs.sh`).
 
 | Stage | Agent role | Runs [M] | Human owner | What it produced (from the logs) |
 | --- | --- | --- | --- | --- |
@@ -82,7 +82,7 @@ Team solutionauts · EvoHack 2026 · Synthetic data only.
 | Ship | devops | 2 | Tech lead | Dockerfile, Bicep for all Azure services, CI with AI-log check, OIDC deploy; env-var alignment |
 | Adopt | adoption | 2 | Product lead | Student FAQ, evaluator quick-start, release notes, this deck outline, demo runbook; checked the docs against the running app and reported 12 inconsistencies, which started the v0.3.0 round |
 
-**Total: 26 logged runs across 8 roles** [M: files in `ai-logs/` on 2026-10-28, including adoption-02; re-count on the day if more runs are added]. Tools: Claude (Cowork) for discovery, data, architecture and small fixes (architect-01..04, developer-07); Claude Code subagents for build, test, security, ops and adoption.
+**Total: 26 logged runs across 8 roles** [M: files in `ai-logs/` on 2026-10-28, including adoption-02; re-count on the day if more runs are added]. Tools: Solutionauts AI (Cowork) for discovery, data, architecture and small fixes (architect-01..04, developer-07); Solutionauts AI subagents for build, test, security, ops and adoption.
 
 **Callout: humans stayed in charge (3 examples from the logs)**
 - synthetic-data-01 **rejected** by the human: fictional colleges replaced with Northeastern + NYU, the schools the hackathon supplied.

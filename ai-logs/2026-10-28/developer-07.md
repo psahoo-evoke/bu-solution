@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | developer |
-| Tool / model | Claude (Cowork) |
+| Tool / model | Solutionauts AI (Cowork) |
 | Human owner | Backend + AI dev |
 | Trigger | developer-06 / adoption-01: backend text claimed reminders "are sent" but no email sending exists |
 

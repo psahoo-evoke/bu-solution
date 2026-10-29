@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | devops |
-| Tool / model | Claude subagent (general-purpose) acting as devops |
+| Tool / model | Solutionauts AI subagent acting as devops |
 | Human owner | Tech lead |
 | Trigger | Orchestrator: "DevOps agent: Dockerfile, Bicep for all Azure services, ci.yml with log-check, deploy.yml with OIDC, infra README" |
 
@@ -12,7 +12,7 @@
 Build the API container image (build context = repo root, non-root, include synthetic seed/syllabi/transcripts), Bicep for Log Analytics + App Insights, Key Vault (RBAC), Storage (transcripts, syllabi), PostgreSQL Flexible (Entra auth, burstable), Container Apps (system MI, min 1 replica), Static Web App, Azure OpenAI (parameterised model), AI Search basic, Document Intelligence, Communication Services email, ACR, role assignments, tags `project`/`env`; CI (backend tests + eval, frontend build, AI-log check); deploy via OIDC; infra README with cost note. Do not touch `backend/app`, `backend/tests`, `frontend/src`.
 
 ## Inputs used
-- `CLAUDE.md`, `.claude/agents/devops.md`, `docs/architecture.md`, ADRs 0001–0004, `docs/api/openapi.yaml`, `docs/discovery/sponsor-answers.md`
+- `AGENTS.md`, `agents/devops.md`, `docs/architecture.md`, ADRs 0001–0004, `docs/api/openapi.yaml`, `docs/discovery/sponsor-answers.md`
 - Read-only look at the in-progress `backend/requirements.txt` and `backend/app/*.py` to align env var names
 
 ## Output

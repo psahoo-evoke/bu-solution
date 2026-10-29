@@ -3,7 +3,7 @@
 Production target is PostgreSQL (see backend/db/schema.sql). For the hackathon slice everything lives in
 memory and `reset()` restores the seeded state.
 
-Data-hygiene guarantees (CLAUDE.md, ADR 0002):
+Data-hygiene guarantees (AGENTS.md, ADR 0002):
 - `gt_*` columns of external_courses.csv are split off into `ground_truth` at load time. The matcher only ever
   receives `ExtCourse` objects, which have no gt fields.
 - Decisions with split == holdout are kept in `holdout_decisions` and are NOT visible to the equivalency

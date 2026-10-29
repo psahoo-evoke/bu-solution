@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | developer |
-| Tool / model | Claude subagent (general-purpose) acting as developer |
+| Tool / model | Solutionauts AI subagent acting as developer |
 | Human owner | Front-end dev |
 | Trigger | Orchestrator follow-up after architect-04 (openapi v0.3.0) and security-02 finding F-01 |
 

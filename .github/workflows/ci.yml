@@ -83,7 +83,7 @@ jobs:
 
   log-check:
     # Rule: a push/PR that changes backend/, frontend/src/ or infra/ must also touch ai-logs/
-    # in the same range (CLAUDE.md "Logging is mandatory"). Logic: scripts/check_ai_logs.sh
+    # in the same range (AGENTS.md "Logging is mandatory"). Logic: scripts/check_ai_logs.sh
     name: ai-log check
     runs-on: ubuntu-latest
     steps:

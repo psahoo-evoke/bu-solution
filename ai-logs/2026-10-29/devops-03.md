@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-29 |
 | Agent (role) | devops |
-| Tool / model | Claude Code (Opus 5.5) acting as devops |
+| Tool / model | Solutionauts AI (CLI) acting as devops |
 | Human owner | Sagar (spathur) |
 | Trigger | User: "I need to deploy to Azure, create Dockerfile, structure to deploy in Azure in container" |
 

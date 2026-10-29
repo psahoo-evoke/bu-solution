@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | security |
-| Tool / model | Claude subagent (general-purpose) acting as security |
+| Tool / model | Solutionauts AI subagent acting as security |
 | Human owner | Tech lead |
 | Trigger | Orchestrator: "re-test only the five findings the developers addressed; update the review with a dated Re-review section" |
 

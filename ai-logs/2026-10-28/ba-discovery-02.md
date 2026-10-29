@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | ba-discovery |
-| Tool / model | Claude (Cowork) |
+| Tool / model | Solutionauts AI (Cowork) |
 | Human owner | puspalata sahoo (Product lead) |
 | Trigger | "received the answers from sponsor. check it and modify the plan if needed" |
 

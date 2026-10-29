@@ -3,7 +3,7 @@
 TransferIQ is an AI co-pilot for Boston University transfer credit evaluation (EvoHack 2026). **AI recommends, rules compute, evaluators decide.** The AI never posts credit.
 
 ## Agent roles
-Every change is made by one role agent defined in `.claude/agents/` (ba-discovery, synthetic-data, architect, developer, qa, security, devops, adoption). Pick the role that owns the files you touch.
+Every change is made by one role agent defined in `agents/` (ba-discovery, synthetic-data, architect, developer, qa, security, devops, adoption). Pick the role that owns the files you touch.
 
 ## Logging is mandatory
 Each run writes `ai-logs/<YYYY-MM-DD>/<agent>-<NN>.md` from `ai-logs/TEMPLATE.md` (next free NN for that agent and date), then `python scripts/build_log_index.py`. Commit the log with the work. Commit message: `<agent>: <what>`.

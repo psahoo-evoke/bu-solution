@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-29 |
 | Agent (role) | developer (frontend) |
-| Tool / model | Claude Code (Opus 5.5) |
+| Tool / model | Solutionauts AI (CLI) |
 | Human owner | Sagar (spathur) |
 | Trigger | User: "create SSO login page, so student can login and department login, refer frontpage.txt, add more speciality and make UI better, and all functionality should work as before" |
 

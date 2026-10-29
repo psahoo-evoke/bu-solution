@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-26 |
 | Agent (role) | architect |
-| Tool / model | Claude (Cowork) |
+| Tool / model | Solutionauts AI (Cowork) |
 | Human owner | Tech lead |
 | Trigger | Plan section 4 (architecture) and section 6 (build plan) |
 

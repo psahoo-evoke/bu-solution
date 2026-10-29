@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | YYYY-MM-DD |
 | Agent (role) | ba-discovery / synthetic-data / architect / developer / qa / security / devops / adoption |
-| Tool / model | e.g. Claude (Cowork) or Claude Code subagent |
+| Tool / model | e.g. Solutionauts AI (Cowork) or Solutionauts AI subagent |
 | Human owner | name (POD role) |
 | Trigger | what asked for this run |
 

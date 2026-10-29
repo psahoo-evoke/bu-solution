@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | synthetic-data |
-| Tool / model | Claude (Cowork) |
+| Tool / model | Solutionauts AI (Cowork) |
 | Human owner | Data / QA lead |
 | Trigger | Human asked for the original transcript layout with only the college name changed, without the long disclaimer |
 

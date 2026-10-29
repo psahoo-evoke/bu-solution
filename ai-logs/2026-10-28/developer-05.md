@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | developer |
-| Tool / model | Claude subagent (general-purpose) acting as developer |
+| Tool / model | Solutionauts AI subagent acting as developer |
 | Human owner | Backend + AI dev |
 | Trigger | Coordinator: implement contract v0.3.0 (architect-04) and security-02 findings F-02, F-04, F-07 |
 

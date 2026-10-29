@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | developer |
-| Tool / model | Claude subagent (general-purpose) acting as developer |
+| Tool / model | Solutionauts AI subagent acting as developer |
 | Human owner | Backend + AI dev |
 | Trigger | Coordinator: implement contract v0.2.0 (`x-roles`, `GET /reason-codes`), ADR 0005, and the security-01 checklist items in `backend/` |
 

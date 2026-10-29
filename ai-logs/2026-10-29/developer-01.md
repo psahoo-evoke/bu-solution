@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-29 |
 | Agent (role) | developer |
-| Tool / model | Claude Code (Opus 5.5) acting as developer |
+| Tool / model | Solutionauts AI (CLI) acting as developer |
 | Human owner | Sagar (spathur) |
 | Trigger | User: "in UI not mention Synthetic data" |
 
@@ -26,7 +26,7 @@ The deployed UI must not mention synthetic data.
   - `app.spec.ts` now asserts that no "synthetic" wording appears.
   - `e2e/demo.spec.ts` has its assertions updated.
 - Not changed:
-  - The data itself is still synthetic (CLAUDE.md hard rule).
+  - The data itself is still synthetic (AGENTS.md hard rule).
   - Student IDs such as `SYN-24001` come from the seed data and still appear in URLs.
   - Code comments and docs still say "synthetic".
 

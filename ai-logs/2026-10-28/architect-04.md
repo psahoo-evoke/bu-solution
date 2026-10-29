@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | architect |
-| Tool / model | Claude (Cowork) |
+| Tool / model | Solutionauts AI (Cowork) |
 | Human owner | Tech lead |
 | Trigger | adoption-01 inconsistencies #1 (student saw approved as secured; sponsor: TP until posting) and #2 (strict agreement not on screen); security-02 F-02 (free-text bu_course) |
 

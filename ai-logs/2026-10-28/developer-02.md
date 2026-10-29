@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | developer |
-| Tool / model | Claude subagent (general-purpose) acting as developer |
+| Tool / model | Solutionauts AI subagent acting as developer |
 | Human owner | Front-end dev |
 | Trigger | Orchestrator: "Build `frontend/` in Angular against docs/api/openapi.yaml" (backend built in parallel by another developer run) |
 
@@ -12,7 +12,7 @@
 Create `frontend/` with the Angular CLI (app name `transferiq-web`, output `dist/transferiq-web/browser`), a `/api` → `http://localhost:8000` proxy, a hand-written typed API client, an `X-Demo-Role` interceptor driven by a top-bar role switcher, and four screens: student status `/student/:id`, evaluator workbench `/review`, evaluation `/evaluation`, registrar `/registrar`. Accessible plain-SCSS UI with a "Synthetic data – EvoHack 2026" badge, graceful API-down handling, unit tests, a Playwright demo spec and a README. Do not touch `backend/`, `infra/`, `.github/`; do not commit.
 
 ## Inputs used
-- `CLAUDE.md`, `.claude/agents/developer.md`
+- `AGENTS.md`, `agents/developer.md`
 - `docs/api/openapi.yaml` (the contract), `docs/stories.md` (US-01..US-12), `docs/architecture.md`
 - `data/synthetic/seed/students.csv`, `transcript_lines_expected.csv`, `reason_codes.csv`
 - The parallel backend (`backend/app/main.py`), run locally only to smoke-test the UI; not modified

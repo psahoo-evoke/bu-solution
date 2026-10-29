@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-29 |
 | Agent (role) | developer (backend) + devops (deploy script, infra README) |
-| Tool / model | Claude Code (Opus 5.5) |
+| Tool / model | Solutionauts AI (CLI) |
 | Human owner | Sagar (spathur) |
 | Trigger | User: "make sure upload of transcripts and syllabus are storing into blob azure" |
 

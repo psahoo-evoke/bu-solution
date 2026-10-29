@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | adoption |
-| Tool / model | Claude subagent (general-purpose) acting as adoption |
+| Tool / model | Solutionauts AI subagent acting as adoption |
 | Human owner | Product lead |
 | Trigger | Coordinator: contract v0.3.0 (architect-04) implemented in developer-05/06/07 and qa-03. Update the runbook (Liam shows TP; add the posting step as Registrar), the deck (numbers, run count), the release notes and the FAQ; resolve the adoption-01 inconsistencies that are now fixed |
 

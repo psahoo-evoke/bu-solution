@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | synthetic-data |
-| Tool / model | Claude (Cowork) |
+| Tool / model | Solutionauts AI (Cowork) |
 | Human owner | Data / QA lead |
 | Trigger | "we should choose NYU or NU college for syllabus and transcript. hackathon given those college data only" |
 

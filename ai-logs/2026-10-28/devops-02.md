@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | devops |
-| Tool / model | Claude subagent (general-purpose) acting as devops |
+| Tool / model | Solutionauts AI subagent acting as devops |
 | Human owner | Tech lead |
 | Trigger | Orchestrator: "re-check the infra env var names against what the backend now reads; fix only infra/" (during security-02) |
 

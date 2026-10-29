@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | security |
-| Tool / model | Claude subagent (general-purpose) acting as security |
+| Tool / model | Solutionauts AI subagent acting as security |
 | Human owner | Tech lead |
 | Trigger | Orchestrator: "run docs/security/checklist.md against the current backend; report findings, don't edit backend/app or tests" |
 

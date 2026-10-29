@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | developer |
-| Tool / model | Claude subagent (general-purpose) acting as developer |
+| Tool / model | Solutionauts AI subagent acting as developer |
 | Human owner | Backend + AI dev |
 | Trigger | Orchestrator: "Build `backend/` (Python 3.11+, FastAPI) against docs/api/openapi.yaml; then act as QA" |
 
@@ -12,7 +12,7 @@
 Build `backend/`: seed loader / in-memory store (holdout hidden, gt_* never reach the matcher), PostgreSQL DDL, a deterministic rules engine that reproduces all 56 lines of `transcript_lines_expected.csv` using the semantics of `scripts/synthetic/build_data_v2.py`, a matcher with `azure-openai` and `offline-fallback` engines (ADR 0003/0004), every path in the OpenAPI contract with `X-Demo-Role` checks, pdfplumber transcript and syllabus ingest, `/demo/reset`, MyBU CSV export, and CORS for `http://localhost:4200`. Do not touch `frontend/`, `infra/` or `.github/`. Do not commit.
 
 ## Inputs used
-- `CLAUDE.md`, `.claude/agents/developer.md`, `docs/api/openapi.yaml`, `docs/architecture.md`, `docs/data-model.md`, `docs/adr/0001-0004`, `docs/stories.md`
+- `AGENTS.md`, `agents/developer.md`, `docs/api/openapi.yaml`, `docs/architecture.md`, `docs/data-model.md`, `docs/adr/0001-0004`, `docs/stories.md`
 - `data/synthetic/seed/*.csv`, `data/synthetic/transcripts/*.pdf`, `data/synthetic/syllabi/*.pdf`
 - `scripts/synthetic/build_data_v2.py` (reference `evaluate`, `lookup`, `course_decision`)
 

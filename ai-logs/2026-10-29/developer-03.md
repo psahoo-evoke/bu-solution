@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-29 |
 | Agent (role) | developer (backend + frontend) + devops (nginx, deploy script, infra docs) |
-| Tool / model | Claude Code (Opus 5.5) |
+| Tool / model | Solutionauts AI (CLI) |
 | Human owner | Sagar (spathur) |
 | Trigger | User: "I have added Entra ID credentials in .env, make sure ROLE should work for student and department inside our application" |
 

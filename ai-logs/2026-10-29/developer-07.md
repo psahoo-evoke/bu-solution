@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-29 |
 | Agent (role) | developer (backend) + devops (deploy script) |
-| Tool / model | Claude Code (Opus 5.5) |
+| Tool / model | Solutionauts AI (CLI) |
 | Human owner | Sagar (spathur) |
 | Trigger | User: "save registered accounts to blob so they survive restart" |
 

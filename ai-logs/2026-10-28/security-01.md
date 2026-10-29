@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | security |
-| Tool / model | Claude subagent (general-purpose) acting as security |
+| Tool / model | Solutionauts AI subagent acting as security |
 | Human owner | Tech lead |
 | Trigger | Orchestrator: "Security agent: threat model, dependabot, checklist to run against the backend" |
 
@@ -12,7 +12,7 @@
 STRIDE per component (SPA, API, matcher/LLM, storage, DB, CI/CD) with mitigations mapped to code/infra: role checks per route, prompt injection (ADR 0004, T17), PII/FERPA posture, upload risks, audit log, Key Vault + managed identity, supply chain. Add Dependabot (pip, npm, actions) and a checklist to run once the backend exists.
 
 ## Inputs used
-- `CLAUDE.md`, `.claude/agents/security.md`, ADRs 0001–0004, `docs/api/openapi.yaml`, `docs/data-model.md`, `docs/discovery/sponsor-answers.md`, `data/synthetic/seed/test_cases.csv` (T17), `syllabi_index.csv`
+- `AGENTS.md`, `agents/security.md`, ADRs 0001–0004, `docs/api/openapi.yaml`, `docs/data-model.md`, `docs/discovery/sponsor-answers.md`, `data/synthetic/seed/test_cases.csv` (T17), `syllabi_index.csv`
 - The infra produced in devops-01 (to map mitigations to Bicep)
 - Read-only skim of the in-progress `backend/app/main.py`, `matcher.py`, `ingest.py`
 

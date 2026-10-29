@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | synthetic-data |
-| Tool / model | Claude (Cowork) |
+| Tool / model | Solutionauts AI (Cowork) |
 | Human owner | Data / QA lead |
 | Trigger | "can you provide transcript certificates and syllabus also synthetic data" (full brief scale; PDFs + Excel + CSV/JSON) |
 

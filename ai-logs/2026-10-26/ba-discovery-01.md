@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-26 |
 | Agent (role) | ba-discovery |
-| Tool / model | Claude (Cowork) |
+| Tool / model | Solutionauts AI (Cowork) |
 | Human owner | puspalata sahoo (Product lead) |
 | Trigger | "plan this hackathon problem from discovery to demo" + kickoff slides, problem statement (Boston University.docx), course-match workbook |
 

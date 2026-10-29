@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | architect |
-| Tool / model | Claude (Cowork) |
+| Tool / model | Solutionauts AI (Cowork) |
 | Human owner | Tech lead |
 | Trigger | security-01 findings (missing role checks, export role ambiguity) and developer-02 gap (reason codes hard-coded) |
 

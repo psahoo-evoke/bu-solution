@@ -4,7 +4,7 @@
 | --- | --- |
 | Date | 2026-10-28 |
 | Agent (role) | adoption |
-| Tool / model | Claude subagent (general-purpose) acting as adoption |
+| Tool / model | Solutionauts AI subagent acting as adoption |
 | Human owner | Product lead |
 | Trigger | Orchestrator: "Adoption agent: student FAQ, evaluator quick-start, release notes, deck outline in the judges' order, demo runbook" |
 
@@ -12,7 +12,7 @@
 Write the adoption docs and the deck outline for the 20-minute demo + 10-minute Q&A, in the judges' order (discovery, solution + architecture, AI agents used, quality, metrics, future scope, live demo). Use only numbers present in the repo, each labelled measured / sponsor estimate / assumption. Include an "AI agents used" slide built from the actual `ai-logs/`, an honest-limits slide and the ROI (2,800 × 12 min = 560 h; ~93 h target; ~467 h returned). Write a click-by-click demo runbook with the role for each step. Do not edit code, other logs or `ai-logs/README.md`. Do not commit.
 
 ## Inputs used
-- `CLAUDE.md`, `.claude/agents/adoption.md`, `docs/discovery/sponsor-answers.md`, `docs/stories.md`, `docs/architecture.md`, `docs/quality/eval-report.md`, `docs/security/threat-model.md`, `docs/security/review-2026-10-28.md` (summary)
+- `AGENTS.md`, `agents/adoption.md`, `docs/discovery/sponsor-answers.md`, `docs/stories.md`, `docs/architecture.md`, `docs/quality/eval-report.md`, `docs/security/threat-model.md`, `docs/security/review-2026-10-28.md` (summary)
 - All 19 earlier runs in `ai-logs/2026-10-26/` and `ai-logs/2026-10-28/`
 - `data/synthetic/seed/test_cases.csv`, `rules.csv`, `reason_codes.csv`, `students.csv`, `syllabi_index.csv`, `transcript_lines_expected.csv`
 - Sheet "Demo Scenario" of `data/synthetic/TransferIQ_Synthetic_Data.xlsx` (openpyxl), 8 steps
