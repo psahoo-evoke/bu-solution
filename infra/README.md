@@ -46,6 +46,20 @@ RG=rg-tiq-test LOCATION=westeurope scripts/deploy_aca.sh   # overrides
 
   The API then stores every uploaded transcript and syllabus PDF in Blob Storage.
 - Locally with Docker: `docker compose up --build` gives http://localhost:8080.
+
+### Entra ID sign-in (roles from Microsoft Entra)
+
+Run the deploy script with `ENTRA_CLIENT_ID=<application (client) id> ENTRA_TENANT_ID=<directory (tenant) id>`. These are ids, not secrets; no client secret is used anywhere.
+- **API:** `TRANSFERIQ_AUTH_MODE=entra`. Every `/api` call except `/api/health` needs a valid Entra access token. The caller's roles come from the token's `roles` claim, and `X-Demo-Role` can only choose among those roles.
+- **Web:** `AUTH_MODE=entra`. The SPA reads `/auth-config.json` and shows "Sign in with Microsoft". The role dropdown lists only the roles the signed-in user is assigned.
+
+The app registration (one registration for the SPA and the API) needs:
+1. **Authentication → Single-page application** redirect URIs: the web app URL (for example `https://bu-solutions.<env domain>`) and `http://localhost:4200` for local dev.
+2. **App roles** (allowed member types: Users/Groups). The value must match exactly: `Student`, `CreditStaff`, `Evaluator`, `Department`, `Registrar`, `Advisor`.
+3. **Enterprise applications → the app → Users and groups:** assign each person (or a group) one or more of those roles. A signed-in user with no role sees "No TransferIQ role assigned", and the API answers 403.
+4. Optional: set *Assignment required* = Yes so that only assigned users can sign in.
+
+Tokens are requested for `<client id>/.default`. Set `ENTRA_API_SCOPE` to use an exposed scope (`api://<client id>/<scope>`) instead.
 - Tear down: `az group delete -n rg-transferiq-aca --yes`.
 
 The rest of this file describes the full platform.
@@ -138,7 +152,7 @@ Runs on every push and PR, fully offline (no Azure secrets): backend `pytest -q`
 | `location`, `staticWebAppLocation`, `postgresLocation` | Region availability and offer restrictions differ per subscription. |
 | `postgresEntraAdminObjectId` / `Name` / `Type` | Entra group for humans to administer the DB (optional). |
 | `keyVaultAdminObjectId` | Group allowed to read/write secrets (optional). |
-| `authMode` | `demo` (header `X-Demo-Role`) for the hackathon only. `entra` currently **fails closed**: every route except `/api/health` returns 401 until JWT validation is built in `backend/app/guard.py`. Don't select it for the demo. |
+| `authMode` | `demo` (header `X-Demo-Role`, anyone can pick any role) or `entra` (Entra ID access token required; roles come from the token's app roles, see "Entra ID sign-in"). The Bicep template does not set `ENTRA_CLIENT_ID` / `ENTRA_TENANT_ID` yet, and `entra` without them answers 401, so use `scripts/deploy_aca.sh` for Entra mode. |
 | `staticWebAppSku` | `Standard` for the linked `/api` backend; `Free` saves $9/month but the SPA must then call the API URL directly. |
 
 ## Environment variable contract for the API
@@ -148,7 +162,7 @@ Set by `main.bicep` on the container app (developer agent: read these, never har
 | Variable | Value | Read by backend |
 | --- | --- | --- |
 | `TRANSFERIQ_ENV` | env name | not yet |
-| `TRANSFERIQ_AUTH_MODE` | `demo` / `entra` (fails closed) | yes, `guard.py` |
+| `TRANSFERIQ_AUTH_MODE`, `ENTRA_CLIENT_ID`, `ENTRA_TENANT_ID` | `demo` / `entra`; app registration ids for token validation | yes, `guard.py` |
 | `TRANSFERIQ_CORS_ORIGINS` | comma-separated origins: SWA host + `extraCorsOrigins` (`*` ignored) | yes, `main.py` |
 | `TRANSFERIQ_DATA_DIR`, `TRANSFERIQ_SEED_DIR` | set in the image: `/app/data/synthetic`, `/app/data/synthetic/seed` | `TRANSFERIQ_SEED_DIR` yes, `store.py` |
 | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_API_VERSION` | only present when `deployOpenAi = true` (absent ⇒ offline fallback) | yes, `matcher.py` (managed identity via `DefaultAzureCredential`) |

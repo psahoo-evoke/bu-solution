@@ -8,14 +8,20 @@ before any route code runs. A refused request therefore cannot cause a side effe
   this table and the contract stay identical.
 - Upload routes: a body over MAX_UPLOAD_BYTES -> 413. Content-Length is checked up front; chunked bodies are
   counted while streaming.
-- TRANSFERIQ_AUTH_MODE=entra fails closed: JWT validation is not built in this slice, so the demo header is
-  refused (401) rather than trusted.
+- TRANSFERIQ_AUTH_MODE=entra: every /api route except /api/health needs `Authorization: Bearer <Entra access
+  token>` for the app registration ENTRA_CLIENT_ID in tenant ENTRA_TENANT_ID (RS256 signature from the tenant's
+  JWKS, issuer, audience, expiry). The caller's roles are the token's `roles` claim (Entra app roles with the same
+  names as ALL_ROLES). X-Demo-Role then only picks the ACTIVE role and must be one of those roles (403 otherwise);
+  without it the first assigned role is used. The chosen role is written back into X-Demo-Role for the routes.
+  Not configured (no tenant/client id) -> 401, never the demo header.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
+from typing import Optional
 
 ALL_ROLES = ("Student", "CreditStaff", "Evaluator", "Department", "Registrar", "Advisor")
 EVERYONE = set(ALL_ROLES)
@@ -60,6 +66,68 @@ def auth_mode() -> str:
     return os.environ.get("TRANSFERIQ_AUTH_MODE", "demo").lower()
 
 
+# ------------------------------------------------------------------ Entra ID (TRANSFERIQ_AUTH_MODE=entra)
+class AuthError(Exception):
+    def __init__(self, status: int, detail: str):
+        super().__init__(detail)
+        self.status = status
+        self.detail = detail
+
+
+def entra_config() -> tuple[str, str]:
+    return os.environ.get("ENTRA_TENANT_ID", "").strip(), os.environ.get("ENTRA_CLIENT_ID", "").strip()
+
+
+_JWKS = None
+
+
+def _signing_key(token: str):
+    """Public key for the token's `kid` from the tenant JWKS (cached by PyJWKClient). Blocking on a cache miss.
+    Tests replace this function."""
+    global _JWKS
+    if _JWKS is None:
+        from jwt import PyJWKClient  # lazy: demo mode and offline tests never need it
+        tenant, _ = entra_config()
+        _JWKS = PyJWKClient(f"https://login.microsoftonline.com/{tenant}/discovery/v2.0/keys", lifespan=3600)
+    return _JWKS.get_signing_key_from_jwt(token).key
+
+
+def entra_roles(authorization: Optional[str]) -> list[str]:
+    """Validate an Entra access token and return the caller's TransferIQ roles in ALL_ROLES order.
+    Accepts v1 and v2 tokens (issuer differs) whose audience is the client id or api://<client id>."""
+    import jwt  # lazy
+
+    tenant, client = entra_config()
+    if not tenant or not client:
+        raise AuthError(401, "Entra ID is not configured on the API (ENTRA_TENANT_ID / ENTRA_CLIENT_ID)")
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise AuthError(401, "Sign in required: missing Entra ID bearer token")
+    token = authorization[7:].strip()
+    try:
+        claims = jwt.decode(
+            token, _signing_key(token), algorithms=["RS256"], audience=[client, f"api://{client}"],
+            issuer=[f"https://login.microsoftonline.com/{tenant}/v2.0", f"https://sts.windows.net/{tenant}/"],
+            options={"require": ["exp", "iss", "aud"]}, leeway=60)
+    except Exception as e:  # PyJWT and JWKS errors: expired, bad signature, wrong audience/issuer, unknown kid ...
+        raise AuthError(401, f"Invalid or expired sign-in token ({type(e).__name__})")
+    if claims.get("tid") != tenant:
+        raise AuthError(401, "Token is from another tenant")
+    granted = set(claims.get("roles") or [])
+    return [r for r in ALL_ROLES if r in granted]
+
+
+def choose_role(granted: list[str], requested: Optional[str]) -> str:
+    """Active role for this request: the requested one if the token grants it, else the first granted role."""
+    if not granted:
+        raise AuthError(403, "Your account has no TransferIQ role. Ask an administrator to assign one "
+                             "(Student, CreditStaff, Evaluator, Department, Registrar or Advisor).")
+    if requested:
+        if requested not in granted:
+            raise AuthError(403, f"Role '{requested}' is not assigned to your account (assigned: {', '.join(granted)})")
+        return requested
+    return granted[0]
+
+
 class _TooLarge(BaseException):  # BaseException: must not be swallowed by FastAPI body-parsing handlers
     pass
 
@@ -98,8 +166,16 @@ class RoleGuardMiddleware:
         headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
         role = headers.get("x-demo-role")
         if auth_mode() == "entra":
-            return await _send_json(send, 401, "Entra ID bearer authentication is required")
-        if role not in EVERYONE:
+            try:
+                # JWKS fetch on a cache miss is blocking network I/O: keep it off the event loop.
+                granted = await asyncio.to_thread(entra_roles, headers.get("authorization"))
+                role = choose_role(granted, role)
+            except AuthError as e:
+                return await _send_json(send, e.status, e.detail)
+            # Routes read X-Demo-Role (audit actor); make it the verified active role.
+            scope = dict(scope, headers=[(k, v) for k, v in scope.get("headers", []) if k.lower() != b"x-demo-role"]
+                         + [(b"x-demo-role", role.encode())])
+        elif role not in EVERYONE:
             return await _send_json(send, 401, "Missing or unknown X-Demo-Role")
         match = next(((t, roles) for m, t, rx, roles in _TABLE if m == method and rx.match(sub)), None)
         if match is None:

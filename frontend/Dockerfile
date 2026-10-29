@@ -19,10 +19,16 @@ RUN npx ng build --configuration production
 # ---- Runtime stage (non-root nginx, listens on 8080) ----
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 
-ENV API_UPSTREAM=http://api:8000
+# AUTH_MODE=entra turns on Microsoft sign-in in the SPA (served as /auth-config.json); ids only, no secret.
+ENV API_UPSTREAM=http://api:8000 \
+    AUTH_MODE=demo \
+    ENTRA_CLIENT_ID="" \
+    ENTRA_TENANT_ID="" \
+    ENTRA_API_SCOPE=""
 
 # Rendered to /etc/nginx/conf.d/default.conf by the image's entrypoint (only defined env vars are substituted).
 COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
+COPY nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=build /src/dist/transferiq-web/browser/ /usr/share/nginx/html/
 
 EXPOSE 8080

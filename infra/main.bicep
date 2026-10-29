@@ -29,7 +29,7 @@ param apiImage string = ''
 @description('Minimum API replicas (1 keeps the demo warm).')
 param apiMinReplicas int = 1
 
-@description('TRANSFERIQ_AUTH_MODE. "demo" = X-Demo-Role header (synthetic data only). "entra" currently FAILS CLOSED: the API answers 401 to every route except /api/health, because JWT validation is not built yet (backend/app/guard.py).')
+@description('TRANSFERIQ_AUTH_MODE. "demo" = X-Demo-Role header (synthetic data only). "entra" = Entra ID access token with app roles (backend/app/guard.py); it also needs ENTRA_CLIENT_ID / ENTRA_TENANT_ID, which this template does not set yet (use scripts/deploy_aca.sh).')
 @allowed([ 'demo', 'entra' ])
 param authMode string = 'demo'
 

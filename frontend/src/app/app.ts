@@ -1,7 +1,8 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ApiService } from './api/api.service';
-import { DEMO_ROLES, DemoRole } from './api/models';
+import { AuthService } from './api/auth.service';
+import { DemoRole } from './api/models';
 import { RoleService } from './api/role.service';
 
 @Component({
@@ -11,7 +12,7 @@ import { RoleService } from './api/role.service';
 })
 export class App implements OnInit {
   private readonly api = inject(ApiService);
-  protected readonly roles = DEMO_ROLES;
+  protected readonly auth = inject(AuthService);
   protected readonly roleService = inject(RoleService);
   /** null = checking, true = up, false = down */
   protected readonly apiUp = signal<boolean | null>(null);

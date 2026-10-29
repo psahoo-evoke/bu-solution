@@ -70,6 +70,7 @@ code { font-size: .9em; background: #eef1f4; padding: 0 .25em; border-radius: 4p
   }
 }
 .topbar__role { display: flex; align-items: center; gap: .5rem; font-size: .9rem; }
+.topbar__user { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .badge {
   display: inline-block; font-size: .75rem; padding: .15rem .5rem; border-radius: 999px; font-weight: 600;
 }

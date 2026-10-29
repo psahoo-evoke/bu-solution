@@ -11,14 +11,28 @@
     <a routerLink="/registrar" routerLinkActive="active" ariaCurrentWhenActive="page">Registrar</a>
   </nav>
   <div class="topbar__role">
-    <label for="role-select">Demo role</label>
-    <select id="role-select" [value]="roleService.role()" (change)="onRoleChange($any($event.target).value)">
-      @for (r of roles; track r) {
-        <option [value]="r" [selected]="r === roleService.role()">{{ r }}</option>
+    @if (!auth.entra() || (auth.signedIn() && roleService.available().length > 0)) {
+      <label for="role-select">{{ auth.entra() ? 'Role' : 'Demo role' }}</label>
+      <select id="role-select" [value]="roleService.role()" (change)="onRoleChange($any($event.target).value)">
+        @for (r of roleService.available(); track r) {
+          <option [value]="r" [selected]="r === roleService.role()">{{ r }}</option>
+        }
+      </select>
+    }
+    @if (auth.entra()) {
+      @if (auth.signedIn()) {
+        <span class="topbar__user" [title]="auth.account()?.username ?? ''">{{ auth.userName() }}</span>
+        <button type="button" class="btn btn--small" (click)="auth.logout()">Sign out</button>
+      } @else {
+        <button type="button" class="btn btn--small" (click)="auth.login()">Sign in</button>
       }
-    </select>
+    }
   </div>
 </header>
+
+@if (auth.error(); as err) {
+  <div class="banner banner--error banner--global" role="alert">{{ err }}</div>
+}
 
 @if (apiUp() === false) {
   <div class="banner banner--error banner--global" role="alert">
@@ -29,7 +43,23 @@
 }
 
 <main id="main" class="container" tabindex="-1">
-  <router-outlet />
+  @if (auth.entra() && !auth.signedIn()) {
+    <section class="card" aria-labelledby="signin-h">
+      <h1 id="signin-h">Sign in to TransferIQ</h1>
+      <p>Use your organisation account. What you can see and do depends on the role you are assigned
+        (Student, Department, Evaluator, …).</p>
+      <button type="button" class="btn btn--primary" (click)="auth.login()">Sign in with Microsoft</button>
+    </section>
+  } @else if (auth.entra() && roleService.available().length === 0) {
+    <section class="card" aria-labelledby="norole-h">
+      <h1 id="norole-h">No TransferIQ role assigned</h1>
+      <p>You are signed in as <strong>{{ auth.userName() }}</strong>, but your account has no TransferIQ role.
+        Ask an administrator to assign you a role (for example Student or Department) in Microsoft Entra ID,
+        then sign out and sign in again.</p>
+    </section>
+  } @else {
+    <router-outlet />
+  }
 </main>
 
 <footer class="footer">

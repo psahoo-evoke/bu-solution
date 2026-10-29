@@ -14,6 +14,9 @@
 #   scripts/deploy_aca.sh
 #   RG=rg-tiq-test LOCATION=westeurope PREFIX=tiqt scripts/deploy_aca.sh
 #   STORAGE_ACCOUNT=<account> scripts/deploy_aca.sh   # also keep uploaded transcripts/syllabi in Blob Storage
+#   ENTRA_CLIENT_ID=<app id> ENTRA_TENANT_ID=<tenant id> scripts/deploy_aca.sh   # Microsoft sign-in + app roles
+#     (ids only, no secret; the app registration needs a SPA redirect URI = the web URL and the app roles,
+#      see infra/README.md "Entra ID sign-in"). Without them both apps run in demo mode (X-Demo-Role switcher).
 # Re-running is safe: it rebuilds the images with a new tag and rolls both apps to a new revision.
 #
 # Needs: Azure CLI >= 2.60, and Contributor + Role Based Access Control Administrator (or Owner) on the
@@ -104,10 +107,19 @@ deploy_app() {
   fi
 }
 
-log "API container app ($API_APP, internal only)"
+if [ -n "${ENTRA_CLIENT_ID:-}" ] && [ -n "${ENTRA_TENANT_ID:-}" ]; then
+  AUTH_ENV_API=(TRANSFERIQ_AUTH_MODE=entra ENTRA_CLIENT_ID="$ENTRA_CLIENT_ID" ENTRA_TENANT_ID="$ENTRA_TENANT_ID")
+  AUTH_ENV_WEB=(AUTH_MODE=entra ENTRA_CLIENT_ID="$ENTRA_CLIENT_ID" ENTRA_TENANT_ID="$ENTRA_TENANT_ID"
+                ENTRA_API_SCOPE="${ENTRA_API_SCOPE:-}")
+else
+  AUTH_ENV_API=(TRANSFERIQ_AUTH_MODE=demo)
+  AUTH_ENV_WEB=(AUTH_MODE=demo)
+fi
+
+log "API container app ($API_APP, internal only, auth ${AUTH_ENV_API[0]#*=})"
 # Exactly one replica: the store is in memory (backend/app/store.py), so replicas would not share state.
 deploy_app "$API_APP" "$ACR_SERVER/transferiq-api:$TAG" internal 8000 1 1 \
-  TRANSFERIQ_ENV="$PREFIX" TRANSFERIQ_AUTH_MODE=demo
+  TRANSFERIQ_ENV="$PREFIX" "${AUTH_ENV_API[@]}"
 API_FQDN="$(az containerapp show -n "$API_APP" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
 
 # Optional upload archive (backend/app/blob_store.py): STORAGE_ACCOUNT=<existing account> [STORAGE_RG=<its RG>].
@@ -135,7 +147,7 @@ fi
 
 log "Web container app ($WEB_APP, public)"
 deploy_app "$WEB_APP" "$ACR_SERVER/transferiq-web:$TAG" external 8080 1 3 \
-  API_UPSTREAM="https://$API_FQDN"
+  API_UPSTREAM="https://$API_FQDN" "${AUTH_ENV_WEB[@]}"
 WEB_URL="https://$(az containerapp show -n "$WEB_APP" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
 
 log "Smoke test"

@@ -49,6 +49,7 @@ Agent roles are defined in [`.claude/agents/`](../.claude/agents/). Each role ha
 | 2026-10-28 | [synthetic-data-03](2026-10-28/synthetic-data-03.md) | Transcript layout change | Data / QA lead |
 | 2026-10-29 | [developer-01](2026-10-29/developer-01.md) | Remove "synthetic data" wording from the UI | Sagar (spathur) |
 | 2026-10-29 | [developer-02](2026-10-29/developer-02.md) | Store uploaded transcripts and syllabi in Azure Blob Storage | Sagar (spathur) |
+| 2026-10-29 | [developer-03](2026-10-29/developer-03.md) | Entra ID sign-in with app roles (Student, Department, …) | Sagar (spathur) |
 | 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
 <!-- INDEX:END -->
 

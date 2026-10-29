@@ -1,15 +1,27 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { AuthService } from './auth.service';
 import { DEMO_ROLES, DemoRole } from './models';
 
 const STORAGE_KEY = 'transferiq.demoRole';
 
-/** Holds the demo role sent as X-Demo-Role (production would use an Entra ID token instead). */
+/**
+ * The active role, sent as X-Demo-Role. Demo mode: any role from the switcher. Entra mode: only the roles the
+ * signed-in user is assigned (the API rejects any other with 403).
+ */
 @Injectable({ providedIn: 'root' })
 export class RoleService {
-  readonly role = signal<DemoRole>(RoleService.load());
+  private readonly auth = inject(AuthService);
+  private readonly selected = signal<DemoRole>(RoleService.load());
+
+  readonly available = computed<readonly DemoRole[]>(() => (this.auth.entra() ? this.auth.roles() : DEMO_ROLES));
+  readonly role = computed<DemoRole>(() => {
+    const available = this.available();
+    const selected = this.selected();
+    return available.includes(selected) ? selected : (available[0] ?? 'Student');
+  });
 
   set(role: DemoRole): void {
-    this.role.set(role);
+    this.selected.set(role);
     try {
       localStorage.setItem(STORAGE_KEY, role);
     } catch {

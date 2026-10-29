@@ -1,5 +1,5 @@
-# Rendered at container start: ${API_UPSTREAM} is replaced by envsubst; nginx's own $variables are left alone.
-# Mirrors public/staticwebapp.config.json (SPA fallback + security headers) for the container deployment.
+# Rendered at container start: ${API_UPSTREAM}, ${AUTH_MODE}, ${ENTRA_*} are replaced by envsubst; nginx's own
+# $variables are left alone. Mirrors public/staticwebapp.config.json (SPA fallback + security headers).
 server {
     listen 8080;
     server_name _;
@@ -11,17 +11,19 @@ server {
     # API limit is 10 MB (backend/app/guard.py MAX_UPLOAD_BYTES) plus multipart overhead.
     client_max_body_size 12m;
 
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
-    add_header X-Frame-Options "DENY" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "no-referrer" always;
-    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
-
     # Liveness probe for the web container itself (does not touch the API).
     location = /healthz {
         access_log off;
         default_type text/plain;
         return 200 "ok\n";
+    }
+
+    # Runtime auth settings for the SPA (src/app/api/auth.service.ts). Ids only, never a secret.
+    location = /auth-config.json {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-store" always;
+        default_type application/json;
+        return 200 '{"mode":"${AUTH_MODE}","clientId":"${ENTRA_CLIENT_ID}","tenantId":"${ENTRA_TENANT_ID}","apiScope":"${ENTRA_API_SCOPE}"}';
     }
 
     # Same-origin API: the SPA calls relative /api/... (src/app/api/api.service.ts), so no CORS is needed.
@@ -38,6 +40,7 @@ server {
 
     # Hashed bundles can be cached for a long time; index.html must not be.
     location ~* \.(?:js|css|woff2?|ico|png|svg|jpg|jpeg|gif|webp)$ {
+        include /etc/nginx/snippets/security-headers.conf;
         try_files $uri =404;
         expires 30d;
         add_header Cache-Control "public, immutable" always;
@@ -45,6 +48,7 @@ server {
 
     # Deep links such as /review fall back to the SPA.
     location / {
+        include /etc/nginx/snippets/security-headers.conf;
         try_files $uri $uri/ /index.html;
         add_header Cache-Control "no-cache" always;
     }
