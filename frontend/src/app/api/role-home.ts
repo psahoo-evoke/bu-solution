@@ -1,8 +1,9 @@
 import { DEFAULT_STUDENT } from '../app.routes';
 import { DemoRole } from './models';
 
-/** Where each role starts after signing in or choosing a view on the home page. */
-export function homeRoute(role: DemoRole): string {
+/** Where each role starts after signing in or choosing a view on the home page. A signed-in student goes to
+ * their own record (`studentId`); in demo mode the default sample student is used. */
+export function homeRoute(role: DemoRole, studentId?: string | null): string {
   switch (role) {
     case 'Department':
     case 'Evaluator':
@@ -13,7 +14,7 @@ export function homeRoute(role: DemoRole): string {
     case 'Student':
     case 'Advisor':
     default:
-      return `/student/${DEFAULT_STUDENT}`;
+      return `/student/${studentId || DEFAULT_STUDENT}`;
   }
 }
 

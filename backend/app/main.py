@@ -15,11 +15,11 @@ import re
 import uuid
 from typing import Literal, Optional
 
-from fastapi import APIRouter, FastAPI, File, Header, HTTPException, Path, Query, Response, UploadFile
+from fastapi import APIRouter, FastAPI, File, Header, HTTPException, Path, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from . import blob_store
+from . import accounts, blob_store
 from . import store as store_mod
 from .evaluation import evaluate_holdout
 from .guard import MAX_UPLOAD_BYTES, RoleGuardMiddleware, auth_mode
@@ -79,6 +79,22 @@ def _rec(ext_id: str) -> dict:
     return recommend(c, _bus(), S().syllabi.get(ext_id))
 
 
+def _user(request: Request) -> Optional[dict]:
+    """Signed-in portal user set by RoleGuardMiddleware (portal mode only; None in demo/entra mode)."""
+    return (request.scope.get("state") or {}).get("user")
+
+
+def _own_department_only(request: Request, ext_ids: list[str]) -> None:
+    """Portal mode: a Department account decides only its own department's courses."""
+    u = _user(request)
+    if not u or u["role"] != "Department":
+        return
+    other = [e for e in ext_ids if e in S().ext_courses and S().ext_courses[e].program_area != u["department"]]
+    if other:
+        raise HTTPException(403, f"The {u['department']} department can only decide its own courses "
+                                 f"(not {', '.join(other)})")
+
+
 def _audit(role: str, action: str, ext_id: str, before, after):
     S().audit_log.append(dict(actor_role=role, action=action, ext_id=ext_id, before=before, after=after,
                               at=dt.datetime.now(dt.timezone.utc).isoformat()))
@@ -122,7 +138,11 @@ def health():
 
 
 @api.get("/students")
-def list_students():
+def list_students(request: Request):
+    u = _user(request)
+    if u and u["role"] == "Student":           # portal: a student only ever sees their own record
+        st = S().students.get(u["student_id"])
+        return [st.to_api()] if st else []
     return [s.to_api() for s in S().students.values()]
 
 
@@ -208,9 +228,13 @@ async def upload_transcript(student_id: str = StudentIdPath, file: UploadFile = 
 
 
 @api.post("/courses/{ext_id}/syllabus", status_code=201)
-async def upload_syllabus(ext_id: str = ExtIdPath, file: UploadFile = File(...)):
+async def upload_syllabus(request: Request, ext_id: str = ExtIdPath, file: UploadFile = File(...)):
     if ext_id not in S().ext_courses:
         raise HTTPException(404, f"Unknown course {ext_id}")
+    u = _user(request)
+    if u and u["role"] == "Student" and not any(
+            ln.student_id == u["student_id"] and ln.ext_id == ext_id for ln in S().lines):
+        raise HTTPException(403, "You can only add a syllabus for a course on your own transcript")
     data = await _read_upload(file)
     try:
         text = await _parse_off_loop(pdf_text, data)
@@ -247,7 +271,10 @@ def _maybe_lines():
 
 
 @api.get("/review-queue")
-def review_queue(department: Optional[str] = Query(None)):
+def review_queue(request: Request, department: Optional[str] = Query(None)):
+    u = _user(request)
+    if u and u["role"] == "Department":        # portal: a department sees only its own courses
+        department = u["department"]
     items = []
     for ext_id, students in _maybe_lines().items():
         c = S().ext_courses[ext_id]
@@ -315,8 +342,9 @@ def _save_decision(inp: DecisionInput, role: str, rec: Optional[dict]) -> Decisi
 
 
 @api.post("/decisions", status_code=201)
-def post_decision(inp: DecisionInput, x_demo_role: str = Header(...)):
+def post_decision(inp: DecisionInput, request: Request, x_demo_role: str = Header(...)):
     role = x_demo_role               # already authorised by RoleGuardMiddleware (ADR 0005)
+    _own_department_only(request, [inp.ext_id])
     rec = _rec(inp.ext_id) if inp.ext_id in S().ext_courses else None
     return _save_decision(inp, role, rec).to_api()
 
@@ -339,12 +367,13 @@ def _batch_problem(rec: dict) -> Optional[str]:
 
 
 @api.post("/decisions/batch", status_code=201)
-def post_batch(inp: BatchInput, x_demo_role: str = Header(...)):
+def post_batch(inp: BatchInput, request: Request, x_demo_role: str = Header(...)):
     role = x_demo_role               # Evaluator or Department, enforced by RoleGuardMiddleware
     recs, problems = {}, []
     bad = [e for e in inp.ext_ids if not re.match(EXT_ID_RE, e)]
     if bad:
         raise HTTPException(422, dict(message="Invalid ext_id", items=bad))
+    _own_department_only(request, inp.ext_ids)
     for e in inp.ext_ids:
         rec = _rec(e)
         p = _batch_problem(rec)
@@ -445,7 +474,72 @@ def demo_reset():
     if auth_mode() == "entra":       # ADR 0005: disabled outside the demo
         raise HTTPException(403, "Demo reset is disabled in entra mode")
     store_mod.reset()
+    accounts.restore_registered_students()   # registered accounts survive a demo reset
     return Response(status_code=204)
 
 
+# ------------------------------------------------------------------ portal sign-in (TRANSFERIQ_AUTH_MODE=portal)
+# Public routes (guard.PUBLIC). Kept on their own router: they are not role-gated operations of the contract.
+auth_api = APIRouter(prefix="/api/auth")
+
+
+class LoginInput(BaseModel):
+    email: str = Field(max_length=120)
+    password: str = Field(max_length=200)
+    portal: Literal["student", "department", "staff"]
+
+
+class StudentRegistration(BaseModel):
+    name: str = Field(max_length=80)
+    email: str = Field(max_length=120)
+    password: str = Field(max_length=200)
+    intended_major: str = Field(max_length=60)
+    start_term: str = Field("Fall 2026", max_length=20)
+
+
+class DepartmentRegistration(BaseModel):
+    name: str = Field(max_length=80)
+    email: str = Field(max_length=120)
+    password: str = Field(max_length=200)
+    department: str = Field(max_length=60)
+
+
+def _portal_session(acct: accounts.Account) -> dict:
+    return dict(token=accounts.issue_token(acct), user=acct.public(), expires_in=accounts.SESSION_HOURS * 3600)
+
+
+def _account_call(fn, *args):
+    if auth_mode() != "portal":
+        raise HTTPException(409, "Portal sign-in is not enabled on this server")
+    try:
+        return _portal_session(fn(*args))
+    except accounts.AccountError as e:
+        raise HTTPException(e.status, e.detail)
+
+
+@auth_api.get("/options")
+def auth_options():
+    majors = sorted({s.intended_major for s in S().students.values()} |
+                    {d for d in accounts.departments() if d != "General education"})
+    return dict(mode=auth_mode(), departments=accounts.departments(), majors=majors,
+                terms=["Fall 2026", "Spring 2027", "Fall 2027"])
+
+
+@auth_api.post("/login")
+def auth_login(inp: LoginInput):
+    return _account_call(accounts.authenticate, inp.email, inp.password, inp.portal)
+
+
+@auth_api.post("/register/student", status_code=201)
+def auth_register_student(inp: StudentRegistration):
+    return _account_call(accounts.register_student, inp.name, inp.email, inp.password, inp.intended_major,
+                         inp.start_term)
+
+
+@auth_api.post("/register/department", status_code=201)
+def auth_register_department(inp: DepartmentRegistration):
+    return _account_call(accounts.register_department, inp.name, inp.email, inp.password, inp.department)
+
+
 app.include_router(api)
+app.include_router(auth_api)

@@ -1,0 +1,145 @@
+<div class="login">
+  <a class="login__back" routerLink="/">← Back to home</a>
+
+  <section class="login__card" [class.login__card--dept]="kind() === 'department'" aria-labelledby="login-h">
+    <header class="login__head">
+      <span class="login__icon" aria-hidden="true">
+        @switch (kind()) {
+          @case ('student') {
+            <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 3 1 8.5 12 14l9-4.5V16h2V8.5L12 3Zm-6.5 8.9V16c0 1.9 2.9 4 6.5 4s6.5-2.1 6.5-4v-4.1L12 15.2l-6.5-3.3Z"/></svg>
+          }
+          @case ('department') {
+            <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 2 2 7v2h20V7L12 2ZM4 11v7h3v-7H4Zm6.5 0v7h3v-7h-3ZM17 11v7h3v-7h-3ZM2 20v2h20v-2H2Z"/></svg>
+          }
+          @default {
+            <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5Z"/></svg>
+          }
+        }
+      </span>
+      <div>
+        <h1 id="login-h">{{ tab() === 'register' ? (kind() === 'student' ? 'Student registration' : 'Department registration') : copy().title }}</h1>
+        <p class="muted">{{ copy().lead }}</p>
+      </div>
+    </header>
+
+    @if (!auth.portal()) {
+      <div class="banner banner--info" role="status">
+        Sign-in is not switched on for this site (demo mode). Go back to the home page and pick a view.
+      </div>
+    } @else if (auth.signedIn()) {
+      <div class="login__signed">
+        <p>You are signed in as <strong>{{ auth.userName() }}</strong> ({{ auth.email() }}).</p>
+        <div class="row">
+          <button type="button" class="btn btn--primary" (click)="continueAs()">Continue to my view →</button>
+          <button type="button" class="btn" (click)="signOut()">Sign out</button>
+        </div>
+      </div>
+    } @else {
+      @if (copy().registerLabel) {
+        <div class="tabs" role="tablist" aria-label="Sign in or register">
+          <button type="button" role="tab" class="tabs__tab" [class.is-active]="tab() === 'signin'" [attr.aria-selected]="tab() === 'signin'" (click)="show('signin')">Sign in</button>
+          <button type="button" role="tab" class="tabs__tab" [class.is-active]="tab() === 'register'" [attr.aria-selected]="tab() === 'register'" (click)="show('register')">Register</button>
+        </div>
+      }
+
+      @if (error(); as msg) {
+        <div class="banner banner--error" role="alert">
+          <span>{{ msg }}</span>
+          @if (notRegistered()) {
+            <button type="button" class="btn btn--small btn--primary" (click)="show('register')">{{ copy().registerLabel }}</button>
+          }
+        </div>
+      }
+
+      @if (tab() === 'signin') {
+        <form class="form" (ngSubmit)="signIn()" autocomplete="on">
+          <div class="field">
+            <label for="email">BU email</label>
+            <input id="email" name="email" type="email" [(ngModel)]="email" autocomplete="username" placeholder="name@bu.edu" required />
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" [(ngModel)]="password" autocomplete="current-password" required />
+          </div>
+          <button type="submit" class="btn btn--primary btn--block" [disabled]="busy()">{{ busy() ? 'Signing in…' : 'Sign in' }}</button>
+          @if (copy().registerLabel) {
+            <p class="form__alt small">Not registered yet? <button type="button" class="linkish" (click)="show('register')">{{ copy().registerLabel }}</button></p>
+          }
+        </form>
+
+        <details class="samples">
+          <summary>Sample accounts <span class="muted small">(password: admin)</span></summary>
+          <ul>
+            @for (s of samples(); track s.email) {
+              <li><button type="button" class="samples__btn" (click)="useSample(s)"><span>{{ s.label }}</span><code>{{ s.email }}</code></button></li>
+            }
+          </ul>
+        </details>
+      } @else {
+        <form class="form" (ngSubmit)="register()" autocomplete="on">
+          <div class="field">
+            <label for="r-name">Full name</label>
+            <input id="r-name" name="name" type="text" [(ngModel)]="name" autocomplete="name" required />
+          </div>
+          <div class="field">
+            <label for="r-email">BU email</label>
+            <input id="r-email" name="email" type="email" [(ngModel)]="email" autocomplete="email" placeholder="name@bu.edu" required />
+          </div>
+          @if (kind() === 'department') {
+            <div class="field">
+              <label for="r-dept">Department</label>
+              <select id="r-dept" name="department" [(ngModel)]="department" required>
+                <option value="" disabled>Choose your department</option>
+                @for (d of options()?.departments ?? []; track d) {
+                  <option [value]="d">{{ d }}</option>
+                }
+              </select>
+            </div>
+          } @else {
+            <div class="form__row">
+              <div class="field">
+                <label for="r-major">Intended major</label>
+                <select id="r-major" name="major" [(ngModel)]="major" required>
+                  <option value="" disabled>Choose a major</option>
+                  @for (m of options()?.majors ?? []; track m) {
+                    <option [value]="m">{{ m }}</option>
+                  }
+                </select>
+              </div>
+              <div class="field">
+                <label for="r-term">Starting term at BU</label>
+                <select id="r-term" name="term" [(ngModel)]="term">
+                  @for (t of options()?.terms ?? ['Fall 2026']; track t) {
+                    <option [value]="t">{{ t }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+          }
+          <div class="form__row">
+            <div class="field">
+              <label for="r-pw">Password</label>
+              <input id="r-pw" name="password" type="password" [(ngModel)]="password" autocomplete="new-password" minlength="5" required />
+            </div>
+            <div class="field">
+              <label for="r-pw2">Confirm password</label>
+              <input id="r-pw2" name="confirm" type="password" [(ngModel)]="confirm" autocomplete="new-password" required />
+            </div>
+          </div>
+          <p class="muted small">At least 5 characters.
+            @if (kind() === 'student') { A new student record is created for you; upload your transcript after signing in. }
+            @else { You will review your department's transfer courses. }
+          </p>
+          <button type="submit" class="btn btn--primary btn--block" [disabled]="busy()">{{ busy() ? 'Creating account…' : 'Create account and sign in' }}</button>
+          <p class="form__alt small">Already registered? <button type="button" class="linkish" (click)="show('signin')">Sign in</button></p>
+        </form>
+      }
+    }
+  </section>
+
+  <p class="login__switch small muted">
+    @if (kind() !== 'student') { <a routerLink="/login/student">Student sign in</a> }
+    @if (kind() !== 'department') { <a routerLink="/login/department">Department sign in</a> }
+    @if (kind() !== 'staff') { <a routerLink="/login/staff">Staff sign in</a> }
+  </p>
+</div>

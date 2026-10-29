@@ -3,40 +3,93 @@ import type { AccountInfo, IPublicClientApplication } from '@azure/msal-browser'
 import { DEMO_ROLES, DemoRole } from './models';
 
 const INTENT_KEY = 'transferiq.loginIntent';
+const SESSION_KEY = 'transferiq.portalSession';
+
+export type AuthMode = 'demo' | 'entra' | 'portal';
+export type Portal = 'student' | 'department' | 'staff';
 
 /** /auth-config.json: rendered by nginx from env in the container, public/auth-config.json (demo) in dev. */
 export interface AuthConfig {
-  mode: 'demo' | 'entra';
+  mode: AuthMode;
   clientId?: string;
   tenantId?: string;
   /** Scope for API tokens; default `<clientId>/.default` (the SPA and API share one app registration). */
   apiScope?: string;
 }
 
+/** Portal account (TRANSFERIQ_AUTH_MODE=portal, backend/app/accounts.py). */
+export interface PortalUser {
+  email: string;
+  name: string;
+  role: DemoRole;
+  student_id: string | null;
+  department: string | null;
+}
+
+export interface PortalSession {
+  token: string;
+  user: PortalUser;
+  expires_in: number;
+}
+
+export interface AuthOptions {
+  mode: string;
+  departments: string[];
+  majors: string[];
+  terms: string[];
+}
+
+/** Error from /api/auth with the HTTP status (404 = no account, 401 = wrong password, 409 = already registered). */
+export class AuthApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 /**
- * Entra ID sign-in (TRANSFERIQ_AUTH_MODE=entra on the API). In demo mode nothing is loaded and the role
- * comes from the top-bar switcher. In entra mode the user's roles are the `roles` claim (Entra app roles) and
- * every /api call carries an access token; the API re-validates the token and the roles (backend/app/guard.py).
+ * Who is signed in and how. Three modes (from /auth-config.json):
+ * - demo: no sign-in; the role comes from the top-bar switcher.
+ * - portal: TransferIQ accounts (student / department / staff) with a session token from /api/auth/login.
+ * - entra: Microsoft Entra ID single sign-on; roles are the token's app roles.
+ * In portal and entra mode every /api call carries a bearer token and the API re-checks the user and role
+ * (backend/app/guard.py).
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   readonly config = signal<AuthConfig>({ mode: 'demo' });
   readonly account = signal<AccountInfo | null>(null);
+  readonly portalUser = signal<PortalUser | null>(null);
   readonly error = signal<string | null>(null);
   /** The view the user chose on the home page before the sign-in redirect (Student View, Department View). */
   readonly intent = signal<DemoRole | null>(null);
+
   readonly entra = computed(() => this.config().mode === 'entra');
-  readonly signedIn = computed(() => this.account() !== null);
-  readonly userName = computed(() => this.account()?.name || this.account()?.username || '');
-  /** Roles from the ID token, in DEMO_ROLES order (unknown role names are ignored). */
+  readonly portal = computed(() => this.config().mode === 'portal');
+  /** Sign-in required (portal or entra). */
+  readonly secured = computed(() => this.config().mode !== 'demo');
+  readonly signedIn = computed(() => this.account() !== null || this.portalUser() !== null);
+  readonly userName = computed(
+    () => this.portalUser()?.name || this.account()?.name || this.account()?.username || '',
+  );
+  readonly email = computed(() => this.portalUser()?.email || this.account()?.username || '');
+  readonly studentId = computed(() => this.portalUser()?.student_id ?? null);
+  readonly department = computed(() => this.portalUser()?.department ?? null);
+  /** Roles of the signed-in user in DEMO_ROLES order (portal: the account's role; entra: the token's app roles). */
   readonly roles = computed<DemoRole[]>(() => {
-    const claimed = (this.account()?.idTokenClaims as { roles?: string[] } | undefined)?.roles ?? [];
+    const portalRole = this.portalUser()?.role;
+    const claimed = portalRole
+      ? [portalRole]
+      : ((this.account()?.idTokenClaims as { roles?: string[] } | undefined)?.roles ?? []);
     return DEMO_ROLES.filter((r) => claimed.includes(r));
   });
 
   private msal: IPublicClientApplication | null = null;
+  private token: string | null = null;
 
-  /** Runs before the first route (provideAppInitializer); completes a sign-in redirect if one is in progress. */
+  /** Runs before the first route (provideAppInitializer). */
   async init(): Promise<void> {
     let cfg: AuthConfig = { mode: 'demo' };
     try {
@@ -45,6 +98,11 @@ export class AuthService {
     } catch {
       /* no config file: demo mode */
     }
+    if (cfg.mode === 'portal') {
+      this.config.set(cfg);
+      this.restorePortalSession();
+      return;
+    }
     if (cfg.mode !== 'entra') return;
     this.config.set(cfg);
     if (!cfg.clientId || !cfg.tenantId) {
@@ -52,7 +110,7 @@ export class AuthService {
       return;
     }
     try {
-      // Loaded only in entra mode, so the demo bundle stays small.
+      // Loaded only in entra mode, so the other modes' bundle stays small.
       const { createStandardPublicClientApplication } = await import('@azure/msal-browser');
       this.msal = await createStandardPublicClientApplication({
         auth: {
@@ -72,6 +130,91 @@ export class AuthService {
     }
   }
 
+  // ------------------------------------------------------------------ portal accounts
+  signIn(email: string, password: string, portal: Portal): Promise<PortalUser> {
+    return this.portalCall('/api/auth/login', { email, password, portal });
+  }
+
+  registerStudent(body: { name: string; email: string; password: string; intended_major: string; start_term: string }) {
+    return this.portalCall('/api/auth/register/student', body);
+  }
+
+  registerDepartment(body: { name: string; email: string; password: string; department: string }) {
+    return this.portalCall('/api/auth/register/department', body);
+  }
+
+  async options(): Promise<AuthOptions> {
+    const res = await fetch('/api/auth/options', { cache: 'no-store' });
+    if (!res.ok) throw new AuthApiError(res.status, 'Could not load the sign-up options');
+    return (await res.json()) as AuthOptions;
+  }
+
+  /** Drop the portal session (sign-out, or the API said it expired). */
+  endPortalSession(): void {
+    this.token = null;
+    this.portalUser.set(null);
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  private async portalCall(url: string, body: unknown): Promise<PortalUser> {
+    let res: Response;
+    try {
+      res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    } catch {
+      throw new AuthApiError(0, 'The TransferIQ API is not reachable. Try again in a moment.');
+    }
+    const data = (await res.json().catch(() => ({}))) as Partial<PortalSession> & { detail?: unknown };
+    if (!res.ok || !data.token || !data.user) {
+      throw new AuthApiError(res.status, AuthService.detailText(data.detail) || `Sign-in failed (${res.status})`);
+    }
+    this.token = data.token;
+    this.portalUser.set(data.user);
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token: data.token, user: data.user }));
+    } catch {
+      /* storage blocked: the session lasts until the tab reloads */
+    }
+    return data.user;
+  }
+
+  private restorePortalSession(): void {
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (!raw) return;
+      const { token, user } = JSON.parse(raw) as { token: string; user: PortalUser };
+      if (AuthService.expired(token)) {
+        sessionStorage.removeItem(SESSION_KEY);
+        return;
+      }
+      this.token = token;
+      this.portalUser.set(user);
+    } catch {
+      /* corrupt or blocked storage: signed out */
+    }
+  }
+
+  private static expired(token: string): boolean {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
+      return !payload.exp || payload.exp * 1000 <= Date.now();
+    } catch {
+      return true;
+    }
+  }
+
+  private static detailText(detail: unknown): string {
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+      return detail.map((d) => (d && typeof d === 'object' && 'msg' in d ? String(d.msg) : '')).filter(Boolean).join('; ');
+    }
+    return '';
+  }
+
+  // ------------------------------------------------------------------ Microsoft Entra ID
   /** Microsoft sign-in (redirect). `intent` = the view to open afterwards; it survives the redirect. */
   login(intent?: DemoRole): Promise<void> {
     if (!this.msal) return Promise.resolve();
@@ -102,11 +245,19 @@ export class AuthService {
   }
 
   logout(): Promise<void> {
+    if (this.portal()) {
+      this.endPortalSession();
+      return Promise.resolve();
+    }
     return this.msal ? this.msal.logoutRedirect({ account: this.account() ?? undefined }) : Promise.resolve();
   }
 
-  /** Access token for the API (null in demo mode). Redirects to sign-in when Entra needs interaction. */
+  /** Bearer token for the API (null in demo mode or when signed out). */
   async accessToken(): Promise<string | null> {
+    if (this.portal()) {
+      if (this.token && AuthService.expired(this.token)) this.endPortalSession();
+      return this.token;
+    }
     const account = this.account();
     if (!this.entra() || !this.msal || !account) return null;
     try {

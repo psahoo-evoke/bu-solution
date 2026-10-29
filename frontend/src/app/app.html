@@ -6,29 +6,44 @@
   </a>
   <nav class="topbar__nav" aria-label="Main">
     <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Home</a>
-    @if (!auth.entra() || (auth.signedIn() && roleService.available().length > 0)) {
-      <a routerLink="/student" routerLinkActive="active" ariaCurrentWhenActive="page">Student status</a>
-      <a routerLink="/review" routerLinkActive="active" ariaCurrentWhenActive="page">Evaluator workbench</a>
+    @if (!auth.secured() || (auth.signedIn() && roleService.available().length > 0)) {
+      <a [routerLink]="studentLink()" routerLinkActive="active" ariaCurrentWhenActive="page">
+        {{ auth.studentId() ? 'My status' : 'Student status' }}
+      </a>
+      @if (showNav('reviewQueue')) {
+        <a routerLink="/review" routerLinkActive="active" ariaCurrentWhenActive="page">Evaluator workbench</a>
+      }
       <a routerLink="/evaluation" routerLinkActive="active" ariaCurrentWhenActive="page">AI evaluation</a>
-      <a routerLink="/registrar" routerLinkActive="active" ariaCurrentWhenActive="page">Registrar</a>
+      @if (showNav('export') || showNav('post')) {
+        <a routerLink="/registrar" routerLinkActive="active" ariaCurrentWhenActive="page">Registrar</a>
+      }
     }
   </nav>
   <div class="topbar__role">
-    @if (!auth.entra() || (auth.signedIn() && roleService.available().length > 0)) {
-      <label for="role-select">{{ auth.entra() ? 'Role' : 'Demo role' }}</label>
+    @if (!auth.secured()) {
+      <label for="role-select">Demo role</label>
       <select id="role-select" [value]="roleService.role()" (change)="onRoleChange($any($event.target).value)">
         @for (r of roleService.available(); track r) {
           <option [value]="r" [selected]="r === roleService.role()">{{ r }}</option>
         }
       </select>
-    }
-    @if (auth.entra()) {
-      @if (auth.signedIn()) {
-        <span class="topbar__user" [title]="auth.account()?.username ?? ''">{{ auth.userName() }}</span>
-        <button type="button" class="btn btn--small" (click)="auth.logout()">Sign out</button>
-      } @else {
-        <button type="button" class="btn btn--small" (click)="auth.login()">Sign in</button>
+    } @else if (auth.signedIn()) {
+      @if (roleService.available().length > 1) {
+        <label for="role-select" class="visually-hidden">Role</label>
+        <select id="role-select" [value]="roleService.role()" (change)="onRoleChange($any($event.target).value)">
+          @for (r of roleService.available(); track r) {
+            <option [value]="r" [selected]="r === roleService.role()">{{ r }}</option>
+          }
+        </select>
+      } @else if (roleService.available().length === 1) {
+        <span class="role-badge">{{ roleService.role() }}</span>
       }
+      <span class="topbar__user" [title]="auth.email()">{{ auth.userName() }}</span>
+      <button type="button" class="btn btn--small" (click)="signOut()">Sign out</button>
+    } @else if (auth.portal()) {
+      <a class="btn btn--small btn--primary" routerLink="/">Sign in</a>
+    } @else {
+      <button type="button" class="btn btn--small btn--primary" (click)="auth.login()">Sign in</button>
     }
   </div>
 </header>

@@ -51,6 +51,7 @@ Agent roles are defined in [`.claude/agents/`](../.claude/agents/). Each role ha
 | 2026-10-29 | [developer-02](2026-10-29/developer-02.md) | Store uploaded transcripts and syllabi in Azure Blob Storage | Sagar (spathur) |
 | 2026-10-29 | [developer-03](2026-10-29/developer-03.md) | Entra ID sign-in with app roles (Student, Department, …) | Sagar (spathur) |
 | 2026-10-29 | [developer-04](2026-10-29/developer-04.md) | Home / SSO sign-in page: My view, Student View, Department View | Sagar (spathur) |
+| 2026-10-29 | [developer-05](2026-10-29/developer-05.md) | Portal sign-in: per-student and per-department accounts with registration | Sagar (spathur) |
 | 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
 <!-- INDEX:END -->
 

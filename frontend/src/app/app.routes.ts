@@ -10,6 +10,11 @@ export const routes: Routes = [
     title: 'TransferIQ · Transfer credit co-pilot',
     loadComponent: () => import('./pages/home').then((m) => m.HomePage),
   },
+  {
+    path: 'login/:portal',
+    title: 'Sign in · TransferIQ',
+    loadComponent: () => import('./pages/login').then((m) => m.LoginPage),
+  },
   { path: 'student', pathMatch: 'full', redirectTo: `student/${DEFAULT_STUDENT}` },
   {
     path: 'student/:id',

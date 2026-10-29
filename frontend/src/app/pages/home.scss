@@ -31,6 +31,8 @@
 }
 .myview__row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
 .myview__who { flex: 1; min-width: 14rem; display: grid; gap: .2rem; }
+.myview__actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.view__sso a { color: var(--accent); }
 .myview__name { font-size: 1.1rem; font-weight: 600; }
 .avatar {
   flex: none; display: inline-grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 50%;

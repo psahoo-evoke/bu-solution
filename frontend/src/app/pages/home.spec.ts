@@ -82,7 +82,7 @@ describe('HomePage', () => {
     click(fixture.nativeElement, 'Open Department view');
     fixture.detectChanges();
     expect(router.navigateByUrl).not.toHaveBeenCalled();
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('not assigned the Department role');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('not a Department account');
   });
 
   it('entra mode: after sign-in the chosen view opens', () => {

@@ -14,6 +14,11 @@ before any route code runs. A refused request therefore cannot cause a side effe
   names as ALL_ROLES). X-Demo-Role then only picks the ACTIVE role and must be one of those roles (403 otherwise);
   without it the first assigned role is used. The chosen role is written back into X-Demo-Role for the routes.
   Not configured (no tenant/client id) -> 401, never the demo header.
+- TRANSFERIQ_AUTH_MODE=portal: per-user portal accounts (app/accounts.py). `Authorization: Bearer <session token>`
+  from POST /api/auth/login; the role comes from the account, not from X-Demo-Role. A Student may only touch
+  /students/{own id}/... (403 otherwise). The signed-in user is passed to the routes in scope["state"]["user"]
+  (routes narrow lists: a student sees only their record, a department only its department's courses).
+  /api/auth/* (login, registration, options) is public in every mode.
 """
 from __future__ import annotations
 
@@ -46,7 +51,9 @@ ROUTE_ROLES: list[tuple[str, str, set[str]]] = [
     ("POST", "/demo/reset", {"CreditStaff", "Registrar"}),
 ]
 UPLOAD_ROUTES = {"/students/{student_id}/transcripts", "/courses/{ext_id}/syllabus"}
-PUBLIC = {("GET", "/health")}
+PUBLIC = {("GET", "/health"), ("POST", "/auth/login"), ("POST", "/auth/register/student"),
+          ("POST", "/auth/register/department"), ("GET", "/auth/options")}
+_STUDENT_PATH = re.compile(r"^/students/([^/]+)(/|$)")
 
 
 def _compile(template: str) -> re.Pattern:
@@ -174,6 +181,19 @@ class RoleGuardMiddleware:
                 return await _send_json(send, e.status, e.detail)
             # Routes read X-Demo-Role (audit actor); make it the verified active role.
             scope = dict(scope, headers=[(k, v) for k, v in scope.get("headers", []) if k.lower() != b"x-demo-role"]
+                         + [(b"x-demo-role", role.encode())])
+        elif auth_mode() == "portal":
+            from .accounts import AccountError, session_user  # lazy: avoids an import cycle with the store
+            try:
+                user = session_user(headers.get("authorization"))
+            except AccountError as e:
+                return await _send_json(send, e.status, e.detail)
+            role = user["role"]
+            own = _STUDENT_PATH.match(sub)
+            if role == "Student" and own and own.group(1) != user["student_id"]:
+                return await _send_json(send, 403, "Students can only see their own record")
+            scope = dict(scope, state={**scope.get("state", {}), "user": user},
+                         headers=[(k, v) for k, v in scope.get("headers", []) if k.lower() != b"x-demo-role"]
                          + [(b"x-demo-role", role.encode())])
         elif role not in EVERYONE:
             return await _send_json(send, 401, "Missing or unknown X-Demo-Role")

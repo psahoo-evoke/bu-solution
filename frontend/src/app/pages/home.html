@@ -27,7 +27,7 @@
       Ask an administrator to assign you a role (for example Student or Department) in Microsoft Entra ID, then
       sign out and sign in again.
     </p>
-    <button type="button" class="btn" (click)="auth.logout()">Sign out</button>
+    <button type="button" class="btn" (click)="signOut()">Sign out</button>
   } @else if (myView(); as me) {
     <div class="myview__row">
       <div class="avatar" aria-hidden="true">{{ (me.name || labels[me.role]).charAt(0) }}</div>
@@ -37,8 +37,9 @@
         } @else {
           <p class="myview__name">You are exploring as <strong>{{ labels[me.role] }}</strong></p>
         }
-        @if (auth.entra()) {
-          <p class="muted small">Your roles:
+        @if (auth.secured()) {
+          <p class="muted small">
+            {{ auth.email() }}@if (me.detail) { · {{ me.detail }} } ·
             @for (r of me.roles; track r) {
               <button type="button" class="role-chip" [class.is-active]="r === me.role" (click)="open(r)">{{ labels[r] }}</button>
             }
@@ -47,14 +48,22 @@
           <p class="muted small">Demo mode: pick any view below, or change the role in the top bar.</p>
         }
       </div>
-      <button type="button" class="btn btn--primary" (click)="open(me.role)">Continue to my view →</button>
+      <div class="myview__actions">
+        <button type="button" class="btn btn--primary" (click)="open(me.role)">Continue to my view →</button>
+        @if (auth.secured()) {
+          <button type="button" class="btn" (click)="signOut()">Sign out</button>
+        }
+      </div>
     </div>
   } @else {
     <div class="myview__row">
       <div class="avatar avatar--empty" aria-hidden="true">?</div>
       <div class="myview__who">
         <p class="myview__name">You are not signed in</p>
-        <p class="muted small">Choose Student View or Department View to sign in with your university Microsoft account.</p>
+        <p class="muted small">
+          @if (auth.portal()) { Choose Student View or Department View to sign in with your BU email, or register if you are new. }
+          @else { Choose Student View or Department View to sign in with your university Microsoft account. }
+        </p>
       </div>
     </div>
   }
@@ -89,6 +98,11 @@
       </button>
       @if (auth.entra()) {
         <p class="view__sso muted small">Single sign-on with your university Microsoft account</p>
+      } @else if (auth.portal() && !auth.signedIn()) {
+        <p class="view__sso muted small">
+          Not registered?
+          <a [routerLink]="['/login', v.role === 'Student' ? 'student' : 'department']">Register as {{ v.role === 'Student' ? 'a student' : 'a department reviewer' }}</a>
+        </p>
       }
     </section>
   }

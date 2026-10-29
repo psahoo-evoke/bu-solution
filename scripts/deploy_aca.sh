@@ -17,6 +17,7 @@
 #   ENTRA_CLIENT_ID=<app id> ENTRA_TENANT_ID=<tenant id> scripts/deploy_aca.sh   # Microsoft sign-in + app roles
 #     (ids only, no secret; the app registration needs a SPA redirect URI = the web URL and the app roles,
 #      see infra/README.md "Entra ID sign-in"). Without them both apps run in demo mode (X-Demo-Role switcher).
+#   PORTAL_AUTH=1 scripts/deploy_aca.sh   # TransferIQ accounts: student / department / staff sign-in + register
 # Re-running is safe: it rebuilds the images with a new tag and rolls both apps to a new revision.
 #
 # Needs: Azure CLI >= 2.60, and Contributor + Role Based Access Control Administrator (or Owner) on the
@@ -76,7 +77,8 @@ log "Building images in ACR (cloud build)"
 cd "$ROOT"
 acr_build() {
   local status
-  status="$(az acr build -r "$ACR" --no-logs --only-show-errors --query status -o tsv "$@")"
+  # timeout: the az client has been seen polling forever after ACR already finished the run.
+  status="$(timeout 900 az acr build -r "$ACR" --no-logs --only-show-errors --query status -o tsv "$@" || true)"
   echo "acr build $* -> $status"
   [ "$status" = "Succeeded" ] || { echo "ERROR: image build failed"; exit 1; }
 }
@@ -111,6 +113,10 @@ if [ -n "${ENTRA_CLIENT_ID:-}" ] && [ -n "${ENTRA_TENANT_ID:-}" ]; then
   AUTH_ENV_API=(TRANSFERIQ_AUTH_MODE=entra ENTRA_CLIENT_ID="$ENTRA_CLIENT_ID" ENTRA_TENANT_ID="$ENTRA_TENANT_ID")
   AUTH_ENV_WEB=(AUTH_MODE=entra ENTRA_CLIENT_ID="$ENTRA_CLIENT_ID" ENTRA_TENANT_ID="$ENTRA_TENANT_ID"
                 ENTRA_API_SCOPE="${ENTRA_API_SCOPE:-}")
+elif [ "${PORTAL_AUTH:-}" = "1" ]; then
+  # TransferIQ portal accounts (backend/app/accounts.py): student / department / staff sign-in + registration.
+  AUTH_ENV_API=(TRANSFERIQ_AUTH_MODE=portal)
+  AUTH_ENV_WEB=(AUTH_MODE=portal)
 else
   AUTH_ENV_API=(TRANSFERIQ_AUTH_MODE=demo)
   AUTH_ENV_WEB=(AUTH_MODE=demo)

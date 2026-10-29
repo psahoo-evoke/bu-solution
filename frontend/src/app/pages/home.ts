@@ -61,17 +61,18 @@ export class HomePage implements OnInit {
     { role: 'Advisor', what: 'Read-only student view' },
   ];
 
-  /** "My view": who is here and as what. Null when nobody is signed in (entra) */
+  /** "My view": who is here and as what. Null when nobody is signed in (portal / entra). */
   protected readonly myView = computed(() => {
-    if (this.auth.entra() && !this.auth.signedIn()) return null;
+    if (this.auth.secured() && !this.auth.signedIn()) return null;
     return {
-      name: this.auth.entra() ? this.auth.userName() : null,
+      name: this.auth.secured() ? this.auth.userName() : null,
+      detail: this.auth.studentId() ?? this.auth.department(),
       role: this.roles.role(),
       roles: this.roles.available(),
     };
   });
 
-  protected readonly noRole = computed(() => this.auth.entra() && this.auth.signedIn() && this.roles.available().length === 0);
+  protected readonly noRole = computed(() => this.auth.secured() && this.auth.signedIn() && this.roles.available().length === 0);
 
   ngOnInit(): void {
     // Back from Microsoft sign-in: open the view the user picked, if the account has that role.
@@ -81,25 +82,37 @@ export class HomePage implements OnInit {
 
   protected open(role: DemoRole): void {
     this.notice.set(null);
-    if (this.auth.entra()) {
+    if (this.auth.secured()) {
       if (!this.auth.signedIn()) {
-        void this.auth.login(role);
+        if (this.auth.portal()) void this.router.navigateByUrl(`/login/${portalFor(role)}`);
+        else void this.auth.login(role);
         return;
       }
       if (!this.roles.available().includes(role)) {
         this.notice.set(
-          `Your account is not assigned the ${ROLE_LABELS[role]} role. ` +
-            `Ask an administrator to assign it, or continue with a role you have.`,
+          `You are signed in as ${this.auth.userName()}, which is not a ${ROLE_LABELS[role]} account. ` +
+            (this.auth.portal()
+              ? `Sign out first, then use the ${ROLE_LABELS[role]} sign-in.`
+              : `Ask an administrator to assign the role, or continue with a role you have.`),
         );
         return;
       }
     }
     this.roles.set(role);
-    void this.router.navigateByUrl(homeRoute(role));
+    void this.router.navigateByUrl(homeRoute(role, this.auth.studentId()));
   }
 
   protected buttonLabel(role: DemoRole): string {
-    if (!this.auth.entra()) return `Continue as ${ROLE_LABELS[role]}`;
-    return this.auth.signedIn() ? `Open ${ROLE_LABELS[role]} view` : 'Sign in with Microsoft';
+    if (!this.auth.secured()) return `Continue as ${ROLE_LABELS[role]}`;
+    if (this.auth.signedIn()) return `Open ${ROLE_LABELS[role]} view`;
+    return this.auth.portal() ? `${ROLE_LABELS[role]} sign in` : 'Sign in with Microsoft';
   }
+
+  protected signOut(): void {
+    void this.auth.logout();
+  }
+}
+
+function portalFor(role: DemoRole): 'student' | 'department' | 'staff' {
+  return role === 'Student' ? 'student' : role === 'Department' ? 'department' : 'staff';
 }
