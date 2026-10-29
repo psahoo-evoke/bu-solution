@@ -40,9 +40,7 @@
       }
       <span class="topbar__user" [title]="auth.email()">{{ auth.userName() }}</span>
       <button type="button" class="btn btn--small" (click)="signOut()">Sign out</button>
-    } @else if (auth.portal()) {
-      <a class="btn btn--small btn--primary" routerLink="/">Sign in</a>
-    } @else {
+    } @else if (auth.entra()) {
       <button type="button" class="btn btn--small btn--primary" (click)="auth.login()">Sign in</button>
     }
   </div>
