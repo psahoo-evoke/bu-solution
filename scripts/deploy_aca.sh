@@ -18,6 +18,7 @@
 #     (ids only, no secret; the app registration needs a SPA redirect URI = the web URL and the app roles,
 #      see infra/README.md "Entra ID sign-in"). Without them both apps run in demo mode (X-Demo-Role switcher).
 #   PORTAL_AUTH=1 scripts/deploy_aca.sh   # TransferIQ accounts: student / department / staff sign-in + register
+#   OPENAI_ENDPOINT=<https://...> OPENAI_DEPLOYMENT=<name> OPENAI_KEY=<key> scripts/deploy_aca.sh   # AI chat + comparison
 # Re-running is safe: it rebuilds the images with a new tag and rolls both apps to a new revision.
 #
 # Needs: Azure CLI >= 2.60, and Contributor + Role Based Access Control Administrator (or Owner) on the
@@ -158,6 +159,20 @@ if [ -n "${PG_HOST:-}" ]; then
   az containerapp update -n "$API_APP" -g "$RG" --only-show-errors -o none --set-env-vars \
     POSTGRES_HOST="$PG_HOST" POSTGRES_DB="${PG_DB:-postgres}" POSTGRES_USER="${PG_USER:?set PG_USER}" \
     POSTGRES_PASSWORD=secretref:postgres-password
+fi
+
+# Optional Azure OpenAI (chat "Ask in your words", AI comparison): OPENAI_ENDPOINT [OPENAI_DEPLOYMENT]
+# [OPENAI_EMBEDDING_DEPLOYMENT] [OPENAI_KEY]. The key goes into a Container Apps secret (never printed); without it the
+# API uses its managed identity. Without OPENAI_ENDPOINT the API keeps whatever AI settings it already has.
+if [ -n "${OPENAI_ENDPOINT:-}" ]; then
+  log "Azure OpenAI ($OPENAI_ENDPOINT / ${OPENAI_DEPLOYMENT:-gpt-4o-mini})"
+  OPENAI_ENV=(AZURE_OPENAI_ENDPOINT="$OPENAI_ENDPOINT" AZURE_OPENAI_DEPLOYMENT="${OPENAI_DEPLOYMENT:-gpt-4o-mini}")
+  [ -n "${OPENAI_EMBEDDING_DEPLOYMENT:-}" ] && OPENAI_ENV+=(AZURE_OPENAI_EMBEDDING_DEPLOYMENT="$OPENAI_EMBEDDING_DEPLOYMENT")
+  if [ -n "${OPENAI_KEY:-}" ]; then
+    az containerapp secret set -n "$API_APP" -g "$RG" --secrets openai-key="$OPENAI_KEY" -o none --only-show-errors
+    OPENAI_ENV+=(AZURE_OPENAI_API_KEY=secretref:openai-key)
+  fi
+  az containerapp update -n "$API_APP" -g "$RG" --only-show-errors -o none --set-env-vars "${OPENAI_ENV[@]}"
 fi
 
 # Optional upload archive (backend/app/blob_store.py): STORAGE_ACCOUNT=<existing account> [STORAGE_RG=<its RG>].
