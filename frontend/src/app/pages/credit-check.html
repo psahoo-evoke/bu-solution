@@ -99,7 +99,7 @@
   </article>
 </ng-template>
 
-<div class="cc-layout">
+<div class="cc-layout" [class.cc-layout--form]="tab() === 'form'">
   <div class="cc-main">
     @if (tab() === 'chat') {
       <section class="card cc-chat" id="cc-panel-chat" role="tabpanel" aria-labelledby="cc-tab-chat">
@@ -300,15 +300,17 @@
         }
       }
     </section>
-
-    <section class="cc-panel cc-cta">
-      <h2 class="cc-panel__title">Ready to make it official?</h2>
-      <ol class="cc-steps">
-        <li>Register or sign in</li>
-        <li>Upload your transcript</li>
-        <li>BU evaluates every course; follow each one on your status page</li>
-      </ol>
-      <a class="btn btn--primary" routerLink="/login/student">Register or sign in</a>
-    </section>
   </aside>
 </div>
+
+<aside class="cc-cta">
+  <div class="cc-cta__text">
+    <h2 class="cc-panel__title">Ready to make it official?</h2>
+    <ol class="cc-steps">
+      <li>Register or sign in</li>
+      <li>Upload your transcript</li>
+      <li>BU evaluates every course; follow each one on your status page</li>
+    </ol>
+  </div>
+  <a class="btn btn--primary" routerLink="/login/student">Register or sign in</a>
+</aside>

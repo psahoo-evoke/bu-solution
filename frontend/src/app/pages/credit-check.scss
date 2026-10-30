@@ -30,8 +30,16 @@
 }
 
 // ------------------------------------------------------------------ layout: conversation + help rail
-.cc-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: 1.25rem; align-items: start; }
-.cc-main > .card { margin-bottom: 0; }
+.cc-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: 1.25rem; align-items: stretch; }
+// The card fills the column, so it ends level with the help rail instead of leaving a gap under it.
+.cc-main { display: flex; flex-direction: column; }
+.cc-main > .card { margin-bottom: 0; flex: 1; }
+// Quick check is a short form: no side column, the help panels sit in a row below it.
+.cc-layout--form {
+  grid-template-columns: minmax(0, 1fr); align-items: start;
+  .cc-main > .card { flex: none; }
+  .cc-rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); align-items: stretch; }
+}
 .cc-main, .cc-rail { min-width: 0; }
 
 // ------------------------------------------------------------------ chat
@@ -52,9 +60,11 @@
   &--large { width: 3.25rem; height: 3.25rem; font-size: .95rem; box-shadow: 0 6px 16px rgba(153, 0, 0, .22); }
 }
 
-// The conversation has a fixed height so the composer always stays in view; it scrolls inside.
+// The conversation takes the card's leftover height (zero basis, so a long chat scrolls instead of growing the card);
+// the composer stays in view.
+.cc-chat { min-height: 36rem; }
 .cc-log {
-  height: clamp(24rem, calc(100vh - 25rem), 40rem); overflow-y: auto; display: flex; flex-direction: column; gap: 1rem;
+  flex: 1 1 0; min-height: 20rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem;
   padding: 1.1rem; background: #fbfcfd; scroll-behavior: smooth;
 }
 .cc-welcome {
@@ -210,9 +220,15 @@
 .cc-school__name { flex: 1; min-width: 0; font-size: .88rem; overflow-wrap: anywhere; }
 .cc-school__cal { flex: none; font-size: .72rem; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 .45rem; }
 
-.cc-cta { background: linear-gradient(180deg, #fff7f7 0%, var(--surface) 100%); border-color: #efc4c4; }
+.cc-cta {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .85rem 1.5rem;
+  margin-top: 1.25rem; padding: 1rem 1.25rem; border: 1px solid #efc4c4; border-radius: 14px;
+  background: linear-gradient(90deg, #fff7f7 0%, var(--surface) 100%);
+  .cc-panel__title { margin-bottom: .5rem; }
+  .btn { text-decoration: none; }
+}
 .cc-steps {
-  counter-reset: step; margin: 0; padding: 0; list-style: none; display: grid; gap: .5rem; font-size: .88rem;
+  counter-reset: step; margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; font-size: .88rem;
   li { counter-increment: step; display: flex; align-items: flex-start; gap: .55rem; line-height: 1.35; }
   li::before {
     content: counter(step); flex: none; display: inline-grid; place-items: center; width: 1.35rem; height: 1.35rem;
@@ -223,6 +239,8 @@
 // ------------------------------------------------------------------ narrower screens
 @media (max-width: 1000px) {
   .cc-layout { grid-template-columns: minmax(0, 1fr); }
+  .cc-chat { min-height: 0; }
+  .cc-log { flex: none; height: clamp(24rem, 65vh, 40rem); }
   .cc-rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
 }
 @media (max-width: 600px) {
@@ -232,5 +250,6 @@
   .cc-suggest { grid-template-columns: minmax(0, 1fr); }
   .cc-chat__head .muted { display: none; }
   .cc-hint > span:first-child { display: none; }       // no physical keyboard hints on phones
+  .cc-cta .btn { width: 100%; justify-content: center; }
   .cc-estimate li { grid-template-columns: minmax(0, 1fr) auto; .cc-estimate__bar { grid-column: 1 / -1; grid-row: 2; } }
 }
