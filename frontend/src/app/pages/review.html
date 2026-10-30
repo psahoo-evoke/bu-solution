@@ -156,8 +156,22 @@
         }
         @if (notDecidable()) {
           <div class="banner banner--warning" role="status">
-            <strong>Preliminary – not decidable.</strong> No complete syllabus is on file, so this comparison uses the catalogue
-            description only. Request the syllabus (TS/TM) before deciding.
+            <div>
+              <strong>Preliminary – not decidable.</strong> No complete syllabus is on file, so this comparison uses the
+              catalogue description only. Decide once the syllabus arrives.
+              @if (syllabus(); as s) {
+                @for (q of s.requests; track q.student_id + q.requested_at) {
+                  <span class="req-line">
+                    Requested from <strong>{{ q.student_name }}</strong>
+                    {{ q.automatic ? 'automatically' : '' }} on {{ q.requested_at | date: 'd MMM y, HH:mm' }} ·
+                    {{ q.status === 'sent' ? (q.emailed_student ? 'emailed to the student' : 'emailed to the credit office') :
+                       q.status === 'failed' ? 'email failed, retried on the next upload' : 'recorded (email not set up)' }}
+                  </span>
+                } @empty {
+                  <span class="req-line">No request on record yet: the student is asked automatically when their transcript is uploaded.</span>
+                }
+              }
+            </div>
           </div>
         }
 
@@ -166,6 +180,31 @@
           <div><span class="muted small">Confidence</span><br /><strong>{{ r.confidence_pct }}%</strong></div>
           <div><span class="muted small">Engine</span><br /><code>{{ r.engine }}</code></div>
         </div>
+
+        <details class="syllabus-panel" [open]="!!syllabus()?.text">
+          <summary>
+            <span>Syllabus</span>
+            @if (syllabus(); as s) {
+              <span class="syl syl--{{ s.state }}">{{ s.state }}</span>
+              @if (s.source) { <span class="muted small">{{ s.source === 'upload' ? 'uploaded ' + (s.uploaded_at | date: 'd MMM y') : 'on file' }}</span> }
+            } @else if (syllabusError()) {
+              <span class="muted small">{{ syllabusError() }}</span>
+            } @else {
+              <span class="muted small">Loading…</span>
+            }
+          </summary>
+          @if (syllabus(); as s) {
+            @if (s.text) {
+              @if (s.injection_detected) {
+                <p class="small syllabus-panel__warn">Contains text addressed to the AI (see the warning above). Shown as plain text.</p>
+              }
+              <pre class="syllabus-panel__text" tabindex="0" aria-label="Syllabus text">{{ s.text }}</pre>
+              @if (s.truncated) { <p class="muted small">Shortened to the first 30,000 characters.</p> }
+            } @else {
+              <p class="muted">No syllabus on file yet. The comparison below uses the catalogue description.</p>
+            }
+          }
+        </details>
 
         <h3>BU candidates</h3>
         <div class="candidates" role="radiogroup" aria-label="BU candidate course">

@@ -234,6 +234,18 @@ meter { width: 10rem; height: 1rem; }
   &--mid &__bar span { background: #c48a00; }
   &--low &__bar span { background: #b00020; }
 }
+.req-line { display: block; margin-top: .3rem; font-size: .88rem; }
+.syllabus-panel {
+  margin: .75rem 0 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fafbfc;
+  summary { display: flex; align-items: center; gap: .6rem; padding: .6rem .8rem; cursor: pointer; font-weight: 600; }
+  &__text {
+    margin: 0; padding: .75rem .9rem; max-height: 24rem; overflow: auto; border-top: 1px solid var(--border); background: #fff;
+    font: inherit; font-size: .88rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+    &:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+  }
+  &__warn { margin: 0; padding: .5rem .9rem; color: var(--pending-fg); background: var(--pending-bg); }
+  > p { margin: 0; padding: .6rem .9rem; }
+}
 .detail-empty {
   padding: 1.5rem 1rem; text-align: center;
   h2 { margin: 0 0 1rem; font-size: 1.15rem; }

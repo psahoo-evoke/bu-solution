@@ -2,9 +2,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { CourseEvaluation, DemoRole, StudentEvaluation } from '../api/models';
+import { DemoRole, StudentEvaluation } from '../api/models';
 import { RoleService } from '../api/role.service';
-import { StudentStatusPage, syllabusRequestMessage, transcriptUploadMessage, uploadProblem } from './student-status';
+import { StudentStatusPage, syllabusAskedMessage, transcriptUploadMessage, uploadProblem } from './student-status';
 
 const maya: StudentEvaluation = {
   student: { student_id: 'SYN-24001', name: 'Maya R. Delgado', intended_major: 'Psychology', bu_start_term: 'Fall 2026' },
@@ -91,17 +91,19 @@ describe('transcriptUploadMessage', () => {
   });
 });
 
-describe('syllabusRequestMessage', () => {
-  const line = { course_code: 'PSYCH-UA 25' } as CourseEvaluation;
-  const req = { student_id: 'SYN-24001', ext_id: 'NYU|PSYCH-UA 25', to: ['a@x.com'], cc: ['b@x.com'], requested_at: '' };
-  it('says who was emailed', () => {
-    expect(syllabusRequestMessage(line, { ...req, status: 'sent' })).toBe('Syllabus request for PSYCH-UA 25 emailed to a@x.com, cc b@x.com.');
+describe('syllabusAskedMessage (automatic request after a transcript upload)', () => {
+  it('names the courses and says the student was emailed', () => {
+    expect(syllabusAskedMessage({ status: 'sent', courses: ['PSYCH-UA 25'], emailed_student: true }))
+      .toBe('Syllabus needed for PSYCH-UA 25: please upload it below. We also emailed you this request.');
   });
-  it('is honest when email is not set up', () => {
-    expect(syllabusRequestMessage(line, { ...req, status: 'not_sent' })).toContain('no email was sent');
+  it('does not claim an email when none went to the student or none was sent', () => {
+    expect(syllabusAskedMessage({ status: 'sent', courses: ['A 1', 'B 2'], emailed_student: false }))
+      .toBe('Syllabus needed for A 1, B 2: please upload them below. The Credit Evaluation Department was notified by email.');
+    expect(syllabusAskedMessage({ status: 'not_sent', courses: ['A 1'] })).toBe('Syllabus needed for A 1: please upload it below.');
   });
-  it('mentions an earlier request', () => {
-    expect(syllabusRequestMessage(line, { ...req, status: 'already_requested' })).toContain('already emailed');
+  it('says nothing when there was nothing to ask for', () => {
+    expect(syllabusAskedMessage({ status: 'none', courses: [] })).toBe('');
+    expect(syllabusAskedMessage(undefined)).toBe('');
   });
 });
 

@@ -63,7 +63,7 @@ async def lifespan(_app: FastAPI):
 
 
 _entra = auth_mode() == "entra"
-app = FastAPI(title="TransferIQ API", version="0.5.0",
+app = FastAPI(title="TransferIQ API", version="0.6.0",
               description="AI recommends, the rules engine computes, evaluators decide.", lifespan=lifespan,
               docs_url=None if _entra else "/docs", redoc_url=None, openapi_url=None if _entra else "/openapi.json")
 
@@ -447,6 +447,7 @@ async def upload_transcript(request: Request, student_id: str = StudentIdPath, f
         S().ext_courses.update(new_courses)
         S().lines = lines
         S().transcripts.append(record)
+    upload["syllabus_request"] = await auto_request_syllabi(student_id)        # step 5: ask once, automatically
     return dict(build_evaluation(student_id), upload=dict(upload, transcript_id=record.transcript_id))
 
 
@@ -496,15 +497,93 @@ async def upload_syllabus(request: Request, ext_id: str = ExtIdPath, file: Uploa
                 status_code="TP" if chk["complete"] else "TM", injection_detected=inj)
 
 
+# ------------------------------------------------------------------ syllabus requests (step 5 of the process)
 SYLLABUS_REQUEST_COOLDOWN = dt.timedelta(minutes=15)
-_syllabus_requests: dict[tuple[str, str], dt.datetime] = {}
+NEEDS_SYLLABUS = ("maybe_ts", "maybe_tm")     # TS: no syllabus on file, TM: incomplete (rules.STATUS_CODE)
+
+
+def syllabus_requests(student_id: Optional[str] = None, ext_id: Optional[str] = None) -> list[dict]:
+    """Requests on record, newest first, from the audit log (saved in PostgreSQL, so they survive restarts)."""
+    out = []
+    for e in reversed(S().audit_log):
+        a = e.get("after") or {}
+        if e.get("action") != "syllabus_request" or (ext_id and e.get("ext_id") != ext_id):
+            continue
+        if student_id and a.get("student_id") != student_id:
+            continue
+        out.append(dict(student_id=a.get("student_id"), ext_id=e.get("ext_id"), requested_at=e.get("at"),
+                        status=a.get("status"), automatic=bool(a.get("automatic")), emailed_student=bool(a.get("emailed_student"))))
+    return out
+
+
+async def _send_syllabus_request(student_id: str, lines: list[dict], actor_role: str, by: str, automatic: bool) -> dict:
+    """One email for one student listing every course that needs a syllabus (TS) or a complete one (TM). A registered
+    student receives it at their own address with the notification list copied; sample students are never emailed
+    (app/notify.py). A failed send is recorded, never raised: the transcript upload that triggered it still succeeds."""
+    st = S().students[student_id]
+    own = accounts.registered_student_email(student_id)
+    if own:
+        to, cc = [own], [a for a in notify.recipients()[0] + notify.recipients()[1] if a.lower() != own.lower()]
+    else:
+        to, cc = notify.recipients()
+    link = notify.app_link(f"/student/{student_id}")
+    schools = {s.school_code: s.name for s in S().schools.values()}
+    rows = []
+    for o in lines:
+        need = "a complete syllabus (learning outcomes and weekly schedule)" if o["state"] == "maybe_tm" else "the syllabus"
+        rows.append((o, need))
+    codes = ", ".join(o["course_code"] for o, _ in rows)
+    subject = f"Syllabus needed for transfer credit: {codes} ({st.name}, {student_id})"
+    text_rows = "\n".join(f"- {o['course_code']} \"{o['title']}\" ({schools.get(o['school_code'], o['school_code'])}, "
+                          f"{o['term']}): {need}" for o, need in rows)
+    text = (f"Hello {st.name},\n\nBoston University's Credit Evaluation Department is reviewing your transfer credit. "
+            f"These courses have no existing equivalency, so a department evaluator compares the course syllabus with BU "
+            f"courses. Please upload:\n{text_rows}\n\nUpload each as a PDF on your status page{': ' + link if link else ''}. "
+            f"Until it arrives the course stays pending.\n\nRequested by {by}.\nTransferIQ transfer credit evaluation")
+    e = html_escape
+    html_rows = "".join(f"<li><strong>{e(o['course_code'])}</strong> &ldquo;{e(o['title'])}&rdquo; "
+                        f"({e(schools.get(o['school_code'], o['school_code']))}, {e(o['term'])}): {e(need)}</li>"
+                        for o, need in rows)
+    link_html = f': <a href="{e(link)}">{e(link)}</a>' if link else ""
+    html = (f"<p>Hello {e(st.name)},</p><p>Boston University's Credit Evaluation Department is reviewing your transfer "
+            f"credit. These courses have no existing equivalency, so a department evaluator compares the course syllabus "
+            f"with BU courses. Please upload:</p><ul>{html_rows}</ul><p>Upload each as a PDF on your status "
+            f"page{link_html}. Until it arrives the course stays pending.</p>"
+            f'<p style="color:#5a6370">Requested by {e(by)}.<br>TransferIQ transfer credit evaluation</p>')
+    error = None
+    try:
+        status = await asyncio.to_thread(notify.send, subject, text, html, to, cc)
+    except notify.NotifyError as err:
+        status, error = "failed", str(err)     # recorded; the evaluator sees "failed", and the next upload retries
+    for o, need in rows:
+        _audit(actor_role, "syllabus_request", o["ext_id"], None,
+               dict(student_id=student_id, status=status, to=to, cc=cc, automatic=automatic,
+                    emailed_student=bool(own), need="complete" if o["state"] == "maybe_tm" else "syllabus"))
+    return dict(status=status, courses=[o["course_code"] for o, _ in rows], to=to, cc=cc, emailed_student=bool(own),
+                **({"error": error} if error else {}))
+
+
+async def auto_request_syllabi(student_id: str) -> dict:
+    """Step 5, automatic: after a transcript is processed, ask the student once for every "maybe" course without a
+    complete syllabus. Skips courses already requested for this student and courses whose syllabus was already
+    uploaded through the app (uploaded only once; a department reviews what is on file)."""
+    st = S().students.get(student_id)
+    if st is None:
+        return dict(status="none", courses=[])
+    asked = {r["ext_id"] for r in syllabus_requests(student_id) if r["status"] != "failed"}   # failed ones are retried
+    todo = [o for o in evaluate_student(S(), st)
+            if o["state"] in NEEDS_SYLLABUS and o["ext_id"] not in asked and not _syllabus_uploaded(o["ext_id"])]
+    if not todo:
+        return dict(status="none", courses=[])
+    return await _send_syllabus_request(student_id, todo, "System", "the Credit Evaluation Department (automatic)",
+                                        automatic=True)
 
 
 @api.post("/students/{student_id}/courses/{ext_id}/syllabus-request", status_code=201)
 async def request_syllabus(request: Request, student_id: str = StudentIdPath, ext_id: str = ExtIdPath,
                            x_demo_role: str = Header(...)):
-    """Email "syllabus needed, please upload" to the notification list (app/notify.py). Triggered from the
-    Upload syllabus button. Never emails the student's own address in this build."""
+    """Send the request for one course again (staff). The normal request is automatic after a transcript upload
+    (auto_request_syllabi). Repeats within 15 minutes are skipped."""
     st = S().students.get(student_id)
     if st is None:
         raise HTTPException(404, f"Unknown student {student_id}")
@@ -512,40 +591,46 @@ async def request_syllabus(request: Request, student_id: str = StudentIdPath, ex
     if line is None:
         raise HTTPException(404, f"Course {ext_id} is not on {student_id}'s transcript")
     _syllabus_not_uploaded_yet(ext_id)       # nothing to ask for once it is uploaded (409)
-    to, cc = notify.recipients()
+    last = next((r for r in syllabus_requests(student_id, ext_id) if r["status"] != "failed"), None)
     now = dt.datetime.now(dt.timezone.utc)
-    key = (student_id, ext_id)
-    last = _syllabus_requests.get(key)
-    if last and now - last < SYLLABUS_REQUEST_COOLDOWN:
+    if last and now - dt.datetime.fromisoformat(last["requested_at"]) < SYLLABUS_REQUEST_COOLDOWN:
+        to, cc = notify.recipients()
         return dict(student_id=student_id, ext_id=ext_id, status="already_requested", to=to, cc=cc,
-                    requested_at=last.isoformat())
-
-    school = next((s.name for s in S().schools.values() if s.school_code == line.school_code), line.school_code)
-    state = S().syllabus_state(ext_id)
-    need = "an updated, complete syllabus" if state == "incomplete" else "the syllabus"
+                    requested_at=last["requested_at"])
+    state = "maybe_tm" if S().syllabus_state(ext_id) == "incomplete" else "maybe_ts"
     u = _user(request)
     by = f"{u['name']} ({u['role']})" if u else x_demo_role
-    link = notify.app_link(f"/student/{student_id}")
-    subject = f"Syllabus needed: {line.course_code} for {st.name} ({student_id})"
-    text = (f"Hello,\n\nTransferIQ needs {need} for {line.course_code} \"{line.title}\" ({school}, {line.term}) "
-            f"on the transcript of {st.name} ({student_id}).\n\nPlease upload it as a PDF on the student's status page"
-            f"{': ' + link if link else ''}.\nUntil it arrives this course stays pending.\n\nRequested by {by}.\n"
-            f"TransferIQ transfer credit evaluation")
-    e = html_escape
-    link_html = f': <a href="{e(link)}">{e(link)}</a>' if link else ""
-    html = (f"<p>Hello,</p><p>TransferIQ needs <strong>{e(need)}</strong> for <strong>{e(line.course_code)} "
-            f"&ldquo;{e(line.title)}&rdquo;</strong> ({e(school)}, {e(line.term)}) on the transcript of "
-            f"<strong>{e(st.name)}</strong> ({e(student_id)}).</p>"
-            f"<p>Please upload it as a PDF on the student's status page{link_html}. "
-            f"Until it arrives this course stays pending.</p>"
-            f'<p style="color:#5a6370">Requested by {e(by)}.<br>TransferIQ transfer credit evaluation</p>')
-    try:
-        status = await asyncio.to_thread(notify.send, subject, text, html)
-    except notify.NotifyError as err:
-        raise HTTPException(502, str(err))
-    _syllabus_requests[key] = now
-    _audit(x_demo_role, "syllabus_request", ext_id, None, dict(student_id=student_id, status=status, to=to, cc=cc))
-    return dict(student_id=student_id, ext_id=ext_id, status=status, to=to, cc=cc, requested_at=now.isoformat())
+    res = await _send_syllabus_request(student_id, [dict(ext_id=ext_id, course_code=line.course_code, title=line.title,
+                                                         school_code=line.school_code, term=line.term, state=state)],
+                                       x_demo_role, by, automatic=False)
+    if res["status"] == "failed":
+        raise HTTPException(502, res.get("error") or "The email could not be sent")
+    return dict(student_id=student_id, ext_id=ext_id, status=res["status"], to=res["to"], cc=res["cc"],
+                requested_at=now.isoformat())
+
+
+@api.get("/courses/{ext_id}/syllabus")
+def course_syllabus(request: Request, ext_id: str = ExtIdPath):
+    """What the department evaluator reads next to the AI comparison: the syllabus text on file (as extracted from
+    the PDF; shown as plain text, never as HTML) and the requests sent to the students waiting on this course.
+    Staff only (x-roles); a department sees only its own courses."""
+    if ext_id not in S().ext_courses:
+        raise HTTPException(404, f"Unknown course {ext_id}")
+    _own_department_only(request, [ext_id])
+    rec = S().syllabi.get(ext_id)
+    names = {sid: st.name for sid, st in S().students.items()}
+    waiting = sorted({ln.student_id for ln in S().lines if ln.ext_id == ext_id})
+    return dict(ext_id=ext_id, state=S().syllabus_state(ext_id),
+                source=("upload" if rec and rec.uploaded_at else "on file") if rec and rec.text else None,
+                uploaded_at=(rec.uploaded_at or None) if rec else None,
+                injection_detected=bool(rec and rec.injection_detected),
+                text=(rec.text[:SYLLABUS_TEXT_MAX] if rec and rec.text else None),
+                truncated=bool(rec and len(rec.text or "") > SYLLABUS_TEXT_MAX),
+                requests=[dict(r, student_name=names.get(r["student_id"], r["student_id"]))
+                          for r in syllabus_requests(ext_id=ext_id) if r["student_id"] in waiting])
+
+
+SYLLABUS_TEXT_MAX = 30_000
 
 
 @api.get("/courses/{ext_id}/recommendation")

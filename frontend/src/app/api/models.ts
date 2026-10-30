@@ -93,6 +93,34 @@ export interface TranscriptUpload {
   added: string[];
   removed: string[];
   updated: string[];
+  /** Step 5, automatic: the syllabus request sent after this upload (openapi TranscriptUploadResult). */
+  syllabus_request?: {
+    status: 'none' | 'sent' | 'not_sent' | 'failed';
+    courses: string[];
+    to?: string[];
+    cc?: string[];
+    emailed_student?: boolean;
+  };
+}
+
+/** openapi: components.schemas.CourseSyllabus (GET /courses/{ext_id}/syllabus, staff only). */
+export interface CourseSyllabus {
+  ext_id: string;
+  state: 'complete' | 'incomplete' | 'missing';
+  source: 'upload' | 'on file' | null;
+  uploaded_at: string | null;
+  injection_detected: boolean;
+  /** Plain text from the PDF: always interpolated, never bound as HTML. */
+  text: string | null;
+  truncated: boolean;
+  requests: {
+    student_id: string;
+    student_name: string;
+    requested_at: string;
+    status: 'sent' | 'not_sent' | 'failed';
+    automatic: boolean;
+    emailed_student: boolean;
+  }[];
 }
 
 export type CandidateTier = 'equivalent' | 'evaluator_decides' | 'elective';

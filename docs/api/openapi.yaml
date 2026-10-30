@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: TransferIQ API
-  version: 0.5.0
+  version: 0.6.0
   description: |
     Transfer credit evaluation co-pilot (EvoHack 2026, BU problem statement).
     AI recommends, the rules engine computes, evaluators decide.
@@ -98,6 +98,17 @@ paths:
         "415": { description: Not a PDF (checked by the file's first bytes) }
         "422": { description: "Unreadable or over 30 pages, no readable text, not a transcript (no Institution line), unknown institution, no course lines or more than 60, a course title with instructions aimed at automated systems, or a different Student ID than this student's earlier transcript from the same school (the printed id is never compared with portal ids)" }
   /courses/{ext_id}/syllabus:
+    get:
+      summary: "The syllabus on file and the requests sent, for the department evaluator next to the AI comparison"
+      description: |
+        Text as extracted from the PDF (plain text; clients must not render it as HTML), at most 30,000 characters.
+        Requests are the ones sent to students who have this course on their transcript, newest first. A Department
+        account only sees its own department's courses (403).
+      x-roles: [CreditStaff, Evaluator, Department]
+      parameters: [ { $ref: "#/components/parameters/ExtId" } ]
+      responses:
+        "200": { description: Syllabus and requests, content: { application/json: { schema: { $ref: "#/components/schemas/CourseSyllabus" } } } }
+        "404": { description: Unknown course }
     post:
       summary: Upload a syllabus for an external course; checked for completeness (outcomes, schedule)
       x-roles: [Student, CreditStaff, Evaluator, Department]
@@ -114,12 +125,15 @@ paths:
         "409": { description: "A syllabus was already uploaded for this course through the app; it can be uploaded only once (seed syllabi do not count; a demo reset clears uploads)" }
   /students/{student_id}/courses/{ext_id}/syllabus-request:
     post:
-      summary: Ask for a missing or incomplete syllabus by email (sent when someone clicks Upload syllabus)
+      summary: Send a syllabus request for one course again (staff). The normal request is automatic after a transcript upload
       description: |
-        Emails the configured notification list (SYLLABUS_REQUEST_TO / SYLLABUS_REQUEST_CC) naming the student and course,
-        with a link to the student's status page. Never emails the student's own address in this hackathon build.
-        Repeated clicks for the same student and course within 15 minutes are not re-sent (status already_requested).
-        Without a mail service configured the request is recorded and status is not_sent.
+        Step 5 of the process is automatic: after a transcript upload, the student is asked once, in one email, for every
+        "maybe" course without a complete syllabus (TranscriptUploadResult.upload.syllabus_request). This route re-sends it
+        for one course. A student who registered themselves receives the email at their own address with the
+        notification list (SYLLABUS_REQUEST_TO / SYLLABUS_REQUEST_CC) copied; seeded sample students (made-up addresses)
+        are never emailed, and the request goes to the notification list. Repeats for the same student and course within
+        15 minutes are not re-sent (status already_requested). Without a mail service the request is recorded and the
+        status is not_sent.
       x-roles: [Student, CreditStaff, Evaluator, Department]
       parameters: [ { $ref: "#/components/parameters/StudentId" }, { $ref: "#/components/parameters/ExtId" } ]
       responses:
@@ -381,6 +395,37 @@ components:
                 added: { type: array, items: { type: string }, example: ["PSYCH-UA 30 (Fall 2025)"] }
                 removed: { type: array, items: { type: string } }
                 updated: { type: array, items: { type: string }, description: "Same course and term, new grade or credits" }
+                syllabus_request:
+                  type: object
+                  description: "Step 5, automatic: one email asking for the syllabus of every maybe course without a complete one (not repeated for courses already requested)"
+                  properties:
+                    status: { type: string, enum: [none, sent, not_sent, failed], description: "none: nothing to ask for; not_sent: no mail service, recorded only; failed: recorded, the mail service refused" }
+                    courses: { type: array, items: { type: string } }
+                    to: { type: array, items: { type: string } }
+                    cc: { type: array, items: { type: string } }
+                    emailed_student: { type: boolean, description: "false for seeded sample students: the notification list receives it" }
+    CourseSyllabus:
+      type: object
+      required: [ext_id, state, requests]
+      properties:
+        ext_id: { type: string }
+        state: { type: string, enum: [complete, incomplete, missing] }
+        source: { type: string, nullable: true, enum: [upload, on file], description: "upload: uploaded through the app; on file: received earlier (sample data)" }
+        uploaded_at: { type: string, format: date-time, nullable: true }
+        injection_detected: { type: boolean }
+        text: { type: string, nullable: true, description: "Plain text extracted from the PDF; never render as HTML" }
+        truncated: { type: boolean }
+        requests:
+          type: array
+          items:
+            type: object
+            properties:
+              student_id: { type: string }
+              student_name: { type: string }
+              requested_at: { type: string, format: date-time }
+              status: { type: string, enum: [sent, not_sent, failed] }
+              automatic: { type: boolean }
+              emailed_student: { type: boolean }
     Candidate:
       type: object
       properties:

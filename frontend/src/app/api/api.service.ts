@@ -22,6 +22,7 @@ import {
   CreditCheckResult,
   CreditCourse,
   CreditSchool,
+  CourseSyllabus,
 } from './models';
 
 export const API_BASE = '/api';
@@ -84,6 +85,11 @@ export class ApiService {
   }
 
   /** Email "syllabus needed, please upload" to the notification list (sent when Upload syllabus is clicked). */
+  /** Staff: the syllabus text on file and the requests sent (the evaluator reads it next to the AI comparison). */
+  getSyllabus(extId: string): Observable<CourseSyllabus> {
+    return this.http.get<CourseSyllabus>(`${API_BASE}/courses/${encodeExtId(extId)}/syllabus`);
+  }
+
   requestSyllabus(studentId: string, extId: string): Observable<SyllabusRequest> {
     return this.http.post<SyllabusRequest>(
       `${API_BASE}/students/${encodeURIComponent(studentId)}/courses/${encodeExtId(extId)}/syllabus-request`,

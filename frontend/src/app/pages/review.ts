@@ -1,9 +1,10 @@
 import { Component, DestroyRef, ElementRef, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../api/api.service';
 import { AuthService } from '../api/auth.service';
 import { describeError } from '../api/errors';
-import { Candidate, DecisionKind, ReasonCode, Recommendation, ReviewItem } from '../api/models';
+import { Candidate, CourseSyllabus, DecisionKind, ReasonCode, Recommendation, ReviewItem } from '../api/models';
 import { Operation, can, suggestedRole, switchRoleMessage } from '../api/permissions';
 import { RoleService } from '../api/role.service';
 import { ErrorBanner } from '../shared/error-banner';
@@ -25,7 +26,7 @@ export function formatElapsed(totalSeconds: number): string {
 
 @Component({
   selector: 'app-review',
-  imports: [FormsModule, ErrorBanner],
+  imports: [DatePipe, FormsModule, ErrorBanner],
   templateUrl: './review.html',
 })
 export class ReviewPage {
@@ -51,6 +52,9 @@ export class ReviewPage {
   protected readonly rec = signal<Recommendation | null>(null);
   protected readonly recLoading = signal(false);
   protected readonly recError = signal<string | null>(null);
+  /** The syllabus on file and the requests sent (step 5): the evaluator reads it next to the AI comparison. */
+  protected readonly syllabus = signal<CourseSyllabus | null>(null);
+  protected readonly syllabusError = signal<string | null>(null);
 
   // Decision form
   protected readonly typedEvaluator = signal('Demo Evaluator');
@@ -251,6 +255,14 @@ export class ReviewPage {
     if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 900px)').matches) {
       setTimeout(() => this.detail()?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     }
+    this.syllabus.set(null);
+    this.syllabusError.set(null);
+    this.api.getSyllabus(item.ext_id).subscribe({
+      next: (s) => {
+        if (this.selected()?.ext_id === item.ext_id) this.syllabus.set(s);   // ignore a late answer for another course
+      },
+      error: () => this.syllabusError.set('The syllabus could not be loaded.'),
+    });
     this.api.getRecommendation(item.ext_id).subscribe({
       next: (rec) => {
         this.rec.set(rec);
@@ -267,6 +279,7 @@ export class ReviewPage {
   close(): void {
     this.selected.set(null);
     this.rec.set(null);
+    this.syllabus.set(null);
     this.openedAt.set(null);
   }
 

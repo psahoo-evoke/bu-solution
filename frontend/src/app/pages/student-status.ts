@@ -3,7 +3,7 @@ import { Component, computed, effect, inject, input, signal, untracked } from '@
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../api/api.service';
 import { describeError } from '../api/errors';
-import { CourseEvaluation, Student, StudentEvaluation, SyllabusCheck, SyllabusRequest } from '../api/models';
+import { CourseEvaluation, Student, StudentEvaluation, SyllabusCheck, TranscriptUpload } from '../api/models';
 import { can } from '../api/permissions';
 import { RoleService } from '../api/role.service';
 import { DEFAULT_STUDENT } from '../app.routes';
@@ -105,23 +105,13 @@ export class StudentStatusPage {
       next: (ev) => {
         this.evaluation.set(ev);
         this.uploadingTranscript.set(false);
-        this.notice.set(transcriptUploadMessage(file.name, ev));
+        this.notice.set([transcriptUploadMessage(file.name, ev), syllabusAskedMessage(ev.upload?.syllabus_request)]
+          .filter(Boolean).join(' '));
       },
       error: (err) => {
         this.uploadingTranscript.set(false);
         this.error.set(describeError(err, this.roles.role(), 'uploadTranscript'));
       },
-    });
-  }
-
-  /** Clicking Upload syllabus also emails "syllabus needed, please upload" to the notification list. The file
-   * picker still opens (the click is not prevented); the API skips repeats within 15 minutes. */
-  onSyllabusClick(line: CourseEvaluation): void {
-    const studentId = this.id();
-    if (!studentId) return;
-    this.api.requestSyllabus(studentId, line.ext_id).subscribe({
-      next: (req) => this.notice.set(syllabusRequestMessage(line, req)),
-      error: (err) => this.error.set(describeError(err, this.roles.role(), 'uploadSyllabus')),
     });
   }
 
@@ -193,14 +183,12 @@ export function transcriptUploadMessage(fileName: string, ev: StudentEvaluation)
   return `Replaced the earlier ${up.school_name} transcript: ${parts.length ? parts.join('; ') : 'no course changes'}.`;
 }
 
-export function syllabusRequestMessage(line: CourseEvaluation, req: SyllabusRequest): string {
-  const who = [req.to.join(', '), req.cc.length ? `cc ${req.cc.join(', ')}` : ''].filter(Boolean).join(', ');
-  switch (req.status) {
-    case 'sent':
-      return `Syllabus request for ${line.course_code} emailed to ${who}.`;
-    case 'already_requested':
-      return `A syllabus request for ${line.course_code} was already emailed in the last 15 minutes.`;
-    default:
-      return `Syllabus request for ${line.course_code} recorded. Email is not set up yet, so no email was sent.`;
-  }
+/** Step 5 is automatic: after a transcript upload the Credit Evaluation Department asks for the syllabus of every
+ * "maybe" course without a complete one. Tell the student which, and whether an email went out. */
+export function syllabusAskedMessage(req: TranscriptUpload['syllabus_request']): string {
+  if (!req || req.status === 'none' || !req.courses.length) return '';
+  const what = `Syllabus needed for ${req.courses.join(', ')}: please upload ${req.courses.length === 1 ? 'it' : 'them'} below.`;
+  if (req.status === 'sent' && req.emailed_student) return `${what} We also emailed you this request.`;
+  if (req.status === 'sent') return `${what} The Credit Evaluation Department was notified by email.`;
+  return what;
 }

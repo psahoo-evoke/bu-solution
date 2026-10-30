@@ -74,4 +74,35 @@ describe('ReviewPage role gating', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('#dept-filter')).not.toBeNull();
     expect((fixture.nativeElement as HTMLElement).querySelector('#evaluator-name')).not.toBeNull();   // demo: no account
   });
+
+  it('shows the syllabus next to the AI comparison and the automatic request status', async () => {
+    TestBed.inject(RoleService).set('Evaluator');
+    const fixture = TestBed.createComponent(ReviewPage);
+    fixture.detectChanges();
+    http.expectOne('/api/reason-codes').flush([]);
+    const item = { ext_id: 'NYU|PSYCH-UA 25', course_code: 'PSYCH-UA 25', title: 'Social Psychology', school_code: 'NYU',
+                   department: 'Psychology', students: ['SYN-24001'], syllabus_state: 'missing', confidence_pct: 40,
+                   batch_eligible: false, top_candidate: { bu_code: 'CAS PS 261', title: 'Social', overlap_pct: 40 } };
+    http.expectOne((r) => r.url === '/api/review-queue').flush([item]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    (el.querySelector('.queue__item') as HTMLButtonElement).click();
+    http.expectOne('/api/courses/NYU%7CPSYCH-UA%2025/syllabus').flush({
+      ext_id: 'NYU|PSYCH-UA 25', state: 'missing', source: null, uploaded_at: null, injection_detected: false, text: null,
+      truncated: false, requests: [{ student_id: 'SYN-24001', student_name: 'Maya R. Delgado', requested_at: '2026-10-30T09:15:00+00:00',
+                                     status: 'sent', automatic: true, emailed_student: true }],
+    });
+    http.expectOne('/api/courses/NYU%7CPSYCH-UA%2025/recommendation').flush({
+      ext_id: 'NYU|PSYCH-UA 25', candidates: [], suggested_decision: 'Elective', suggested_code: 'CAS PS 1TR', confidence_pct: 40,
+      engine: 'offline-fallback', injection_detected: false, preliminary: true, past_decisions: [],
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const banner = el.querySelector('.banner--warning')?.textContent ?? '';
+    expect(banner).toContain('Requested from Maya R. Delgado');
+    expect(banner).toContain('emailed to the student');
+    expect(banner).not.toContain('Request the syllabus');
+    expect(el.querySelector('.syllabus-panel')?.textContent).toContain('No syllabus on file yet');
+  });
 });
