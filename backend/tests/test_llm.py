@@ -1,5 +1,6 @@
 """Azure OpenAI engine with a fake client: output validation (checklist section 3), prompt PII (section 4),
 fallback, and lazy azure-identity import. No network."""
+import dataclasses
 import json
 import re
 import sys
@@ -35,21 +36,37 @@ def _shortlist_codes(messages):
 
 
 def test_valid_output_is_used(azure):
+    seen = {}
+
     def reply(messages):
         codes = _shortlist_codes(messages)
-        b = store_mod.STORE.bu_courses[codes[0]]
+        seen["codes"] = codes
+        b0, b1 = (store_mod.STORE.bu_courses[c] for c in codes[:2])
         return json.dumps({"candidates": [
-            {"bu_code": codes[0], "overlap_pct": 85, "tier": "equivalent", "covered": b.learning_outcomes[:5] + ["invented"]},
-            {"bu_code": codes[1], "overlap_pct": 140},                 # clamped to 100
-            {"bu_code": codes[2], "overlap_pct": -3}]})                # clamped to 0
+            {"bu_code": codes[0], "overlap_pct": 85, "tier": "equivalent", "covered": b0.learning_outcomes[:2] + ["invented"]},
+            {"bu_code": codes[1], "overlap_pct": 140, "covered": b1.learning_outcomes * 2},   # duplicates count once
+            {"bu_code": codes[2], "overlap_pct": -3}]})
     azure(reply)
     rec = matcher.recommend(*_course())
     assert rec["engine"] == "azure-openai"
-    pcts = sorted(c["overlap_pct"] for c in rec["candidates"])
-    assert pcts == [0, 85, 100]
-    top85 = next(c for c in rec["candidates"] if c["overlap_pct"] == 85)
-    assert "invented" not in top85["covered"] and len(top85["covered"]) == 5
-    assert all(c["tier"] in matcher.TIERS for c in rec["candidates"])
+    by = {c["bu_code"]: c for c in rec["candidates"]}
+    c0, c1, c2 = (by[code] for code in seen["codes"][:3])
+    n0 = len(store_mod.STORE.bu_courses[c0["bu_code"]].learning_outcomes)
+    assert c0["covered"] == store_mod.STORE.bu_courses[c0["bu_code"]].learning_outcomes[:2]
+    assert c0["overlap_pct"] == round(100 * 2 / n0)              # from the covered list, not the model's 85
+    assert c1["overlap_pct"] == 100 and c1["missing"] == []
+    assert c2["overlap_pct"] == 0 and c2["covered"] == []
+    for c in rec["candidates"]:                                   # the % always matches the lists shown
+        assert c["overlap_pct"] == round(100 * len(c["covered"]) / (len(c["covered"]) + len(c["missing"])))
+        assert c["tier"] == matcher.tier_of(c["overlap_pct"])
+
+
+def test_model_overlap_is_kept_only_without_bu_outcomes():
+    b = next(iter(store_mod.STORE.bu_courses.values()))
+    bare = dataclasses.replace(b, learning_outcomes=[])
+    out = matcher.validate_llm_output(json.dumps({"candidates": [{"bu_code": b.bu_code, "overlap_pct": 140}]}),
+                                      [{"bu_code": b.bu_code}], {b.bu_code: bare})
+    assert out[0]["overlap_pct"] == 100 and out[0]["covered"] == [] and out[0]["missing"] == []
 
 
 @pytest.mark.parametrize("bad", [
@@ -114,18 +131,25 @@ def test_prompt_contains_course_data_only(azure):
 
 
 def _top_at(pct):
-    return lambda m: json.dumps({"candidates": [{"bu_code": _shortlist_codes(m)[0], "overlap_pct": pct}]})
+    def reply(m):
+        code = _shortlist_codes(m)[0]
+        outcomes = store_mod.STORE.bu_courses[code].learning_outcomes
+        covered = outcomes[:round(len(outcomes) * pct / 100)]
+        return json.dumps({"candidates": [{"bu_code": code, "overlap_pct": pct, "covered": covered}]})
+    return reply
 
 
 def test_same_prompt_is_answered_from_cache(azure):
     calls = azure(_top_at(70))
     first = matcher.recommend(*_course())
+    expected = first["candidates"][0]["overlap_pct"]
+    assert expected > 0
     first["candidates"][0]["overlap_pct"] = 1            # callers may mutate what they get back
     first["past_decisions"] = ["x"]
     second = matcher.recommend(*_course())
     assert len(calls) == 1
     assert second["engine"] == "azure-openai"
-    assert second["candidates"][0]["overlap_pct"] == 70 and "past_decisions" not in second
+    assert second["candidates"][0]["overlap_pct"] == expected and "past_decisions" not in second
 
 
 def test_changed_syllabus_is_a_new_model_call(azure):

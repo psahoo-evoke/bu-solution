@@ -214,7 +214,61 @@
               @if (s.injection_detected) {
                 <p class="small syllabus-panel__warn">Contains text addressed to the AI (see the warning above). Shown as plain text.</p>
               }
-              <pre class="syllabus-panel__text" tabindex="0" aria-label="Syllabus text">{{ s.text }}</pre>
+              @if (syllabusView(); as v) {
+                @if (v.recognised) {
+                  <div class="syllabus-panel__body" tabindex="0" aria-label="Syllabus">
+                    <section class="syl-sec">
+                      <h4 class="syl-sec__h">Course description</h4>
+                      @if (v.description) {
+                        <p class="syl-sec__desc">{{ v.description }}</p>
+                      } @else {
+                        <p class="syl-sec__none">Not given in this syllabus.</p>
+                      }
+                    </section>
+
+                    <section class="syl-sec">
+                      <h4 class="syl-sec__h">Learning outcomes @if (v.outcomes.length) { <span class="count">{{ v.outcomes.length }}</span> }</h4>
+                      @if (v.outcomes.length) {
+                        <ol class="syl-sec__outcomes">
+                          @for (o of v.outcomes; track $index) { <li>{{ o }}</li> }
+                        </ol>
+                      } @else {
+                        <p class="syl-sec__none">{{ v.outcomesNote || 'Not given in this syllabus.' }}</p>
+                      }
+                    </section>
+
+                    <section class="syl-sec">
+                      <h4 class="syl-sec__h">Weekly schedule @if (v.weeks.length) { <span class="count">{{ v.weeks.length }} weeks</span> }</h4>
+                      @if (v.weeks.length) {
+                        <div class="syl-sec__table-wrap">
+                          <table class="syl-sec__table">
+                            <thead><tr><th scope="col">Week</th><th scope="col">Topic</th><th scope="col">Activity / assessment</th></tr></thead>
+                            <tbody>
+                              @for (w of v.weeks; track $index) {
+                                <tr>
+                                  <td class="syl-sec__wk">{{ w.week }}</td>
+                                  <td>{{ w.topic }}</td>
+                                  <td class="syl-sec__act">@if (w.activity) { <span class="syl-act">{{ w.activity }}</span> } @else { <span class="muted">–</span> }</td>
+                                </tr>
+                              }
+                            </tbody>
+                          </table>
+                        </div>
+                      } @else {
+                        <p class="syl-sec__none">{{ v.weeksNote || 'Not given in this syllabus.' }}</p>
+                      }
+                    </section>
+                  </div>
+                  @if (s.injection_detected) {
+                    <details class="syllabus-panel__raw">
+                      <summary>Full extracted text</summary>
+                      <pre class="syllabus-panel__text" tabindex="0" aria-label="Syllabus text">{{ s.text }}</pre>
+                    </details>
+                  }
+                } @else {
+                  <pre class="syllabus-panel__text" tabindex="0" aria-label="Syllabus text">{{ s.text }}</pre>
+                }
+              }
               @if (s.truncated) { <p class="muted small">Shortened to the first 30,000 characters.</p> }
             } @else {
               <p class="muted">No syllabus on file yet. The comparison below uses the catalogue description.</p>
