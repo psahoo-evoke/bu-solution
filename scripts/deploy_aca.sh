@@ -19,6 +19,8 @@
 #      see infra/README.md "Entra ID sign-in"). Without them both apps run in demo mode (X-Demo-Role switcher).
 #   PORTAL_AUTH=1 scripts/deploy_aca.sh   # TransferIQ accounts: student / department / staff sign-in + register
 #   OPENAI_ENDPOINT=<https://...> OPENAI_DEPLOYMENT=<name> OPENAI_KEY=<key> scripts/deploy_aca.sh   # AI chat + comparison
+#   KEYVAULT=<vault> scripts/deploy_aca.sh   # secrets live in Azure Key Vault; the app holds references only
+#     (move existing secrets there once with scripts/setup_keyvault.sh)
 # Re-running is safe: it rebuilds the images with a new tag and rolls both apps to a new revision.
 #
 # Needs: Azure CLI >= 2.60, and Contributor + Role Based Access Control Administrator (or Owner) on the
@@ -41,6 +43,8 @@ API_APP="${API_APP:-ca-${PREFIX}-api}"
 WEB_APP="${WEB_APP:-ca-${PREFIX}-web}"
 
 log() { printf '\n==> %s\n' "$*"; }
+# shellcheck source=lib_secrets.sh
+. "$ROOT/scripts/lib_secrets.sh"
 
 log "Subscription $(az account show --query name -o tsv) | RG $RG | $LOCATION | tag $TAG"
 az extension add --name containerapp --upgrade --only-show-errors -y >/dev/null
@@ -128,13 +132,13 @@ log "API container app ($API_APP, internal only, auth ${AUTH_ENV_API[0]#*=})"
 deploy_app "$API_APP" "$ACR_SERVER/transferiq-api:$TAG" internal 8000 1 1 \
   TRANSFERIQ_ENV="$PREFIX" "${AUTH_ENV_API[@]}"
 API_FQDN="$(az containerapp show -n "$API_APP" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
+[ -n "${KEYVAULT:-}" ] && kv_grant "$API_APP"
 
-# Portal mode: a stable session-signing key (Container Apps secret, created once), so a restart or a new revision
+# Portal mode: a stable session-signing key (app secret, created once), so a restart or a new revision
 # does not sign everyone out. Never printed or committed.
 if [ "${PORTAL_AUTH:-}" = "1" ] && [ -z "${ENTRA_CLIENT_ID:-}" ]; then
   if [ -z "$(az containerapp secret list -n "$API_APP" -g "$RG" --query "[?name=='session-secret'].name" -o tsv)" ]; then
-    az containerapp secret set -n "$API_APP" -g "$RG" --only-show-errors -o none \
-      --secrets session-secret="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+    app_secret "$API_APP" session-secret "$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
   fi
   az containerapp update -n "$API_APP" -g "$RG" --only-show-errors -o none \
     --set-env-vars TRANSFERIQ_SESSION_SECRET=secretref:session-secret
@@ -143,33 +147,31 @@ fi
 # Public credit chat (every auth mode): a stable key for signing replies (backend/app/credit_chat.py), created once, so
 # the chat keeps its context across restarts and revisions. Separate from the session secret. Never printed.
 if [ -z "$(az containerapp secret list -n "$API_APP" -g "$RG" --query "[?name=='chat-secret'].name" -o tsv)" ]; then
-  az containerapp secret set -n "$API_APP" -g "$RG" --only-show-errors -o none \
-    --secrets chat-secret="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  app_secret "$API_APP" chat-secret "$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 fi
 az containerapp update -n "$API_APP" -g "$RG" --only-show-errors -o none \
   --set-env-vars TRANSFERIQ_CHAT_SECRET=secretref:chat-secret
 
-# Optional PostgreSQL (backend/app/db.py): PG_HOST, PG_DB, PG_USER, PG_PASSWORD. The password goes into a Container
-# Apps secret (never printed); the server firewall must allow Azure services. Without PG_HOST the API keeps whatever
+# Optional PostgreSQL (backend/app/db.py): PG_HOST, PG_DB, PG_USER, PG_PASSWORD. The password goes into an app secret
+# (Key Vault with KEYVAULT, never printed); the server firewall must allow Azure services. Without PG_HOST the API keeps whatever
 # database settings it already has (or runs in memory).
 if [ -n "${PG_HOST:-}" ]; then
   log "PostgreSQL ($PG_HOST / ${PG_DB:-postgres})"
-  az containerapp secret set -n "$API_APP" -g "$RG" --secrets postgres-password="${PG_PASSWORD:?set PG_PASSWORD}" \
-    -o none --only-show-errors
+  app_secret "$API_APP" postgres-password "${PG_PASSWORD:?set PG_PASSWORD}"
   az containerapp update -n "$API_APP" -g "$RG" --only-show-errors -o none --set-env-vars \
     POSTGRES_HOST="$PG_HOST" POSTGRES_DB="${PG_DB:-postgres}" POSTGRES_USER="${PG_USER:?set PG_USER}" \
     POSTGRES_PASSWORD=secretref:postgres-password
 fi
 
 # Optional Azure OpenAI (chat "Ask in your words", AI comparison): OPENAI_ENDPOINT [OPENAI_DEPLOYMENT]
-# [OPENAI_EMBEDDING_DEPLOYMENT] [OPENAI_KEY]. The key goes into a Container Apps secret (never printed); without it the
+# [OPENAI_EMBEDDING_DEPLOYMENT] [OPENAI_KEY]. The key goes into an app secret (Key Vault with KEYVAULT, never printed); without it the
 # API uses its managed identity. Without OPENAI_ENDPOINT the API keeps whatever AI settings it already has.
 if [ -n "${OPENAI_ENDPOINT:-}" ]; then
   log "Azure OpenAI ($OPENAI_ENDPOINT / ${OPENAI_DEPLOYMENT:-gpt-4o-mini})"
   OPENAI_ENV=(AZURE_OPENAI_ENDPOINT="$OPENAI_ENDPOINT" AZURE_OPENAI_DEPLOYMENT="${OPENAI_DEPLOYMENT:-gpt-4o-mini}")
   [ -n "${OPENAI_EMBEDDING_DEPLOYMENT:-}" ] && OPENAI_ENV+=(AZURE_OPENAI_EMBEDDING_DEPLOYMENT="$OPENAI_EMBEDDING_DEPLOYMENT")
   if [ -n "${OPENAI_KEY:-}" ]; then
-    az containerapp secret set -n "$API_APP" -g "$RG" --secrets openai-key="$OPENAI_KEY" -o none --only-show-errors
+    app_secret "$API_APP" openai-key "$OPENAI_KEY"
     OPENAI_ENV+=(AZURE_OPENAI_API_KEY=secretref:openai-key)
   fi
   az containerapp update -n "$API_APP" -g "$RG" --only-show-errors -o none --set-env-vars "${OPENAI_ENV[@]}"

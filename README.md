@@ -115,6 +115,7 @@ Before any of this, a prospective student can ask **"Will my course transfer?"**
 | **PostgreSQL database** | `backend/app/db.py`, schema in `backend/db/schema.sql`. Students, transcripts, courses, syllabi, decisions, postings, audit trail and notification read state. Every change is written to the database **before** the app's memory changes; a failed write fails the request with nothing changed. An empty database is seeded from the CSVs. |
 | **Azure Blob Storage** | `backend/app/blob_store.py`. Containers `transcripts` and `syllabi` keep every uploaded PDF; `accounts` keeps registered accounts (password hashes only). Managed identity, no keys. A failed write rejects the upload (no silent loss). |
 | **Email: "syllabus needed"** | `backend/app/notify.py`. Sent **automatically after a transcript upload** for every course that needs a syllabus, as a **reminder every 2 days** (at most 7) until it arrives, and when staff request one by hand. A self-registered student gets it at their own address with the credit office in copy; sample students' made-up addresses are never emailed (the credit office list gets it instead). Sent through Azure Communication Services or a Logic App (Office 365 Outlook). Uploading the syllabus stops the reminders and shows "Syllabus received" in the student's notifications. |
+| **Azure Key Vault** | `kv-transferiq-95de2` holds every credential: OpenAI key, database password, session and chat signing keys, email webhook URL, plus the Document Intelligence and AI Search keys. The API holds only Key Vault references, read by its managed identity (`Key Vault Secrets User`). Moved there with `scripts/setup_keyvault.sh`. |
 | **Audit trail** | Every upload, request, reminder, decision and posting is recorded with who, when and what. |
 | **Sign-in** | Portal accounts (salted PBKDF2 password hashes, signed session tokens), Microsoft Entra ID single sign-on with app roles, or a demo role switcher for local development. |
 
@@ -210,7 +211,7 @@ Every Azure service is optional: without it the app falls back to an offline equ
 | Reminders | `TRANSFERIQ_SYLLABUS_REMINDER_DAYS` (default 2, 0 = off), `TRANSFERIQ_SYLLABUS_REMINDER_MAX` (default 7), `TRANSFERIQ_SYLLABUS_REMINDER_CHECK_MINUTES` (default 60) |
 | Chat | `TRANSFERIQ_CHAT_SECRET` (32+ characters), `TRANSFERIQ_PUBLIC_PER_MIN`, `TRANSFERIQ_PUBLIC_AI_PER_IP_HOUR`, `TRANSFERIQ_PUBLIC_AI_PER_HOUR`, `TRANSFERIQ_PUBLIC_CHAT_CONCURRENCY` |
 
-Secrets (database password, OpenAI key, session and chat secrets, webhook URL) are stored as Container Apps secrets, never in the repository. A local `.env` file is git-ignored.
+Secrets (database password, OpenAI key, session and chat secrets, webhook URL) are stored in Azure Key Vault; the Container App holds only references, read by its managed identity. Nothing secret is in the repository. A local `.env` file is git-ignored.
 
 ---
 
@@ -231,7 +232,9 @@ Locally the app runs in **demo mode** (pick a role in the top bar) with in-memor
 One command builds both images in Azure Container Registry (no local Docker needed) and rolls both Container Apps to a new revision, then checks `/api/health`:
 
 ```bash
-RG=<resource group> PORTAL_AUTH=1 scripts/deploy_aca.sh
+RG=<resource group> PORTAL_AUTH=1 KEYVAULT=<vault> scripts/deploy_aca.sh
+# KEYVAULT: every secret below goes into Azure Key Vault, the app keeps references only
+#   (move existing app secrets there once: RG=… API_APP=… KEYVAULT=… scripts/setup_keyvault.sh)
 # optional, each stored as Container Apps settings/secrets:
 #   PG_HOST=… PG_DB=… PG_USER=… PG_PASSWORD=…                              PostgreSQL
 #   STORAGE_ACCOUNT=…                                                      Blob Storage archive
