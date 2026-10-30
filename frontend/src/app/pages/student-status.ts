@@ -150,6 +150,11 @@ export class StudentStatusPage {
       next: (check) => {
         this.busyExtId.set(null);
         this.notice.set(syllabusMessage(line, check));
+        // The upload is on file (201): drop it from the to-do and remove its Upload button now, not only when the
+        // reloaded status arrives, so the page never offers the same upload again while it refreshes.
+        this.evaluation.update((ev) =>
+          ev && { ...ev, lines: ev.lines.map((l) => (l.ext_id === line.ext_id ? { ...l, syllabus_uploaded: true } : l)) },
+        );
         this.load();
       },
       error: (err) => {

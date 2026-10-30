@@ -582,6 +582,7 @@ meter { width: 10rem; height: 1rem; }
   dt { font-size: .8rem; color: var(--muted); font-weight: 600; }
   dd { margin: 0; font-size: 1.15rem; font-weight: 700; }
 }
+.refreshing { display: inline-flex; align-items: center; gap: .4rem; font-size: .85rem; font-weight: 600; color: var(--accent); }
 .syllabus-done { display: block; margin-top: .3rem; font-size: .82rem; font-weight: 600; color: var(--secured-fg); white-space: nowrap; }
 @media (min-width: 701px) {
   .table--terms {

@@ -109,11 +109,11 @@ def _bus():
     return list(S().bu_courses.values())
 
 
-def _rec(ext_id: str) -> dict:
+def _rec(ext_id: str, wait: bool = True) -> dict:
     c = S().ext_courses.get(ext_id)
     if c is None:
         raise HTTPException(404, f"Unknown course {ext_id}")
-    return recommend(c, _bus(), S().syllabi.get(ext_id))
+    return recommend(c, _bus(), S().syllabi.get(ext_id), wait=wait)
 
 
 def _user(request: Request) -> Optional[dict]:
@@ -178,7 +178,10 @@ def build_evaluation(student_id: str) -> dict:
         if ext_id not in S().ext_courses:
             return None
         if ext_id not in cache:
-            cache[ext_id] = _rec(ext_id)
+            # The status page's AI hints are advisory (they never change status, units or codes), so it never waits
+            # on the model: right after a syllabus upload the model call for the new text could take 15-20 s, and
+            # the student would see the old rows meanwhile. The model ranking is warmed for the next load.
+            cache[ext_id] = _rec(ext_id, wait=False)
         return cache[ext_id]
 
     def hint(ext_id: str):

@@ -278,7 +278,33 @@ def candidate_shortlist(course: ExtCourse, bus: list[BUCourse], syllabus_text: s
     return picked, "azure-ai-search"
 
 
-def _azure_rank(course: ExtCourse, bus: list[BUCourse], syllabus_text: str, cache: bool = True) -> tuple[list[dict], str]:
+class _NotCachedYet(Exception):
+    """wait=False and the model has not ranked this exact prompt yet: a background call was started instead."""
+
+
+# Prompts being ranked in the background (wait=False), so a page reloaded meanwhile does not start a second call.
+_warming: set[str] = set()
+
+
+def _store(key: str, ranked: list[dict]) -> None:
+    with _rank_lock:
+        _RANK_CACHE[key] = copy.deepcopy(ranked)
+        while len(_RANK_CACHE) > _RANK_CACHE_MAX:
+            _RANK_CACHE.popitem(last=False)
+
+
+def _warm(key: str, messages: list[dict], shortlist: list[dict], by_code: dict) -> None:
+    try:
+        _store(key, validate_llm_output(llm_client(messages), shortlist, by_code))
+    except Exception:                       # not cached: the next request (waiting or not) tries again
+        pass
+    finally:
+        with _rank_lock:
+            _warming.discard(key)
+
+
+def _azure_rank(course: ExtCourse, bus: list[BUCourse], syllabus_text: str, cache: bool = True,
+                wait: bool = True) -> tuple[list[dict], str]:
     shortlist, retrieval = candidate_shortlist(course, bus, syllabus_text)
     by_code = {b.bu_code: b for b in bus}
     messages = build_prompt(course, shortlist, by_code, syllabus_text)
@@ -287,13 +313,16 @@ def _azure_rank(course: ExtCourse, bus: list[BUCourse], syllabus_text: str, cach
         if key in _RANK_CACHE:
             _RANK_CACHE.move_to_end(key)
             return copy.deepcopy(_RANK_CACHE[key]), retrieval
+        if not wait:
+            if key not in _warming:
+                _warming.add(key)
+                threading.Thread(target=_warm, args=(key, messages, shortlist, by_code), name="rank-warm",
+                                 daemon=True).start()
+            raise _NotCachedYet
     ranked = validate_llm_output(llm_client(messages), shortlist, by_code)
     if not cache:                   # ad-hoc public course: do not push catalog rankings out of the cache
         return ranked, retrieval
-    with _rank_lock:
-        _RANK_CACHE[key] = copy.deepcopy(ranked)
-        while len(_RANK_CACHE) > _RANK_CACHE_MAX:
-            _RANK_CACHE.popitem(last=False)
+    _store(key, ranked)
     return ranked, retrieval
 
 
@@ -302,9 +331,12 @@ def engine_name() -> str:
 
 
 # ------------------------------------------------------------------ public interface
-def recommend(course: ExtCourse, bus: list[BUCourse], syllabus: Optional[SyllabusInput] = None, cache: bool = True) -> dict:
+def recommend(course: ExtCourse, bus: list[BUCourse], syllabus: Optional[SyllabusInput] = None, cache: bool = True,
+              wait: bool = True) -> dict:
     """Top-3 BU candidates with evidence, a suggested decision/code and a confidence. Recommendation only.
-    cache=False: the model ranking is not stored (one-off courses typed into the public credit check)."""
+    cache=False: the model ranking is not stored (one-off courses typed into the public credit check).
+    wait=False: never block on the model. A cached model ranking is used; otherwise the offline ranking answers now and
+    the model call runs in the background, so the next request gets it (status-page hints, which are advisory)."""
     raw = syllabus.text if syllabus is not None and syllabus.state != "missing" else ""
     # Title and description can come from an uploaded transcript too, so they are checked like the syllabus.
     injection = detect_injection(raw) or detect_injection(f"{course.title}. {course.description}")
@@ -312,8 +344,9 @@ def recommend(course: ExtCourse, bus: list[BUCourse], syllabus: Optional[Syllabu
     engine, retrieval = engine_name(), "offline"
     if engine == "azure-openai":
         try:
-            ranked, retrieval = _azure_rank(course, bus, clean, cache)
+            ranked, retrieval = _azure_rank(course, bus, clean, cache, wait)
         except Exception:                                        # network/quota failure -> deterministic fallback
+            # (also _NotCachedYet with wait=False: the model's answer is on its way for the next request)
             ranked, engine, retrieval = _rank_offline(course, bus, clean), "offline-fallback", "offline"
     else:
         ranked = _rank_offline(course, bus, clean)

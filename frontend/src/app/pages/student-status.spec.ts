@@ -54,6 +54,42 @@ describe('StudentStatusPage', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('input[aria-label="Upload syllabus for PSYCH-UA 25"]')).not.toBeNull();
   });
 
+  it('drops an uploaded course from the to-do at once and says the status is updating until the reload lands', async () => {
+    TestBed.configureTestingModule({
+      imports: [StudentStatusPage],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    });
+    TestBed.inject(RoleService).set('Student');
+    const fixture = TestBed.createComponent(StudentStatusPage);
+    fixture.componentRef.setInput('id', 'SYN-24001');
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/students/SYN-24001/evaluation').flush(maya);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.todo')?.textContent).toContain('PSYCH-UA 25');
+
+    const input = el.querySelector<HTMLInputElement>('input[aria-label="Upload the PSYCH-UA 25 syllabus"]')!;
+    Object.defineProperty(input, 'files', { value: [new File(['%PDF-1.4'], 's.pdf', { type: 'application/pdf' })] });
+    input.dispatchEvent(new Event('change'));
+    http.expectOne('/api/courses/NYU%7CPSYCH-UA%2025/syllabus')
+      .flush({ ext_id: 'NYU|PSYCH-UA 25', complete: true, missing_sections: [], status_code: 'TP', injection_detected: false });
+    fixture.detectChanges();
+    // The reload (slow with the model on) has not answered yet: no to-do, no second Upload button, a visible update.
+    const reload = http.expectOne('/api/students/SYN-24001/evaluation');
+    expect(el.querySelector('.todo')).toBeNull();
+    expect(el.querySelector('input[aria-label="Upload syllabus for PSYCH-UA 25"]')).toBeNull();
+    expect(el.textContent).toContain('Updating your credit status');
+
+    reload.flush({ ...maya, lines: maya.lines.map((l) => (l.state === 'maybe_ts'
+      ? { ...l, state: 'maybe_review', bu_status_code: 'TP', status: 'Under review - syllabus on file', syllabus_uploaded: true } : l)) });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.textContent).not.toContain('Updating your credit status');
+    expect(el.querySelector('tr.row--action')).toBeNull();
+  });
+
   it('removes Upload syllabus once a syllabus was uploaded for the course (upload once)', async () => {
     TestBed.configureTestingModule({
       imports: [StudentStatusPage],
