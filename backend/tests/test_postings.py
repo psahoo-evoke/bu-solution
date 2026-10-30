@@ -71,6 +71,7 @@ def test_only_the_decided_course_is_posted(client, fresh_store):
 def test_failed_posting_keeps_the_decision_and_leaves_it_for_the_registrar(client, fresh_store, monkeypatch):
     from app import db
     monkeypatch.setattr(db, "enabled", lambda: True)
+    monkeypatch.setattr(db, "max_decision_number", lambda: 0)
     monkeypatch.setattr(db, "save_decisions", lambda ds: None)
     monkeypatch.setattr(db, "save_audit", lambda e: None)
 
@@ -96,6 +97,25 @@ def test_postings_validation_and_reset(client, fresh_store):
     client.post("/api/demo/reset", headers=role("Registrar"))
     assert fresh_store.postings == {}
     assert _line(_ev(client, "SYN-24001"), "NYU|PSYCH-UA 10")["state"] == "maybe_review"
+
+
+def test_startup_posts_lines_left_awaiting_posting(client, fresh_store):
+    """Approved before approvals posted straight away (or the posting write failed): the server posts it at startup,
+    so nobody has to use the Registrar page."""
+    from fastapi.testclient import TestClient
+
+    from app import main
+    client.post("/api/decisions", json=DEC)
+    fresh_store.postings.clear()                                            # as if never posted
+    assert _line(_ev(client, "SYN-24001"), "NYU|PSYCH-UA 10")["state"] == "approved"
+    with TestClient(main.app):
+        deadline = time.time() + 10
+        while len(fresh_store.postings) < 2 and time.time() < deadline:
+            time.sleep(0.05)
+    assert {k[0] for k in fresh_store.postings} == {"SYN-24001", "SYN-24004"}
+    assert _line(_ev(client, "SYN-24001"), "NYU|PSYCH-UA 10")["bu_status_code"] == "T"
+    posts = [a for a in fresh_store.audit_log if a["action"] == "posting"]
+    assert posts[-1]["actor_role"] == "System"
 
 
 def test_newer_decision_is_posted_with_its_new_code(client, fresh_store):

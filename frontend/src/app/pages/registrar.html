@@ -38,7 +38,8 @@
         <h3 id="post-h">Post approved courses</h3>
         <p class="muted small">
           An evaluator's approval posts the credit straight away (T, secured on the student's status page). A course
-          is left as TP ("Approved – awaiting posting") only if that posting could not be saved; post it here.
+          is left as TP ("Approved – awaiting posting") only if that posting could not be saved; the server posts it
+          when it next starts, or post it here now.
         </p>
         <button type="button" class="btn btn--primary" (click)="post()" [disabled]="posting() || !canPost()" [attr.aria-describedby]="canPost() ? null : 'post-hint'">
           {{ posting() ? 'Posting…' : 'Post approved courses' }}

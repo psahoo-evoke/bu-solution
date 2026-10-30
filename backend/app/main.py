@@ -61,6 +61,7 @@ async def lifespan(_app: FastAPI):
     if engine_name() == "azure-openai" and os.environ.get("TRANSFERIQ_PREWARM", "1") != "0":
         threading.Thread(target=_prewarm, name="prewarm", daemon=True).start()
     reminders = asyncio.create_task(_reminder_loop()) if rules.SYLLABUS_REMINDER_DAYS > 0 else None
+    threading.Thread(target=_post_leftovers, name="post-leftovers", daemon=True).start()
     yield
     if reminders:
         reminders.cancel()
@@ -969,6 +970,17 @@ def _auto_post(role: str, ext_ids: set[str]) -> None:
         _post_approved(role, sids, ext_ids)
     except Exception:                    # the posting write runs before the store changes, so nothing is half-done
         _log.exception("auto-posting after decision failed; lines stay approved for POST /postings")
+
+
+def _post_leftovers() -> None:
+    """At startup, post every line still `approved`: decided before approvals posted straight away, or whose posting
+    write failed. Nobody has to open the Registrar page for it. Best-effort, like _auto_post."""
+    try:
+        n, _ = _post_approved("System", list(S().students))
+        if n:
+            _log.info("posted %d approved line(s) left awaiting posting", n)
+    except Exception:
+        _log.exception("posting leftover approved lines at startup failed; they stay approved")
 
 
 @api.post("/postings", status_code=201)
