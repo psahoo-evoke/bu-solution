@@ -1,7 +1,7 @@
 # Sponsor answers — what we learned (2026-10-28)
 
 Source: `Hackathon_Discovery_Log_solutionauts.xlsx` (33 questions). The sponsor labels most numbers **Assumption**; we treat them as sponsor estimates, not BU data.
-Note: answers to Q17–Q24 and Q29 appear one or two rows below their questions; we read them by content (confirmation requested).
+Note: in the log, the answers to Q-018–Q-025 sit two rows above their questions and Q-027–Q-029 three rows above; we read them by content. The row mapping, the other gaps in the log, and the requirement areas it did not cover (non-functional, retention, identity, out of scope) are on the log's **Gap review** sheet, with follow-up questions Q-037–Q-050 (confirmation requested in Q-048).
 
 ## Numbers (sponsor estimates)
 | Fact | Value |
