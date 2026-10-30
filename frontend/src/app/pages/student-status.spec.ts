@@ -127,8 +127,14 @@ describe('StudentStatusPage header', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  it('is titled "Transfer credit status"', () => {
-    expect(render('Student').querySelector('h1')?.textContent?.trim()).toBe('Transfer credit status');
+  it('is titled for who is signed in', () => {
+    expect(render('Student').querySelector('h1')?.textContent?.trim()).toBe('My transfer credit status');
+  });
+  it('is titled "Student transfer credit status" for a department', () => {
+    expect(render('Department').querySelector('h1')?.textContent?.trim()).toBe('Student transfer credit status');
+  });
+  it('keeps "Transfer credit status" for other staff', () => {
+    expect(render('Evaluator').querySelector('h1')?.textContent?.trim()).toBe('Transfer credit status');
   });
 
   async function renderEvaluation(lines: StudentEvaluation['lines'], uploading = false): Promise<HTMLElement> {

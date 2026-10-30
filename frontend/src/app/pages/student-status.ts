@@ -39,6 +39,12 @@ export class StudentStatusPage {
   protected readonly canUploadSyllabusRole = computed(() => can(this.roles.role(), 'uploadSyllabus'));
   /** A student only ever sees their own record, so no student picker; staff use it to switch students. */
   protected readonly showPicker = computed(() => this.roles.role() !== 'Student');
+  protected readonly heading = computed(() => {
+    const role = this.roles.role();
+    return role === 'Student' ? 'My transfer credit status'
+      : role === 'Department' ? 'Student transfer credit status'
+      : 'Transfer credit status';
+  });
   protected readonly groups = computed(() => groupByTerm(this.evaluation()?.lines ?? []));
   protected readonly totals = computed(() => this.evaluation()?.totals ?? null);
   protected readonly hasCourses = computed(() => (this.evaluation()?.lines.length ?? 0) > 0);
