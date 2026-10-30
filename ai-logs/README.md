@@ -85,6 +85,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-30 | [adoption-02](2026-10-30/adoption-02.md) | Roadmap to production, agent guardrails, README links | Team lead |
 | 2026-10-30 | [architect-06](2026-10-30/architect-06.md) | Review of the course picker, chat context, partial matching and workbench identity | psahoo (POD) |
 | 2026-10-30 | [ba-discovery-01](2026-10-30/ba-discovery-01.md) | Discovery log gap review and follow-up questions | Team lead |
+| 2026-10-30 | [ba-discovery-02](2026-10-30/ba-discovery-02.md) | Discovery document with requirements and traceability | Team lead |
 | 2026-10-30 | [developer-01](2026-10-30/developer-01.md) | One-click Approve on the selected BU candidate for Department approvers | Sagar (spathur) |
 | 2026-10-30 | [developer-02](2026-10-30/developer-02.md) | Green candidate Approve button | Sagar (spathur) |
 | 2026-10-30 | [developer-31](2026-10-30/developer-31.md) | Workbench: the department and the evaluator name come from the signed-in account | psahoo (POD) |

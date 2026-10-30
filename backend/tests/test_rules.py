@@ -220,3 +220,16 @@ def test_lines_for_returns_a_copy():
     got = s.lines_for("SYN-24001")
     got.clear()
     assert s.lines_for("SYN-24001") == _scan(s, "SYN-24001") != []
+
+
+def test_R19_pending_courses_are_flagged_after_the_one_year_deadline():
+    import datetime as dt
+    s = store_mod.STORE
+    st = s.students["SYN-24001"]                                    # starts Fall 2026: deadline 1 Sep 2027
+    flag = "Past the one-year transfer deadline: Outstanding Transfer Credit Review needed"
+    before = rules.evaluate_student(s, st, today=dt.date(2027, 8, 31))
+    after = rules.evaluate_student(s, st, today=dt.date(2027, 9, 2))
+    waiting = [o for o in after if o["state"].startswith(("maybe", "pending"))]
+    assert waiting and all(flag in o["flags"] for o in waiting)
+    assert not any(flag in o["flags"] for o in before)
+    assert not any(flag in o["flags"] for o in after if o not in waiting)   # decided courses are not flagged
