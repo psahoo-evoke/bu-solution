@@ -6,7 +6,6 @@ import { DemoRole } from './api/models';
 import { Operation, can } from './api/permissions';
 import { RoleService } from './api/role.service';
 import { NotificationBell } from './shared/notification-bell';
-import { statusTitle } from './shared/status';
 
 @Component({
   selector: 'app-root',
@@ -22,10 +21,16 @@ export class App implements OnInit {
   protected readonly apiUp = signal<boolean | null>(null);
   /** Developers on localhost get the "start the backend" hint; everyone else gets a plain-language message. */
   protected readonly localDev = ['localhost', '127.0.0.1'].includes(location.hostname);
-  protected readonly statusLabel = computed(() => {
-    const role = this.roleService.role();
-    return role === 'Student' || role === 'Department' ? statusTitle(role) : 'Student status';
-  });
+  /** Short menu label; the page itself keeps the full title (statusTitle). */
+  protected readonly statusLabel = computed(() => (this.roleService.role() === 'Student' ? 'My credit status' : 'Student status'));
+  /** Up to two initials for the identity chip ("bu.computer1" -> "BC", "Maya R. Delgado" -> "MR"). */
+  protected readonly initials = computed(() =>
+    this.auth.userName().split(/[\s._@-]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?',
+  );
+  /** "Department · Computer Science", "Student · SYN-24001", or just the role. */
+  protected readonly roleLine = computed(() =>
+    [this.roleService.role(), this.auth.department() ?? this.auth.studentId()].filter(Boolean).join(' · '),
+  );
   /** A signed-in student's link goes straight to their own record. */
   protected readonly studentLink = computed(() => (this.auth.studentId() ? ['/student', this.auth.studentId()!] : ['/student']));
 

@@ -2,51 +2,77 @@
 <header class="topbar">
   <a class="topbar__brand" routerLink="/" aria-label="TransferIQ home">
     <span class="logo" aria-hidden="true">TIQ</span>
-    <span class="topbar__title">TransferIQ</span>
+    <span class="topbar__wordmark">
+      <span class="topbar__title">Transfer<span class="topbar__iq">IQ</span></span>
+      <span class="topbar__tagline">Transfer credit co-pilot</span>
+    </span>
   </a>
+  <!-- Icons are decorative: each link's accessible name is its text. -->
   <nav class="topbar__nav" aria-label="Main">
-    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Home</a>
-    <a routerLink="/credit-check" routerLinkActive="active" ariaCurrentWhenActive="page">Check a course</a>
+    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 11.5h3V20h5.5v-5.5h3V20H19v-8.5h3z"/></svg>Home
+    </a>
+    <a routerLink="/credit-check" routerLinkActive="active" ariaCurrentWhenActive="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2a8 8 0 1 0 4.9 14.3l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0 0 10 2zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12z"/></svg>Check a course
+    </a>
     @if (!auth.secured() || (auth.signedIn() && roleService.available().length > 0)) {
       <a [routerLink]="studentLink()" routerLinkActive="active" ariaCurrentWhenActive="page">
-        {{ statusLabel() }}
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2v2H3zm4 0h14v2H7zM3 11h2v2H3zm4 0h14v2H7zm-4 6h2v2H3zm4 0h14v2H7z"/></svg>{{ statusLabel() }}
       </a>
       @if (showNav('reviewQueue')) {
-        <a routerLink="/review" routerLinkActive="active" ariaCurrentWhenActive="page">Evaluator workbench</a>
+        <a routerLink="/review" routerLinkActive="active" ariaCurrentWhenActive="page">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1zm1 2v2h4V4zM6 6v14h12V6h-2v2H8V6zm2 5h8v2H8zm0 4h6v2H8z"/></svg>Evaluator workbench
+        </a>
       }
       <!-- Model quality metrics are for staff; a student's status page never links to them. -->
       @if (roleService.role() !== 'Student') {
-        <a routerLink="/evaluation" routerLinkActive="active" ariaCurrentWhenActive="page">AI evaluation</a>
+        <a routerLink="/evaluation" routerLinkActive="active" ariaCurrentWhenActive="page">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16v2H4zm1-8h3v7H5zm5.5-5h3v12h-3zM16 3h3v16h-3z"/></svg>AI evaluation
+        </a>
       }
       @if (showNav('export') || showNav('post')) {
-        <a routerLink="/registrar" routerLinkActive="active" ariaCurrentWhenActive="page">Registrar</a>
+        <a routerLink="/registrar" routerLinkActive="active" ariaCurrentWhenActive="page">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5zM8 12h8v2H8zm0 4h8v2H8z"/></svg>Registrar
+        </a>
       }
     }
   </nav>
   <div class="topbar__role">
     @if (!auth.secured()) {
-      <label for="role-select">Demo role</label>
-      <select id="role-select" [value]="roleService.role()" (change)="onRoleChange($any($event.target).value)">
-        @for (r of roleService.available(); track r) {
-          <option [value]="r" [selected]="r === roleService.role()">{{ r }}</option>
-        }
-      </select>
-    } @else if (auth.signedIn()) {
-      @if (roleService.available().length > 1) {
-        <label for="role-select" class="visually-hidden">Role</label>
+      <span class="topbar__select">
+        <label for="role-select" class="topbar__select-label">Demo role</label>
         <select id="role-select" [value]="roleService.role()" (change)="onRoleChange($any($event.target).value)">
           @for (r of roleService.available(); track r) {
             <option [value]="r" [selected]="r === roleService.role()">{{ r }}</option>
           }
         </select>
-      } @else if (roleService.available().length === 1) {
-        <span class="role-badge">{{ roleService.role() }}</span>
+      </span>
+    } @else if (auth.signedIn()) {
+      @if (roleService.available().length > 1) {
+        <span class="topbar__select">
+          <label for="role-select" class="visually-hidden">Role</label>
+          <select id="role-select" [value]="roleService.role()" (change)="onRoleChange($any($event.target).value)">
+            @for (r of roleService.available(); track r) {
+              <option [value]="r" [selected]="r === roleService.role()">{{ r }}</option>
+            }
+          </select>
+        </span>
       }
       @if (auth.studentId(); as sid) {
         <app-notification-bell [studentId]="sid" />
       }
-      <span class="topbar__user" [title]="auth.email()">{{ auth.userName() }}</span>
-      <button type="button" class="btn btn--small" (click)="signOut()">Sign out</button>
+      <!-- Who is signed in, and as what: one chip instead of a loose badge and name. -->
+      <span class="identity-chip" [title]="auth.email()">
+        <span class="identity-chip__avatar" aria-hidden="true">{{ initials() }}</span>
+        <span class="identity-chip__text">
+          <span class="identity-chip__name">{{ auth.userName() }}</span>
+          <span class="identity-chip__role">{{ roleLine() }}</span>
+        </span>
+      </span>
+      <button type="button" class="topbar__signout" (click)="signOut()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5zm6.6 4.6L15.2 9l2 2H9v2h8.2l-2 2 1.4 1.4L21 12z"/></svg>
+        <span class="topbar__signout-text">Sign out</span>
+      </button>
     } @else if (auth.entra()) {
       <button type="button" class="btn btn--small btn--primary" (click)="auth.login()">Sign in</button>
     }
