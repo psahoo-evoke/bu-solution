@@ -248,7 +248,7 @@ The work was split across eight **role agents** run with our AI assistant, **Sol
 
 | Where | What |
 | --- | --- |
-| [`agents/`](agents/) | The 8 role definitions: BA/Discovery, Synthetic Data, Architect, Developer, QA, Security, DevOps, Adoption |
+| [`agents/`](agents/), [`.claude/agents/`](.claude/agents/) | The 8 role definitions: BA/Discovery, Synthetic Data, Architect, Developer, QA, Security, DevOps, Adoption (same files; `.claude/agents/` is where Claude Code loads them) |
 | [`AGENTS.md`](AGENTS.md) | Working agreement: which role owns what, the hard rules, mandatory logging |
 | [`ai-logs/`](ai-logs/README.md) | One log per run (prompt, inputs, output, human review, verification, commit), with an index. CI fails if code changes without a log entry. |
 
@@ -274,3 +274,5 @@ The work was split across eight **role agents** run with our AI assistant, **Sol
 - **No live BU systems:** results are exported as a MyBU-style CSV, not posted to MyBU.
 - **Email to sample students:** the seeded students' addresses are made up, so their syllabus requests go to the credit office list, not to them. Uploading a syllabus does not send an email; the student sees "Syllabus received" in the app and the course moves to the department's queue.
 - **AI evaluation:** the published results are for the offline matcher. The Azure OpenAI matcher and the chatbot have been tested but not yet evaluated on the held-out set.
+
+All known gaps, the prioritised path to production, what changes at 10x load and how to reuse TransferIQ for another university: [`docs/roadmap.md`](docs/roadmap.md).
