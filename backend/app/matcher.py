@@ -171,8 +171,8 @@ llm_client = _http_llm_client
 
 def validate_llm_output(content: str, shortlist: list[dict], by_code: dict) -> list[dict]:
     """Checklist section 3: parse strict JSON; every bu_code must be one of the search candidates; overlap is
-    clamped to 0-100; a tier, if the model sends one, must be from the enum (and is recomputed in code anyway,
-    R20). Anything else raises LLMOutputError and the caller falls back to the offline engine."""
+    clamped to 0-100 but then replaced by 100*len(covered)/len(BU outcomes); a tier, if the model sends one, must
+    be from the enum (and is recomputed in code anyway, R20). Anything else raises LLMOutputError and the caller falls back to the offline engine."""
     try:
         parsed = json.loads(content)
     except (TypeError, ValueError):
@@ -198,7 +198,13 @@ def validate_llm_output(content: str, shortlist: list[dict], by_code: dict) -> l
         pct = int(max(0, min(100, round(raw))))
         b = by_code[code]
         cov_in = c.get("covered", [])
-        covered = [o for o in cov_in if isinstance(o, str) and o in b.learning_outcomes] if isinstance(cov_in, list) else []
+        covered = list(dict.fromkeys(o for o in cov_in if isinstance(o, str) and o in b.learning_outcomes)) \
+            if isinstance(cov_in, list) else []
+        # The overlap shown next to the Covered/Missing lists is computed from them, never taken from the model, so
+        # the % (and the tier) always matches the outcomes the evaluator reads. A BU course without outcomes keeps
+        # the model's clamped figure.
+        if b.learning_outcomes:
+            pct = round(100 * len(covered) / len(b.learning_outcomes))
         out.append(dict(bu_code=code, title=b.title, overlap_pct=pct, tier=tier_of(pct), covered=covered,
                         missing=[o for o in b.learning_outcomes if o not in covered]))
     out.sort(key=lambda x: (-x["overlap_pct"], x["bu_code"]))
