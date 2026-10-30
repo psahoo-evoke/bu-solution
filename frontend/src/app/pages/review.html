@@ -197,9 +197,9 @@
           <div><span class="muted small">Engine</span><br /><code>{{ r.engine }}</code></div>
         </div>
 
-        <section class="syllabus-panel" aria-labelledby="syllabus-h">
-          <div class="syllabus-panel__head">
-            <h3 id="syllabus-h">Syllabus</h3>
+        <details class="syllabus-panel" [open]="!!syllabus()">
+          <summary>
+            <span>Syllabus</span>
             @if (syllabus(); as s) {
               <span class="syl syl--{{ s.state }}">{{ s.state }}</span>
               @if (s.source) { <span class="muted small">{{ s.source === 'upload' ? 'uploaded ' + (s.uploaded_at | date: 'd MMM y') : 'on file' }}</span> }
@@ -208,7 +208,7 @@
             } @else {
               <span class="muted small">Loading…</span>
             }
-          </div>
+          </summary>
           @if (syllabus(); as s) {
             @if (s.text) {
               @if (s.injection_detected) {
@@ -274,7 +274,7 @@
               <p class="muted">No syllabus on file yet. The comparison below uses the catalogue description.</p>
             }
           }
-        </section>
+        </details>
 
         <h3>BU candidates</h3>
         <div class="candidates" role="radiogroup" aria-label="BU candidate course">
