@@ -9,6 +9,7 @@ import { Operation, can, suggestedRole, switchRoleMessage } from '../api/permiss
 import { RoleService } from '../api/role.service';
 import { ErrorBanner } from '../shared/error-banner';
 import { BU_COURSE_PATTERN, electiveCodeFor } from '../shared/status';
+import { parseSyllabus } from '../shared/syllabus-sections';
 
 /** R21: only recommendations strictly above 90% may be batch-approved. */
 export const BATCH_THRESHOLD = 90;
@@ -64,6 +65,8 @@ export class ReviewPage {
   /** The syllabus on file and the requests sent (step 5): the evaluator reads it next to the AI comparison. */
   protected readonly syllabus = signal<CourseSyllabus | null>(null);
   protected readonly syllabusError = signal<string | null>(null);
+  /** Only the parts used to compare courses: description, learning outcomes and the weekly schedule. */
+  protected readonly syllabusView = computed(() => parseSyllabus(this.syllabus()?.text));
 
   // Decision form
   protected readonly typedEvaluator = signal('Demo Evaluator');

@@ -280,7 +280,43 @@ meter { width: 10rem; height: 1rem; }
   }
   &__warn { margin: 0; padding: .5rem .9rem; color: var(--pending-fg); background: var(--pending-bg); }
   > p { margin: 0; padding: .6rem .9rem; }
+  &__body {
+    display: flex; flex-direction: column; gap: 1.1rem; padding: .9rem 1rem 1rem; max-height: 30rem; overflow: auto;
+    border-top: 1px solid var(--border); background: #fff;
+    &:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+  }
+  &__raw {
+    border-top: 1px solid var(--border);
+    summary { font-weight: 500; font-size: .85rem; color: var(--muted); }
+  }
 }
+.syl-sec {
+  &__h {
+    display: flex; align-items: center; gap: .4rem; margin: 0 0 .5rem; padding-bottom: .3rem; border-bottom: 1px solid #eceef1;
+    font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted);
+    .count { text-transform: none; letter-spacing: 0; font-weight: 600; margin-left: 0; }
+  }
+  &__desc { margin: 0; font-size: .92rem; line-height: 1.6; max-width: 70ch; }
+  &__none { margin: 0; font-size: .88rem; font-style: italic; color: var(--muted); }
+  &__outcomes {
+    margin: 0; padding-left: 1.4rem; display: grid; gap: .3rem; font-size: .9rem; line-height: 1.5;
+    li::marker { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+  }
+  &__table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; }
+  &__table {
+    width: 100%; border-collapse: collapse; font-size: .88rem;
+    th, td { padding: .4rem .65rem; text-align: left; vertical-align: top; }
+    thead th {
+      background: #f3f5f7; font-size: .75rem; font-weight: 600; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr:nth-child(even) { background: #fafbfc; }
+    tbody tr + tr td { border-top: 1px solid #eef0f3; }
+  }
+  &__wk { width: 3.5rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); }
+  &__act { width: 40%; }
+}
+.syl-act { display: inline-block; padding: .05rem .5rem; border-radius: 999px; background: var(--info-bg); color: #1d4a85; font-size: .8rem; white-space: nowrap; }
 .detail-empty {
   padding: 1.5rem 1rem; text-align: center;
   h2 { margin: 0 0 1rem; font-size: 1.15rem; }
