@@ -10,6 +10,8 @@
 
 Only "maybe" courses are here. Ineligible courses (grade below C, Pass/Fail, one-credit, remedial, PE, ROTC, internship, research, non-accredited school) and existing equivalencies are already handled by the rules.
 
+**Ready to decide** lists only courses with a complete syllabus. A course whose syllabus is missing (TS) or incomplete (TM) is the student's step, not yours: it sits in the collapsed **Waiting for a syllabus** list below the queue, with no confidence score, and cannot be decided (the API refuses it too). Open one to see the syllabus request and reminders, or to send a request. It moves to **Ready to decide** as soon as a complete syllabus is uploaded.
+
 ## 2. Read the comparison
 
 Click a course. A **timer** starts (target: under 2:00).

@@ -6,6 +6,7 @@ import os
 import pytest
 
 from app import accounts, notify
+from app.store import Decision
 
 from .conftest import TRANSCRIPTS, role
 
@@ -212,9 +213,13 @@ def test_without_a_mail_service_nothing_is_sent_or_recorded(requested, fresh_sto
 
 def test_no_next_reminder_is_shown_for_a_course_no_longer_waiting_for_a_syllabus(requested, client, fresh_store):
     # The plan shown to the evaluator follows the same rule as the reminder job: once PSYCH-UA 25 is decided, no
-    # reminder is planned (and none is sent).
-    client.post("/api/decisions", json=dict(ext_id="NYU|PSYCH-UA 25", decision="Elective", bu_course="CAS PS 2TR",
-                                            reason_code="EL-LOWOVERLAP", evaluator="E"), headers=role("Evaluator"))
+    # reminder is planned (and none is sent). Its own request can't decide it (no syllabus, R22: 409), so the decision
+    # is an earlier reusable one, as when another student's syllabus was reviewed.
+    assert client.post("/api/decisions", json=dict(ext_id="NYU|PSYCH-UA 25", decision="Elective", bu_course="CAS PS 2TR",
+                                                   reason_code="EL-LOWOVERLAP", evaluator="E"),
+                       headers=role("Evaluator")).status_code == 409
+    fresh_store.decisions.append(Decision("D-R22", "NYU|PSYCH-UA 25", "Elective", "CAS PS 2TR", "EL-LOWOVERLAP", True,
+                                          "2025-26", "E", "2026-10-01"))
     [req] = client.get("/api/courses/NYU%7CPSYCH-UA%2025/syllabus").json()["requests"]
     assert req["next_reminder_at"] is None
     assert remind(dt.datetime.now(dt.timezone.utc) + 10 * DAY)["courses"] == []

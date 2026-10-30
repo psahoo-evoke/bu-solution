@@ -599,6 +599,20 @@ meter { width: 10rem; height: 1rem; }
   input { flex: 1; min-width: 0; font: inherit; padding: .45rem .6rem; border: 1px solid #9aa3ae; border-radius: 6px; }
 }
 .queue__nomatch { padding: .75rem .25rem; }
+.queue__done--waiting { color: var(--muted); background: var(--bg); }
+// Courses waiting for the student's syllabus: apart from the work queue, collapsed, quieter.
+.queue__waiting {
+  margin-top: 1rem; border-top: 1px solid var(--border); padding-top: .5rem;
+  > summary {
+    display: flex; align-items: center; gap: .4rem; padding: .4rem .25rem; cursor: pointer; font-weight: 600; border-radius: 6px;
+    &:hover { background: var(--bg); }
+    &:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    .count { margin-left: 0; }
+  }
+  &-hint { margin-left: auto; font-size: .78rem; font-weight: 500; color: var(--muted); }
+  &-note { margin: .25rem .25rem .6rem; }
+}
+.queue__item--waiting { background: #fafbfc; border-style: dashed; border-left-style: solid; .queue__title { color: var(--muted); } }
 @media (min-width: 901px) {
   .workbench .queue { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
 }

@@ -16,6 +16,11 @@ export const BATCH_THRESHOLD = 90;
 /** Demo goal: an evaluator decides a maybe course in under 2 minutes (US-05). */
 export const TARGET_SECONDS = 120;
 
+/** R22: ready for a decision only with a complete syllabus. Falls back to the syllabus state for an older API. */
+export function isDecidable(item: ReviewItem): boolean {
+  return item.decidable ?? (item.syllabus_state === 'complete' && !item.preliminary);
+}
+
 export function isBatchEligible(item: ReviewItem): boolean {
   return item.batch_eligible && item.confidence_pct > BATCH_THRESHOLD;
 }
@@ -44,18 +49,24 @@ export class ReviewPage {
   protected readonly queueLoading = signal(false);
   /** Client-side filter of the loaded queue (course, title, school, department, top BU match). */
   protected readonly queueSearch = signal('');
-  protected readonly shownQueue = computed(() => {
+  private readonly searched = computed(() => {
     const q = this.queueSearch().trim().toLowerCase();
     if (!q) return this.queue();
     return this.queue().filter((i) =>
       [i.school_code, i.course_code, i.title, i.department, i.top_candidate.bu_code].join(' ').toLowerCase().includes(q),
     );
   });
+  /** The evaluator's work: courses with a complete syllabus. */
+  protected readonly ready = computed(() => this.queue().filter(isDecidable));
+  protected readonly shownQueue = computed(() => this.searched().filter(isDecidable));
+  /** Waiting for the student's (complete) syllabus (TS/TM): visible for planning and a syllabus request, not decidable. */
+  protected readonly waiting = computed(() => this.queue().filter((i) => !isDecidable(i)));
+  protected readonly shownWaiting = computed(() => this.searched().filter((i) => !isDecidable(i)));
   protected readonly error = signal<string | null>(null);
   protected readonly success = signal<string | null>(null);
 
   protected readonly batchSelection = signal<Set<string>>(new Set());
-  protected readonly batchItems = computed(() => this.queue().filter(isBatchEligible));
+  protected readonly batchItems = computed(() => this.ready().filter(isBatchEligible));
   protected readonly batchBusy = signal(false);
 
   protected readonly selected = signal<ReviewItem | null>(null);
@@ -179,10 +190,11 @@ export class ReviewPage {
   protected readonly roleLine = computed(() => [this.roles.role(), this.ownDepartment()].filter(Boolean).join(' · '));
   /** Summary for the empty detail panel. */
   protected readonly stats = computed(() => {
-    const q = this.queue();
+    // Ready courses only: a waiting course's confidence is a catalogue estimate, not a decision confidence.
+    const q = this.ready();
     return {
       students: new Set(q.flatMap((i) => i.students)).size,
-      needSyllabus: q.filter((i) => i.syllabus_state !== 'complete').length,
+      waiting: this.waiting().length,
       avgConfidence: q.length ? Math.round(q.reduce((n, i) => n + i.confidence_pct, 0) / q.length) : 0,
     };
   });
@@ -314,7 +326,7 @@ export class ReviewPage {
   }
 
   protected openFirst(): void {
-    const first = this.queue()[0];
+    const first = this.ready()[0];
     if (first) this.open(first);
   }
 

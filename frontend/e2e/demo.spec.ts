@@ -98,7 +98,10 @@ test('approved course stays pending (TP) until the Registrar posts it, then it i
 test('a course without a syllabus is preliminary and not decidable', async ({ page }) => {
   await page.goto('/review');
   await setRole(page, 'Evaluator');
-  await page.getByRole('button', { name: /PSYCH-UA 25/ }).click();
+  // Not the evaluator's work yet (R22): listed apart from the queue, under "Waiting for a syllabus".
+  await expect(page.getByRole('list', { name: 'Courses awaiting a decision' }).getByRole('button', { name: /PSYCH-UA 25/ })).toHaveCount(0);
+  await page.getByText('Waiting for a syllabus').click();
+  await page.getByRole('list', { name: 'Courses waiting for a syllabus' }).getByRole('button', { name: /PSYCH-UA 25/ }).click();
   await expect(page.getByText('Preliminary – not decidable')).toBeVisible();
   await expect(page.getByRole('button', { name: /Approve equivalent|Approve as elective|Record no credit/ })).toBeDisabled();
 });
