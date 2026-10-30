@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: TransferIQ API
-  version: 0.4.0
+  version: 0.5.0
   description: |
     Transfer credit evaluation co-pilot (EvoHack 2026, BU problem statement).
     AI recommends, the rules engine computes, evaluators decide.
@@ -160,7 +160,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { type: object, required: [ext_ids, evaluator], properties: { ext_ids: { type: array, items: { type: string } }, evaluator: { type: string, description: "Portal sign-in: ignored; the signed-in account's name is recorded" } } }
+            schema: { type: object, required: [ext_ids], properties: { ext_ids: { type: array, items: { type: string } }, evaluator: { type: string, maxLength: 80, description: "Demo mode only (required there). Portal and Entra: ignored; the verified sign-in is recorded as \"Name <email>\"" } } }
       responses:
         "201": { description: Saved, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Decision" } } } } }
         "422": { description: An item is at or below the 90% threshold }
@@ -318,7 +318,7 @@ components:
       type: object
       required: [kind, message, bu_course, units, reason_code, estimate, caveats]
       properties:
-        kind: { type: string, enum: [decided_equivalent, decided_elective, not_transferable, pending_review, needs_evaluation, unknown_school, unknown_course], description: "A school given in part ('NE', 'northeastern') that matches exactly one catalog school is used, and the message says so" }
+        kind: { type: string, enum: [decided_equivalent, decided_elective, not_transferable, pending_review, needs_evaluation, unknown_school, unknown_course], description: "Only an exact school code or name is used. A partial school (\"NE\", \"northeastern\") is never auto-picked: unknown_school with school_suggestions for the student to confirm" }
         message: { type: string }
         school_code: { type: string, description: "Absent for unknown_school" }
         school_name: { type: string }
@@ -340,16 +340,16 @@ components:
             engine: { type: string, enum: [azure-openai, offline-fallback] }
             injection_detected: { type: boolean }
         caveats: { type: array, items: { type: string }, description: "Record-wide rules not applied; an R11 same-year conflict adds a first caveat" }
-        suggestions: { type: array, maxItems: 6, items: { $ref: "#/components/schemas/CreditCourse" }, description: "Only when the course code is partial or not in the catalog: catalog courses whose code starts with it (never courses known only from uploads)" }
-        school_suggestions: { type: array, items: { type: object, properties: { school_code: { type: string }, name: { type: string } } }, description: "unknown_school only: the schools the input could mean, or all catalog schools" }
+        suggestions: { type: array, maxItems: 6, items: { $ref: "#/components/schemas/CreditCourse" }, description: "Catalog courses (never courses known only from uploads) when the code is a department alone (\"CS\": exactly that department), a number alone (\"3000\"), the start of a code (\"CS 30\"), a full code not in the catalog (courses starting with it), or no code but a title (title match). Their credits are the other school's, not BU units" }
+        school_suggestions: { type: array, items: { type: object, required: [school_code, name], properties: { school_code: { type: string }, name: { type: string } } }, description: "unknown_school only: the schools the input could mean (even a single one, to confirm), or all catalog schools" }
     ChatTurn:
       type: object
       required: [role, content]
       additionalProperties: false
       properties:
         role: { type: string, enum: [user, assistant] }
-        content: { type: string, minLength: 1, maxLength: 1500, description: "user turns at most 600 characters (422 otherwise); assistant turns are earlier replies" }
-        signature: { type: string, maxLength: 128, description: "assistant turns: the signature returned with that reply. Only correctly signed assistant turns reach the model; otherwise all assistant turns are dropped" }
+        content: { type: string, minLength: 1, maxLength: 1500, description: "user turns at most 600 characters, all turns together at most 9000 (422 otherwise); assistant turns are earlier replies" }
+        signature: { type: string, pattern: "^[0-9a-f]{64}$", description: "assistant turns: the signature returned with that reply. It is bound to the user turn just before it; only correctly signed assistant turns reach the model (sanitised), otherwise all assistant turns are dropped" }
     CreditChatInput:
       type: object
       required: [messages]
@@ -417,14 +417,14 @@ components:
         batch_eligible: { type: boolean }
     DecisionInput:
       type: object
-      required: [ext_id, decision, bu_course, reason_code, evaluator]
+      required: [ext_id, decision, bu_course, reason_code]
       properties:
         ext_id: { type: string }
         decision: { type: string, enum: [Equivalent, Elective, No credit] }
         bu_course: { type: string, pattern: "^(CAS [A-Z]{2} [0-9]{3}|CAS [A-Z]{2} [12]TR|TFRGEN 1TR|TFRGEN NOCRDT)$", description: "Must be a known BU course, a TR elective code, or TFRGEN NOCRDT; must agree with decision" }
         reason_code: { type: string, description: "Must exist in /reason-codes and match the decision" }
         reusable: { type: boolean, default: true }
-        evaluator: { type: string, maxLength: 80, description: "Who decided. Portal sign-in: ignored on input; the signed-in account's name is recorded" }
+        evaluator: { type: string, maxLength: 80, description: "Who decided. Input: demo mode only (422 when empty there). Portal and Entra: ignored; the verified sign-in is recorded as \"Name <email>\" (email, or the Entra sign-in name, makes it unique)" }
         catalog_year: { type: string, example: 2025-26 }
         note: { type: string }
     Decision:

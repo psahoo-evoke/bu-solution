@@ -33,8 +33,15 @@
 - **Estimates.** An undecided course gets at most a *preliminary* estimate, always labelled "not a promise of credit" (R22). A course typed in by the caller is ranked without entering the shared model cache, and the offline cache is bounded.
 - **Chat:**
   - The model may only call `check_course` and `list_schools`.
-  - The browser holds the conversation. Each reply carries an HMAC `signature` (key `TRANSFERIQ_CHAT_SECRET`, or a random per-process key), and an assistant turn reaches the model only when correctly signed, so the model keeps its own context ("Did you mean Northeastern?" → "yes"). If any assistant turn is unsigned or edited, all assistant turns are dropped and the student's earlier turns are sent as one context message. User turns are sanitised (ADR 0004).
-  - Partial input: a school given in part that matches exactly one catalog school is used, and the reply says which ("NE" → Northeastern). A partial course code ("CS", "cs 30", "3000") returns up to 6 matching *catalog* courses as suggestions, never courses known only from uploads, and the model asks which one is meant.
+  - The browser holds the conversation. Each reply carries an HMAC `signature` over the reply **and the question it answered**, so the model keeps its own context ("Did you mean Northeastern?" → "yes"). The key is derived from `TRANSFERIQ_CHAT_SECRET` (at least 32 characters) with its own label, so it can never double as another HMAC key such as the portal session secret; without the secret a random per-process key is used.
+    - An assistant turn reaches the model only when its signature matches the user turn just before it. A reply moved after another question, or into another conversation, is rejected.
+    - Signed turns are sanitised like user turns: they are genuine server output, but the model can echo what the student typed.
+    - If any assistant turn fails, all assistant turns are dropped and the student's earlier turns are sent as one context message.
+    - Malformed signatures are rejected with 422, and a conversation is capped at 9,000 characters.
+    - *Considered:* signing a small structured state (resolved school, last suggestions) instead of reply text. It is safer against echo, but loses the model's own wording of its question; text plus binding plus sanitising was chosen for the demo.
+  - Partial input: only an **exact** school code or name is used. A partial school ("NE", "northeastern", "northeast") is never picked automatically, even when only one school matches: it comes back as `unknown_school` with `school_suggestions`, and the student confirms. This was changed after the architect review: auto-picking could show one school's *decided* result to a student from another school, such as Northeast State.
+  - A partial course code returns up to 6 matching *catalog* courses as suggestions: a department alone ("CS" means exactly CS, not CSE), a number ("3000"), or the start of a code ("cs 30"). A full code not in the catalog, or a title, also returns suggestions. Courses known only from uploads are never suggested. The model asks which one is meant and never picks one itself.
+  - Suggested courses' credits are the other school's credits, not BU units. They never count as a credit claim in the grounding check: only a decided result's units may be stated as BU units.
   - The **result cards** come from `results` and are the source of truth.
   - The reply text is checked after NFKC normalisation and with invisible characters removed. It is replaced by a plain summary when it:
     - names a BU code other than a *decided* result (estimate candidates may not be named)
@@ -53,7 +60,7 @@
 - **Unavailable AI.** Without Azure OpenAI the chat returns 503 and the page switches to the form. A model failure returns 502. The form always works, offline if needed.
 
 **Consequences and accepted risks (demo):**
-- With several replicas and no shared `TRANSFERIQ_CHAT_SECRET`, a reply signed by one replica is not accepted by another, so that turn falls back to context-only history. Set the secret (Key Vault) when deploying.
+- With several replicas and no shared `TRANSFERIQ_CHAT_SECRET`, a reply signed by one replica is not accepted by another, so that turn falls back to context-only history. `scripts/deploy_aca.sh` creates the secret once (a Container Apps secret, like the session secret), and the Bicep path writes both secrets to Key Vault. The API logs a warning at startup when the chat secret is missing outside demo mode.
 - Limits are kept in memory per replica, so the real budget is the configured number × replicas (max 2).
 - The API ingress is external, so callers can skip nginx. They are still keyed on their own address, but there is no WAF.
 - The check works as a public existence oracle for *catalog* courses and their reusable decisions. That is intended: these are the same facts every student sees.

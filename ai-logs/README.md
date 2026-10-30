@@ -81,8 +81,11 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-29 | [developer-30](2026-10-29/developer-30.md) | Chat keeps its context; partial school and course codes get matches | psahoo (POD) |
 | 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
 | 2026-10-29 | [security-04](2026-10-29/security-04.md) | Security review of the public credit check and chat (developer-26) | psahoo (POD) |
+| 2026-10-30 | [architect-06](2026-10-30/architect-06.md) | Review of the course picker, chat context, partial matching and workbench identity | psahoo (POD) |
 | 2026-10-30 | [developer-31](2026-10-30/developer-31.md) | Workbench: the department and the evaluator name come from the signed-in account | psahoo (POD) |
 | 2026-10-30 | [developer-32](2026-10-30/developer-32.md) | Evaluator workbench UX | psahoo (POD) |
+| 2026-10-30 | [developer-33](2026-10-30/developer-33.md) | Review fixes, and why each design decision was taken | psahoo (POD) |
+| 2026-10-30 | [security-05](2026-10-30/security-05.md) | Security review of the course picker, chat context, partial matching and workbench identity | psahoo (POD) |
 <!-- INDEX:END -->
 
 Regenerate the index with `python scripts/build_log_index.py`.

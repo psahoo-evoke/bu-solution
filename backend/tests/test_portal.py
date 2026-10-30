@@ -167,7 +167,7 @@ def test_decisions_record_the_signed_in_accounts_name(anon, fresh_store):
     dec = dict(ext_id="NYU|PSYCH-UA 10", decision="Equivalent", bu_course="CAS PS 211", reason_code="EQ-EVALUATOR",
                evaluator="Someone Else")
     r = anon.post("/api/decisions", json=dec, headers=ev)
-    assert r.status_code == 201 and r.json()["evaluator"] == accounts.STAFF_NAMES["Evaluator"]
+    assert r.status_code == 201 and r.json()["evaluator"] == f"{accounts.STAFF_NAMES['Evaluator']} <evaluator@bu.edu>"
     h = bearer(anon, "biology.dept@bu.edu", "department")
     r = anon.post("/api/decisions/batch", json={"ext_ids": ["NEU|BIOL 3712"], "evaluator": "Someone Else"}, headers=h)
-    assert r.status_code == 201 and {d["evaluator"] for d in r.json()} == {"Biology Department"}
+    assert r.status_code == 201 and {d["evaluator"] for d in r.json()} == {"Biology Department <biology.dept@bu.edu>"}

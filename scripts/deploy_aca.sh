@@ -139,6 +139,15 @@ if [ "${PORTAL_AUTH:-}" = "1" ] && [ -z "${ENTRA_CLIENT_ID:-}" ]; then
     --set-env-vars TRANSFERIQ_SESSION_SECRET=secretref:session-secret
 fi
 
+# Public credit chat (every auth mode): a stable key for signing replies (backend/app/credit_chat.py), created once, so
+# the chat keeps its context across restarts and revisions. Separate from the session secret. Never printed.
+if [ -z "$(az containerapp secret list -n "$API_APP" -g "$RG" --query "[?name=='chat-secret'].name" -o tsv)" ]; then
+  az containerapp secret set -n "$API_APP" -g "$RG" --only-show-errors -o none \
+    --secrets chat-secret="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+fi
+az containerapp update -n "$API_APP" -g "$RG" --only-show-errors -o none \
+  --set-env-vars TRANSFERIQ_CHAT_SECRET=secretref:chat-secret
+
 # Optional PostgreSQL (backend/app/db.py): PG_HOST, PG_DB, PG_USER, PG_PASSWORD. The password goes into a Container
 # Apps secret (never printed); the server firewall must allow Azure services. Without PG_HOST the API keeps whatever
 # database settings it already has (or runs in memory).

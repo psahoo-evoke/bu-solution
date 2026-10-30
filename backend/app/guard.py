@@ -5,7 +5,7 @@ before any route code runs. A refused request therefore cannot cause a side effe
 
 - Every /api route except the PUBLIC allowlist (health, /auth/*, the credit check and chat; ADR 0006) needs a valid
   X-Demo-Role: missing or unknown -> 401, not allowed -> 403. Public routes: a body over MAX_PUBLIC_BODY -> 413.
-- Allowed roles per operation mirror `x-roles` in docs/api/openapi.yaml (v0.4.0). tests/test_roles.py checks that
+- Allowed roles per operation mirror `x-roles` in docs/api/openapi.yaml (v0.5.0). tests/test_roles.py checks that
   this table and the contract stay identical.
 - Upload routes: a body over MAX_UPLOAD_BYTES -> 413. Content-Length is checked up front; chunked bodies are
   counted while streaming.
@@ -104,8 +104,14 @@ def _signing_key(token: str):
 
 
 def entra_roles(authorization: Optional[str]) -> list[str]:
-    """Validate an Entra access token and return the caller's TransferIQ roles in ALL_ROLES order.
-    Accepts v1 and v2 tokens (issuer differs) whose audience is the client id or api://<client id>."""
+    """The caller's TransferIQ roles in ALL_ROLES order (see entra_user)."""
+    return entra_user(authorization)[0]
+
+
+def entra_user(authorization: Optional[str]) -> tuple[list[str], dict]:
+    """Validate an Entra access token: (roles in ALL_ROLES order, identity {name, email}). Accepts v1 and v2 tokens
+    (issuer differs) whose audience is the client id or api://<client id>. The identity is the token's sign-in name
+    (preferred_username / upn / email) and display name; oid when there is no sign-in name."""
     import jwt  # lazy
 
     tenant, client = entra_config()
@@ -124,7 +130,8 @@ def entra_roles(authorization: Optional[str]) -> list[str]:
     if claims.get("tid") != tenant:
         raise AuthError(401, "Token is from another tenant")
     granted = set(claims.get("roles") or [])
-    return [r for r in ALL_ROLES if r in granted]
+    login = claims.get("preferred_username") or claims.get("upn") or claims.get("email") or claims.get("oid") or ""
+    return [r for r in ALL_ROLES if r in granted], dict(name=claims.get("name") or "", email=login)
 
 
 def choose_role(granted: list[str], requested: Optional[str]) -> str:
@@ -179,12 +186,13 @@ class RoleGuardMiddleware:
         if auth_mode() == "entra":
             try:
                 # JWKS fetch on a cache miss is blocking network I/O: keep it off the event loop.
-                granted = await asyncio.to_thread(entra_roles, headers.get("authorization"))
+                granted, identity = await asyncio.to_thread(entra_user, headers.get("authorization"))
                 role = choose_role(granted, role)
             except AuthError as e:
                 return await _send_json(send, e.status, e.detail)
-            # Routes read X-Demo-Role (audit actor); make it the verified active role.
-            scope = dict(scope, headers=[(k, v) for k, v in scope.get("headers", []) if k.lower() != b"x-demo-role"]
+            # Routes read X-Demo-Role (audit actor); make it the verified active role. "identity" (who decided) only;
+            # entra users are not portal users, so state["user"] (portal record scoping) stays unset.
+            scope = dict(scope, state={**scope.get("state", {}), "identity": identity}, headers=[(k, v) for k, v in scope.get("headers", []) if k.lower() != b"x-demo-role"]
                          + [(b"x-demo-role", role.encode())])
         elif auth_mode() == "portal":
             from .accounts import AccountError, session_user  # lazy: avoids an import cycle with the store
@@ -196,7 +204,8 @@ class RoleGuardMiddleware:
             own = _STUDENT_PATH.match(sub)
             if role == "Student" and own and own.group(1) != user["student_id"]:
                 return await _send_json(send, 403, "Students can only see their own record")
-            scope = dict(scope, state={**scope.get("state", {}), "user": user},
+            scope = dict(scope, state={**scope.get("state", {}), "user": user,
+                                       "identity": dict(name=user.get("name") or "", email=user["email"])},
                          headers=[(k, v) for k, v in scope.get("headers", []) if k.lower() != b"x-demo-role"]
                          + [(b"x-demo-role", role.encode())])
         elif role not in EVERYONE:

@@ -33,6 +33,14 @@ param apiMinReplicas int = 1
 @allowed([ 'demo', 'entra' ])
 param authMode string = 'demo'
 
+@description('Signing key for portal sessions (TRANSFERIQ_SESSION_SECRET), shared by all API replicas. Default: a new random value on every deployment, which signs everyone out; pass a fixed value to keep sessions.')
+@secure()
+param sessionSecret string = '${newGuid()}${newGuid()}'
+
+@description('Signing key for public chat replies (TRANSFERIQ_CHAT_SECRET, ADR 0006), shared by all API replicas. Must differ from sessionSecret. Default: new random value per deployment (chat context restarts).')
+@secure()
+param chatSecret string = '${newGuid()}${newGuid()}'
+
 @description('Extra CORS origins added to TRANSFERIQ_CORS_ORIGINS (the SWA host is always included). Not needed with the SWA linked backend (same origin). "*" is ignored by the API.')
 param extraCorsOrigins array = []
 
@@ -126,6 +134,24 @@ module appiSecret 'modules/kv-secret.bicep' = {
     vaultName: keyVault.outputs.name
     secretName: 'appinsights-connection-string'
     secretValue: monitoring.outputs.appInsightsConnectionString
+  }
+}
+
+module sessionSecretKv 'modules/kv-secret.bicep' = {
+  name: 'kv-session-secret'
+  params: {
+    vaultName: keyVault.outputs.name
+    secretName: 'transferiq-session-secret'
+    secretValue: sessionSecret
+  }
+}
+
+module chatSecretKv 'modules/kv-secret.bicep' = {
+  name: 'kv-chat-secret'
+  params: {
+    vaultName: keyVault.outputs.name
+    secretName: 'transferiq-chat-secret'
+    secretValue: chatSecret
   }
 }
 
@@ -240,6 +266,8 @@ module api 'modules/containerapp-api.bicep' = if (deployApi) {
     kvSecrets: [
       { name: 'appinsights-cs', keyVaultUrl: appiSecret.outputs.secretUri, envName: 'APPLICATIONINSIGHTS_CONNECTION_STRING' }
       { name: 'acs-cs', keyVaultUrl: communication.outputs.connectionStringSecretUri, envName: 'ACS_CONNECTION_STRING' }
+      { name: 'session-secret', keyVaultUrl: sessionSecretKv.outputs.secretUri, envName: 'TRANSFERIQ_SESSION_SECRET' }
+      { name: 'chat-secret', keyVaultUrl: chatSecretKv.outputs.secretUri, envName: 'TRANSFERIQ_CHAT_SECRET' }
     ]
   }
 }

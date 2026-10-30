@@ -110,3 +110,13 @@ def test_multi_role_user_picks_active_role(anon, fresh_store):
     assert anon.get("/api/review-queue", headers=auth(t, active="Department")).status_code == 200
     anon.post("/api/decisions/batch", json={"ext_ids": ["NEU|BIOL 3712"], "evaluator": "D"}, headers=auth(t, "Department"))
     assert fresh_store.audit_log[-1]["actor_role"] == "Department"                              # verified role reaches routes
+
+
+def test_decisions_record_the_verified_entra_identity(anon, fresh_store):
+    # architect S1 / security M-1: in entra mode the typed evaluator name used to be recorded.
+    t = token(["Evaluator"], name="Jordan Lee", preferred_username="jlee@bu.edu")
+    dec = dict(ext_id="NYU|PSYCH-UA 10", decision="Equivalent", bu_course="CAS PS 211", reason_code="EQ-EVALUATOR",
+               evaluator="Registrar Jane Doe")
+    r = anon.post("/api/decisions", json=dec, headers=auth(t))
+    assert r.status_code == 201 and r.json()["evaluator"] == "Jordan Lee <jlee@bu.edu>"
+    assert fresh_store.audit_log[-1]["after"]["evaluator"] == "Jordan Lee <jlee@bu.edu>"

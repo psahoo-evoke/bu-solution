@@ -21,7 +21,10 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, FastAPI, File, Header, HTTPException, Path, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, ConfigDict, Field
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import accounts, blob_store, credit_chat, credit_check, db, notify, ratelimit
 from . import store as store_mod
@@ -60,9 +63,17 @@ async def lifespan(_app: FastAPI):
 
 
 _entra = auth_mode() == "entra"
-app = FastAPI(title="TransferIQ API", version="0.4.0",
+app = FastAPI(title="TransferIQ API", version="0.5.0",
               description="AI recommends, the rules engine computes, evaluators decide.", lifespan=lifespan,
               docs_url=None if _entra else "/docs", redoc_url=None, openapi_url=None if _entra else "/openapi.json")
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(request: Request, exc: RequestValidationError):
+    """422 without echoing the submitted values: they can be private (passwords, transcript text) or not encodable
+    (a lone surrogate would otherwise turn the 422 into a 500)."""
+    errors = [{k: v for k, v in e.items() if k not in ("input", "ctx", "url")} for e in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
 
 
 def cors_origins() -> list[str]:
@@ -107,10 +118,20 @@ def _user(request: Request) -> Optional[dict]:
 
 
 def _decided_by(request: Request, typed: str) -> str:
-    """Who made a decision. Portal: the signed-in account's name (from the account store), never the name the
-    browser sent, so the record cannot be attributed to someone else. Demo mode has no accounts: the typed name."""
-    u = _user(request)
-    return (u.get("name") or u.get("email") or typed)[:80] if u else typed
+    """Who made a decision (Decision.decided_by, shown as `evaluator`, and in the audit entry).
+    Portal and Entra: the verified sign-in, "Name <email>", never the name the browser sent. The email (or Entra
+    sign-in name) makes it unique: display names repeat ("Transfer Evaluator") and a self-registered account picks
+    its own. Without a verified identity outside demo mode the request is refused. Demo mode has no accounts:
+    the typed name (X-Demo-Role is self-asserted there anyway)."""
+    ident = (request.scope.get("state") or {}).get("identity")
+    if auth_mode() != "demo":
+        if not ident or not (ident.get("email") or ident.get("name")):
+            raise HTTPException(401, "Sign in required to record a decision")
+        name, email = ident.get("name", "").strip(), ident.get("email", "").strip()
+        return (f"{name} <{email}>" if name and email else name or email)[:160]
+    if not (typed or "").strip():
+        raise HTTPException(422, "Enter the evaluator name")
+    return typed.strip()
 
 
 def _own_department_only(request: Request, ext_ids: list[str]) -> None:
@@ -251,7 +272,17 @@ class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
     # user turns: at most MAX_MESSAGE_CHARS (checked in credit_chat); assistant turns are earlier replies, up to 1500
     content: str = Field(min_length=1, max_length=credit_chat.MAX_REPLY_CHARS)
-    signature: Optional[str] = Field(None, max_length=128)     # the server's HMAC of an earlier reply
+    signature: Optional[str] = Field(None, pattern=r"^[0-9a-f]{64}$")     # the server's HMAC of an earlier reply
+
+    @field_validator("content")
+    @classmethod
+    def _encodable(cls, v: str) -> str:
+        """Lone surrogates ("\\ud800") are valid JSON but not text; reject them (422) instead of failing later."""
+        try:
+            v.encode("utf-8")
+        except UnicodeEncodeError:
+            raise ValueError("Text contains invalid characters")
+        return v
 
 
 class CreditChatInput(BaseModel):
@@ -562,7 +593,7 @@ class DecisionInput(BaseModel):
     bu_course: str = Field(pattern=BU_COURSE_RE)
     reason_code: str
     reusable: bool = True
-    evaluator: str = Field(min_length=1, max_length=80)
+    evaluator: str = Field("", max_length=80)          # demo mode only; signed in, the verified identity is used
     catalog_year: str = Field(DEFAULT_CATALOG_YEAR, pattern=r"^\d{4}-\d{2}$")
     note: str = Field("", max_length=1000)
 
@@ -619,7 +650,7 @@ def post_decision(inp: DecisionInput, request: Request, x_demo_role: str = Heade
 
 class BatchInput(BaseModel):
     ext_ids: list[str] = Field(min_length=1, max_length=200)
-    evaluator: str = Field(min_length=1, max_length=80)
+    evaluator: str = Field("", max_length=80)          # demo mode only (see _decided_by)
 
 
 def _batch_problem(rec: dict) -> Optional[str]:

@@ -69,9 +69,10 @@ def find_school(store: Store, school: str):
 
 
 def resolve_school(store: Store, school: str):
-    """(school, suggestions). Exact code or name first; otherwise a partial match: the start of a code ("NE" -> NEU),
-    the start of a word in the name ("northeastern", 3+ letters) or part of the name (4+ letters). Exactly one
-    partial match is used; several (or none) come back as suggestions for the student to pick from."""
+    """(school, suggestions). Only an exact code or name is used. Anything else returns suggestions for the student
+    to confirm: the start of a code ("NE" -> NEU), the start of a word in the name ("northeastern", 3+ letters) or
+    part of the name (4+ letters); all catalog schools when nothing matches. Never auto-picked, even when only one
+    school matches: "northeast" could be Northeast State, and a decided result for the wrong school misleads."""
     exact = find_school(store, school)
     if exact is not None:
         return exact, []
@@ -82,7 +83,7 @@ def resolve_school(store: Store, school: str):
     hits = [sc for sc in every if sc.school_code.lower().startswith(q)
             or (len(q) >= 3 and any(w.startswith(q) for w in re.findall(r"[a-z]+", sc.name.lower())))
             or (len(q) >= 4 and q in sc.name.lower())]
-    return (hits[0], []) if len(hits) == 1 else (None, hits or every)
+    return None, hits or every
 
 
 def course_suggestions(store: Store, school_code: str, code: str = "", title: str = "") -> list[dict]:  # all matches
@@ -91,16 +92,18 @@ def course_suggestions(store: Store, school_code: str, code: str = "", title: st
     q = re.sub(r"[\s-]+", "", code.upper())
     t = (title or "").strip().lower()
     rows = []
-    for c in store.ext_courses.values():
-        if c.school_code != school_code or not c.program_area:
-            continue
-        cc = re.sub(r"[\s-]+", "", c.course_code.upper())
-        number = c.course_code.split()[-1]
-        if q and (cc.startswith(q) or (q.isdigit() and number.startswith(q))):
+    for c in catalog_rows(store, school_code):
+        dept, number = c.course_code.split()[0].upper(), c.course_code.split()[-1]
+        if q.isalpha():                                    # a department alone: "CS" is CS, not CSE
+            hit = q in (dept.replace("-", ""), dept.split("-")[0])          # "PSYCH-UA" or "PSYCH"
+        elif q.isdigit():                                  # a number alone: any department's 3000
+            hit = number.startswith(q)
+        elif q:                                            # department + start of the number: "CS30" -> CS 3000
+            hit = re.sub(r"[\s-]+", "", c.course_code.upper()).startswith(q)
+        else:                                              # no code: the title
+            hit = len(t) >= 3 and t in c.title.lower()
+        if hit:
             rows.append(c)
-        elif not q and len(t) >= 3 and t in c.title.lower():
-            rows.append(c)
-    rows.sort(key=lambda c: c.course_code)
     return [dict(course_code=c.course_code, title=c.title, credits=c.credits) for c in rows]
 
 
@@ -120,15 +123,23 @@ def courses(store: Store, school: str) -> Optional[list[dict]]:
     sc = find_school(store, school)
     if sc is None:
         return None
-    rows = [c for c in store.ext_courses.values() if c.school_code == sc.school_code and c.program_area]
-    return [dict(course_code=c.course_code, title=c.title, credits=c.credits)
-            for c in sorted(rows, key=lambda c: c.course_code)]
+    return [dict(course_code=c.course_code, title=c.title, credits=c.credits) for c in catalog_rows(store, sc.school_code)]
+
+
+def is_catalog(c: ExtCourse) -> bool:
+    """The one privacy rule of the public check: courses created by a transcript upload have no program area and
+    are never shown, suggested or used (ADR 0006)."""
+    return bool(c.program_area)
 
 
 def catalog_course(store: Store, ext_id: str) -> Optional[ExtCourse]:
-    """A catalog course, or None. Courses created by a transcript upload have no program area and are private."""
     c = store.ext_courses.get(ext_id)
-    return c if c is not None and c.program_area else None
+    return c if c is not None and is_catalog(c) else None
+
+
+def catalog_rows(store: Store, school_code: str) -> list[ExtCourse]:
+    return sorted((c for c in store.ext_courses.values() if c.school_code == school_code and is_catalog(c)),
+                  key=lambda c: c.course_code)
 
 
 GRADE_ASSUMED = " This assumes a grade of C or better; pass/fail grades and grades below C do not transfer."
@@ -162,26 +173,25 @@ def _conflict(res: dict, flag: str) -> dict:
 def check_course(store: Store, school: str, course_code: str = "", title: str = "", description: str = "",
                  grade: str = "", credits: Optional[float] = None, term: str = "", start_term: str = "Fall 2026",
                  estimate: bool = True) -> dict:
+    code = normalize_code(course_code) if course_code else ""
+    if code and not (_CODE_RE.match(code) or _PARTIAL_RE.match(code)):     # input errors first, whatever the school
+        raise CheckError("Course code must look like 'PSYCH-UA 10'")
     sc, school_options = resolve_school(store, school)
     if sc is None:
         options = [dict(school_code=o.school_code, name=o.name) for o in school_options]
+        names = ", ".join(f"{o['name']} ({o['school_code']})" for o in options)
         return _result("unknown_school", school_suggestions=options,
-                       message=f"'{school[:60]}' does not match one school in the catalog. Schools: "
-                               + ", ".join(f"{o['name']} ({o['school_code']})" for o in options)
-                               + ". If yours is not listed, upload the transcript and a syllabus after you register, and an "
-                                 "evaluator will review it.")
-    res = _check(store, sc, course_code, title, description, grade, credits, term, start_term, estimate)
-    if find_school(store, school) is None:                  # partial school name: say which school was used
-        res["message"] = f"Taking '{school.strip()[:60]}' to mean {sc.name} ({sc.school_code}). " + res["message"]
-    return res
+                       message=(f"Did you mean {names}? Please confirm the school." if len(options) == 1 else
+                                f"'{sanitize(school)[:60]}' does not match one school in the catalog. Schools: {names}. If yours "
+                                "is not listed, upload the transcript and a syllabus after you register, and an "
+                                "evaluator will review it."))
+    return _check(store, sc, course_code, title, description, grade, credits, term, start_term, estimate)
 
 
 def _check(store: Store, sc, course_code: str, title: str, description: str, grade: str, credits: Optional[float],
            term: str, start_term: str, estimate: bool) -> dict:
     code = normalize_code(course_code) if course_code else ""
-    partial = bool(code) and not _CODE_RE.match(code)
-    if partial and not _PARTIAL_RE.match(code):
-        raise CheckError("Course code must look like 'PSYCH-UA 10'")
+    partial = bool(code) and not _CODE_RE.match(code)       # a department or number alone (validated above)
     grade = (grade or "").strip().upper()
     term_n, start_n = _term(term), _term(start_term) or "Fall 2026"
     description = (description or "")[:MAX_DESCRIPTION]
@@ -190,7 +200,7 @@ def _check(store: Store, sc, course_code: str, title: str, description: str, gra
     cr = float(credits) if credits else (course.credits if course else None)
     units = convert_units(cr, calendar) if cr else None                                   # R08 / R09
     base = dict(school_code=sc.school_code, school_name=sc.name, course_code=code or None,
-                title=(course.title if course else title[:120]) or None, calendar=calendar, credits=cr)
+                title=(course.title if course else sanitize(title)[:120]) or None, calendar=calendar, credits=cr)
 
     def no_credit(reason: str, message: str) -> dict:
         meaning = store.reason_codes.get(reason, {}).get("meaning", "")
