@@ -80,7 +80,7 @@ Before any of this, a prospective student can ask **"Will my course transfer?"**
 | **Own department only** | A department account opens on its own department's queue; the name on the account is recorded with every decision ("Deciding as …"). |
 | **Review queue** | Every course waiting for a decision, with syllabus state, number of students, top BU match, overlap % and a confidence bar. **Search** by course, school, title or BU code. The queue stays in view while a long comparison scrolls. |
 | **AI comparison** | Up to 3 ranked BU candidates with overlap %, learning outcomes covered ✓ and missing ✗, the tier (equivalent / evaluator decides / elective), the AI's suggestion and confidence, and the engine used. |
-| **Syllabus next to the comparison** | The syllabus in a collapsible panel, with the automatic request status ("Requested from …, emailed to the student, reminded 1×, next reminder 3 Nov"). A course without a complete syllabus is marked *preliminary – not decidable*. |
+| **Syllabus next to the comparison** | The syllabus in a collapsible panel, with the automatic request status ("Requested from …, emailed to the student, reminded 1×, next reminder 3 Nov"). A course without a complete syllabus is marked *preliminary – not decidable*, says why the syllabus is incomplete, and has a **Request syllabus** button for any student not asked yet (sends the email). |
 | **Past decisions** | Earlier decisions on the same course (decision, BU course, reason, catalog year, evaluator). |
 | **One-click Approve** | A green **Approve** button on the selected candidate saves it as Equivalent (reason EQ-EVALUATOR) to PostgreSQL. |
 | **Full decision form** | Approve equivalent, elective (TR code, format-checked) or no credit; reason code; catalog year; note; "reusable" so the next student with this course is matched automatically. |
@@ -132,7 +132,7 @@ Measured on 30 held-out past decisions the matcher never saw ([`docs/quality/eva
 
 The evaluator-time target (12 → < 2 minutes) has not been measured with real evaluators yet.
 
-**Tests:** 599 backend tests (pytest, offline) and 93 frontend unit tests (Vitest), plus Playwright end-to-end tests in `frontend/e2e/`.
+**Tests:** 599 backend tests (pytest, offline) and 94 frontend unit tests (Vitest), plus Playwright end-to-end tests in `frontend/e2e/`.
 
 ---
 
@@ -259,7 +259,7 @@ The work was split across eight **role agents** run with our AI assistant, **Sol
 | `docs/architecture.md`, `docs/data-model.md`, `docs/adr/`, `docs/api/` | Architect | Architecture, data model, ADRs, API contract |
 | `data/synthetic/`, `scripts/synthetic/` | Synthetic Data | Test catalogs, past decisions, transcripts, syllabi, generator |
 | `backend/` | Developer + QA | FastAPI, rules engine, matcher, chat, database, storage, email, sign-in, 599 tests, evaluation |
-| `frontend/` | Developer | Angular app, 93 unit tests, Playwright end-to-end tests |
+| `frontend/` | Developer | Angular app, 94 unit tests, Playwright end-to-end tests |
 | `infra/`, `scripts/deploy_aca.sh`, `scripts/setup_email*.sh`, `.github/` | DevOps | Azure (Container Apps, Bicep), email setup, CI with the AI-log check, deploy workflows |
 | `docs/security/` | Security | Threat model, checklist, reviews |
 | `docs/adoption/`, `docs/deck-outline.md`, `docs/demo-runbook.md` | Adoption | FAQ, quick-start, release notes, deck, demo runbook |
