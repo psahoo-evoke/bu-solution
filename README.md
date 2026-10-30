@@ -132,6 +132,8 @@ Measured on 30 held-out past decisions the matcher never saw ([`docs/quality/eva
 
 The evaluator-time target (12 → < 2 minutes) has not been measured with real evaluators yet.
 
+**Volume:** at one year of BU intake (800 students, 8,056 transcript lines) a student's status page loads in 0.2 s (p95 0.6 s), an evaluator's queue of 1,603 courses refreshes in 0.5 s, and memory peaks at 141 MB. Tested up to 5x (40,056 lines); indexing transcript lines by student made the registrar export 31x faster at 5x (10.3 s → 0.33 s). What changes at 10x: [`docs/quality/scalability-report.md`](docs/quality/scalability-report.md).
+
 **Tests:** 599 backend tests (pytest, offline) and 94 frontend unit tests (Vitest), plus Playwright end-to-end tests in `frontend/e2e/`.
 
 ---

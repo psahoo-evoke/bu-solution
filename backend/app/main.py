@@ -760,6 +760,12 @@ def course_recommendation(ext_id: str = ExtIdPath):
     return rec
 
 
+def _decidable(ext_id: str, rec: dict) -> bool:
+    """R22: a decision needs a complete syllabus. A catalogue description is not evidence, so a preliminary
+    recommendation (description only, or an incomplete syllabus) can be read but not decided."""
+    return S().syllabus_state(ext_id) == "complete" and not rec["preliminary"]
+
+
 def _maybe_lines():
     out = {}
     for st in S().students.values():
@@ -785,6 +791,8 @@ def review_queue(request: Request, department: Optional[str] = Query(None)):
                           department=c.program_area, students=students, syllabus_state=S().syllabus_state(ext_id),
                           top_candidate=top, confidence_pct=rec["confidence_pct"],
                           preliminary=rec["preliminary"], injection_detected=rec["injection_detected"],
+                          # False while the course waits for a (complete) syllabus: TS/TM is the student's step.
+                          decidable=_decidable(ext_id, rec),
                           batch_eligible=_batch_problem(rec) is None,
                           # Staff reference from the hackathon workbook; not an input to the AI or the rules.
                           workbook_notes=[dict(n) for n in S().workbook_notes.get(ext_id, [])]))
@@ -849,6 +857,9 @@ def post_decision(inp: DecisionInput, request: Request, x_demo_role: str = Heade
     _own_department_only(request, [inp.ext_id])
     inp = inp.model_copy(update=dict(evaluator=_decided_by(request, inp.evaluator)))
     rec = _rec(inp.ext_id) if inp.ext_id in S().ext_courses else None
+    if rec and not _decidable(inp.ext_id, rec):      # the workbench disables it; the API is the authority
+        raise HTTPException(409, "Not decidable yet: there is no complete syllabus on file (R22). "
+                                 "A course description is not evidence; decide once the student uploads the syllabus.")
     return _save_decision(inp, role, rec).to_api()
 
 

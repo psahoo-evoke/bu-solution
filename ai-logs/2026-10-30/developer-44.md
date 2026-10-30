@@ -1,31 +1,35 @@
-# developer-44 · No Home for signed-in students and departments
+# developer-44 · Index transcript lines by student (volume fix)
 
 | Field | Value |
 | --- | --- |
 | Date | 2026-10-30 |
 | Agent (role) | developer |
-| Tool / model | Solutionauts AI (CLI) acting as developer |
-| Human owner | Sagar (spathur) |
-| Trigger | User: "Once a student or department user logs into the application, the Home button and its associated functionality are no longer required. Please remove the Home button from the application UI and disable/remove any related navigation or functionality for both user roles." |
+| Tool / model | Solutionauts AI (Claude Code) |
+| Human owner | Team lead |
+| Trigger | Volume test (qa-01): review queue refresh and MyBU export grew quadratically because `Store.lines_for()` scanned every transcript line for each student. "ok correct that" |
 
-## Prompt (summary)
-Signed-in students and department reviewers should not see or reach the Home page.
+## Prompt (summary or verbatim)
+"ok correct that"
 
 ## Inputs used
-- `frontend/src/app/app.html`, `app.ts`, `app.routes.ts`, `api/auth.guard.ts`, `api/role-home.ts`, `pages/login.*`, `api/role.interceptor.ts`
+- `docs/quality/scalability-report.md` (qa-01), `backend/app/store.py`, `backend/app/notifications.py`, every place that changes `Store.lines`
 
 ## Output
-- `api/role-home.ts`: `homeHidden(role, signedIn)`: true for a signed-in Student or Department (one place for the rule).
-- Top bar (`app.html`, `app.ts`): the **Home** link is hidden for them; the TransferIQ logo opens their own page instead of `/` (student: their status page; department: the workbench), with an accessible label "TransferIQ, my page".
-- `api/auth.guard.ts` + `app.routes.ts`: `homeGuard` on `/` sends a signed-in student or department user to their own page (typing the URL, bookmarks, the back button). A signed-in user without a role stays on the home page, which explains it (no redirect loop with `authGuard`).
-- Unchanged on purpose: staff (Evaluator, Credit staff, Registrar, Advisor) keep Home; signed-out visitors and demo mode keep Home (they pick a view there); sign out, an expired session and the sign-in page's "Back to home" still lead to the home page (the user is signed out by then).
+- `backend/app/store.py`: `lines_for()` uses a per-student index, rebuilt when the `lines` list is replaced or its length changes. Every writer either replaces the list (upload, database load, tests) or appends to it (seed load, tests); nothing edits it in place. The index holds the list it was built from, so a later list cannot reuse its id. Callers get a copy.
+- `backend/app/notifications.py`: uses `lines_for()` instead of its own full scan
+- `backend/tests/test_rules.py`: 3 tests: matches a full scan in transcript order for every student; follows an append, a shorter replacement and a same-length replacement; returns a copy
+- `docs/quality/scalability-report.md`, `docs/roadmap.md`, `README.md`: before/after numbers
 
 ## Human review
-- Pending.
+- Team lead asked for the fix after reading the volume findings.
 
 ## Verification
-- `npx ng test --watch=false`: 12 files, 101 tests passed (new: Home hidden and logo target for a student and a department; Home kept for staff and signed-out visitors; homeGuard redirects for student and department, allows staff, signed-out and demo).
-- `npx ng build`: succeeded.
+- `pytest -q`: 603 passed (600 + 3 new)
+- `python eval/run_volume.py --scales 1,2 --sample 200` and `--scales 5 --sample 30`, before vs after:
+  - MyBU export 5x: 10.27 s -> 0.33 s; 2x: 1.03 -> 0.08 s; 1x: 0.24 -> 0.05 s
+  - Queue refresh 5x: 7.38 -> 2.19 s; one department 5x: 6.41 -> 0.59 s
+  - Status page p50 5x: 818 -> 308 ms
+  - First queue load unchanged (matcher work, not the scan)
 
 ## Commit
-See git log (`developer: no Home for signed-in students and departments (developer-44)`).
+See `git log -- backend/app/store.py`

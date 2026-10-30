@@ -100,8 +100,55 @@ describe('ReviewPage role gating', () => {
     search.dispatchEvent(new Event('input'));
     fixture.detectChanges();
     expect(el.querySelectorAll('.queue__item').length).toBe(0);
-    expect(el.querySelector('.queue__nomatch')?.textContent).toContain('No course matches');
+    expect(el.querySelector('.queue__nomatch')?.textContent).toContain('No ready course matches');
     expect(el.querySelector('.queue__done')).toBeNull();
+  });
+
+  describe('courses waiting for a syllabus (R22)', () => {
+    const mk = (ext_id: string, syllabus_state: string, decidable: boolean | undefined, confidence_pct = 70) => ({
+      ext_id, course_code: ext_id, title: 'T', school_code: 'NYU', department: 'Psychology', students: ['SYN-1'],
+      syllabus_state, decidable, preliminary: syllabus_state !== 'complete', confidence_pct, batch_eligible: false,
+      top_candidate: { bu_code: 'CAS PS 101', title: 'T', overlap_pct: 100 },
+    });
+
+    async function render(items: unknown[]): Promise<HTMLElement> {
+      TestBed.inject(RoleService).set('Evaluator');
+      const fixture = TestBed.createComponent(ReviewPage);
+      fixture.detectChanges();
+      http.expectOne('/api/reason-codes').flush([]);
+      http.expectOne((r) => r.url === '/api/review-queue').flush(items);
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    const titles = (el: HTMLElement, list: string) =>
+      Array.from(el.querySelectorAll(`[aria-label="${list}"] .queue__title strong`)).map((s) => s.textContent?.trim());
+
+    it('keeps them out of the work queue and its count, in a collapsed list without a confidence bar', async () => {
+      const el = await render([mk('READY 1', 'complete', true), mk('TS 1', 'missing', false, 100), mk('TM 1', 'incomplete', false)]);
+      expect(titles(el, 'Courses awaiting a decision')).toEqual(['NYU READY 1']);
+      expect(el.querySelector('#queue-h')?.textContent).toContain('1');
+      const waiting = el.querySelector<HTMLDetailsElement>('details.queue__waiting')!;
+      expect(waiting.open).toBe(false);
+      expect(waiting.querySelector('summary')?.textContent).toContain('Waiting for a syllabus');
+      expect(titles(el, 'Courses waiting for a syllabus')).toEqual(['NYU TS 1', 'NYU TM 1']);
+      expect(waiting.querySelector('.conf')).toBeNull();                       // no "100% confidence" on a description
+      expect(el.querySelector('.detail-empty h2')?.textContent).toContain('1 course is ready for a decision');
+    });
+
+    it('says nothing is ready when every course waits for a syllabus', async () => {
+      const el = await render([mk('TS 1', 'missing', false)]);
+      expect(el.querySelector('.queue__done')?.textContent).toContain('Nothing is ready to decide');
+      expect(el.querySelector('.detail-empty h2')?.textContent).toContain('Nothing is ready to decide');
+      expect(el.querySelector('.batch-empty')).toBeNull();
+    });
+
+    it('falls back to the syllabus state when the API does not send decidable', async () => {
+      const el = await render([mk('READY 1', 'complete', undefined), mk('TS 1', 'missing', undefined)]);
+      expect(titles(el, 'Courses awaiting a decision')).toEqual(['NYU READY 1']);
+      expect(titles(el, 'Courses waiting for a syllabus')).toEqual(['NYU TS 1']);
+    });
   });
 
   it('shows the syllabus next to the AI comparison and the automatic request status', async () => {

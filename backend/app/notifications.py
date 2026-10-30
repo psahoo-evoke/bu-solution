@@ -39,7 +39,7 @@ def _item(kind: str, title: str, body: str, at: str, ext_id: Optional[str] = Non
 
 
 def for_student(store: Store, student_id: str) -> dict:
-    lines = [ln for ln in store.lines if ln.student_id == student_id]
+    lines = store.lines_for(student_id)
     label = {ln.ext_id: f"{ln.school_code} {ln.course_code}" for ln in lines}
     schools = {s.school_code: s.name for s in store.schools.values()}
     decisions = {d.decision_id: d for d in store.decisions}

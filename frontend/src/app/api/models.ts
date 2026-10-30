@@ -186,6 +186,10 @@ export interface ReviewItem {
   top_candidate: Candidate;
   confidence_pct: number;
   batch_eligible: boolean;
+  /** True when based on the catalogue description only (R22). */
+  preliminary?: boolean;
+  /** R22: false while the course waits for a (complete) syllabus; the API refuses a decision (409). */
+  decidable?: boolean;
   /** Hackathon workbook notes for this course (staff reference; not an AI input). */
   workbook_notes?: { bu_course: string; match_level: string; note: string }[];
 }

@@ -37,7 +37,7 @@
 <div class="workbench">
   <section class="card queue" aria-labelledby="queue-h">
     <div class="queue__head">
-      <h2 id="queue-h">Queue <span class="count">{{ queue().length }}</span></h2>
+      <h2 id="queue-h">Ready to decide <span class="count">{{ ready().length }}</span></h2>
       @if (ownDepartment(); as own) {
         <p class="field field--inline dept-fixed">
           <span class="field__label">Department</span>
@@ -79,7 +79,7 @@
         </div>
       }
     </fieldset>
-    } @else {
+    } @else if (ready().length) {
       <p class="batch-empty">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/></svg>
         No course is above 90% confidence, so none can be batch-approved. Decide them one by one.
@@ -92,7 +92,7 @@
         <input id="queue-search" type="search" placeholder="Search course, school or BU code" autocomplete="off"
                [ngModel]="queueSearch()" (ngModelChange)="queueSearch.set($event)" />
         @if (queueSearch()) {
-          <span class="muted small" role="status">{{ shownQueue().length }} of {{ queue().length }}</span>
+          <span class="muted small" role="status">{{ shownQueue().length + shownWaiting().length }} of {{ queue().length }}</span>
         }
       </div>
     }
@@ -125,14 +125,57 @@
           </button>
         </li>
       } @empty {
-        @if (queueSearch() && queue().length) {
-          <li class="muted small queue__nomatch">No course matches “{{ queueSearch() }}”.
+        @if (queueSearch() && ready().length) {
+          <li class="muted small queue__nomatch">No ready course matches “{{ queueSearch() }}”{{ shownWaiting().length ? ' (' + shownWaiting().length + ' waiting for a syllabus below)' : '' }}.
             <button type="button" class="btn btn--small btn--ghost" (click)="queueSearch.set('')">Clear search</button></li>
         } @else if (!queueLoading() && !error()) {
-          <li class="queue__done">All caught up: nothing awaits a decision.</li>
+          @if (waiting().length) {
+            <li class="queue__done queue__done--waiting">Nothing is ready to decide: every course below is waiting for a syllabus.</li>
+          } @else {
+            <li class="queue__done">All caught up: nothing awaits a decision.</li>
+          }
         }
       }
     </ul>
+
+    <!-- R22: a course without a complete syllabus is the student's step (TS/TM), not the evaluator's work. Listed apart,
+         collapsed and without a confidence bar (it would only be a catalogue estimate); open one to see or send the
+         syllabus request. -->
+    @if (waiting().length) {
+      <details class="queue__waiting">
+        <summary>
+          <span>Waiting for a syllabus</span>
+          <span class="count">{{ waiting().length }}</span>
+          <span class="queue__waiting-hint">not decidable yet</span>
+        </summary>
+        <p class="muted small queue__waiting-note">
+          Waiting on the student: a course description is not evidence. Open a course to see the syllabus request and reminders,
+          or send one.
+        </p>
+        <ul class="queue__list" aria-label="Courses waiting for a syllabus">
+          @for (item of shownWaiting(); track item.ext_id) {
+            <li>
+              <button
+                type="button"
+                class="queue__item queue__item--waiting"
+                [class.is-selected]="selected()?.ext_id === item.ext_id"
+                [attr.aria-pressed]="selected()?.ext_id === item.ext_id"
+                (click)="open(item)"
+              >
+                <span class="queue__title"><strong>{{ item.school_code }} {{ item.course_code }}</strong> {{ item.title }}</span>
+                <span class="queue__meta">
+                  <span class="syl syl--{{ item.syllabus_state }}">Syllabus {{ item.syllabus_state }}</span>
+                  <span>{{ item.students.length }} {{ item.students.length === 1 ? 'student' : 'students' }}</span>
+                  @if (!ownDepartment()) { <span>{{ item.department }}</span> }
+                </span>
+              </button>
+            </li>
+          } @empty {
+            <li class="muted small queue__nomatch">No waiting course matches “{{ queueSearch() }}”.</li>
+          }
+        </ul>
+      </details>
+    }
   </section>
 
   <section class="card detail" #detail aria-labelledby="detail-h" aria-live="polite">
@@ -537,15 +580,21 @@
       }
     } @else {
       <div class="detail-empty">
-        @if (queue().length) {
-          <h2 id="detail-h">{{ queue().length }} {{ queue().length === 1 ? 'course is' : 'courses are' }} waiting for a decision</h2>
+        @if (ready().length) {
+          <h2 id="detail-h">{{ ready().length }} {{ ready().length === 1 ? 'course is' : 'courses are' }} ready for a decision</h2>
           <ul class="stats">
-            <li><strong>{{ stats().students }}</strong><span>{{ stats().students === 1 ? 'student' : 'students' }} waiting</span></li>
-            <li><strong>{{ stats().needSyllabus }}</strong><span>need a complete syllabus</span></li>
+            <li><strong>{{ stats().students }}</strong><span>{{ stats().students === 1 ? 'student' : 'students' }} waiting on you</span></li>
             <li><strong>{{ stats().avgConfidence }}%</strong><span>average AI confidence</span></li>
+            <li><strong>{{ stats().waiting }}</strong><span>waiting for a syllabus</span></li>
           </ul>
           <p class="muted">Open a course to see the AI comparison with the BU courses. A timer starts when you open it; the target is {{ targetLabel }}.</p>
           <button type="button" class="btn btn--primary" (click)="openFirst()">Open first course</button>
+        } @else if (waiting().length) {
+          <h2 id="detail-h">Nothing is ready to decide</h2>
+          <p class="muted">
+            {{ waiting().length }} {{ waiting().length === 1 ? 'course is' : 'courses are' }} waiting for the student's syllabus.
+            They move to "Ready to decide" as soon as a complete syllabus is uploaded.
+          </p>
         } @else {
           <h2 id="detail-h">Nothing to review</h2>
           <p class="muted">New courses appear here when students upload transcripts with courses that have no decision yet.</p>

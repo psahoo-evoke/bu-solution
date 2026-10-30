@@ -108,6 +108,22 @@ def test_review_queue(client):
     assert next(i for i in q if i["ext_id"] == "NEU|CS 2700")["workbook_notes"] == []
     psych = client.get("/api/review-queue", params={"department": "Psychology"}).json()
     assert psych and all(i["department"] == "Psychology" for i in psych)
+    # R22: only a course with a complete syllabus is ready to decide; TS/TM courses wait for the student.
+    assert all(i["decidable"] == (i["syllabus_state"] == "complete" and not i["preliminary"]) for i in q)
+    assert item["decidable"] is True
+    assert next(i for i in q if i["ext_id"] == "NYU|PSYCH-UA 25")["decidable"] is False      # syllabus missing (TS)
+    assert next(i for i in q if i["ext_id"] == "NEU|CS 2700")["decidable"] is False          # incomplete (TM)
+
+
+def test_a_course_without_a_complete_syllabus_cannot_be_decided(client, fresh_store):
+    """R22: a catalogue description is not evidence. The workbench disables the button; the API refuses too."""
+    for ext_id, body in [("NYU|PSYCH-UA 25", dict(decision="Elective", bu_course="CAS PS 2TR", reason_code="EL-LOWOVERLAP")),
+                         ("NEU|CS 2700", dict(decision="No credit", bu_course="TFRGEN NOCRDT", reason_code="NC-RESEARCH"))]:
+        before = len(fresh_store.decisions)
+        r = client.post("/api/decisions", json=dict(body, ext_id=ext_id, evaluator="E"), headers=role("Evaluator"))
+        assert r.status_code == 409 and "complete syllabus" in r.json()["detail"]
+        assert len(fresh_store.decisions) == before                                          # nothing saved
+    assert client.post("/api/decisions", json=DEC, headers=role("Evaluator")).status_code == 201   # complete: allowed
 
 
 # ------------------------------------------------------------------ T15 reuse after approval
