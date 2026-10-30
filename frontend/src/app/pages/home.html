@@ -138,19 +138,3 @@
   </ol>
 </section>
 
-<!-- Other staff roles -->
-<section class="staff" aria-labelledby="staff-h">
-  <h2 id="staff-h">Other staff</h2>
-  <div class="staff__list">
-    @for (s of staff; track s.role) {
-      <button type="button" class="staff__item" (click)="open(s.role)">
-        <strong>{{ labels[s.role] }}</strong>
-        <span class="muted small">{{ s.what }}</span>
-      </button>
-    }
-    <a class="staff__item" routerLink="/evaluation">
-      <strong>AI evaluation</strong>
-      <span class="muted small">How well the matcher agrees with past decisions</span>
-    </a>
-  </div>
-</section>

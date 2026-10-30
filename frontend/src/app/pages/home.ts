@@ -54,13 +54,6 @@ export class HomePage implements OnInit {
     },
   ];
 
-  protected readonly staff: { role: DemoRole; what: string }[] = [
-    { role: 'Evaluator', what: 'Review and decide' },
-    { role: 'CreditStaff', what: 'Triage and uploads' },
-    { role: 'Registrar', what: 'Post credit and export' },
-    { role: 'Advisor', what: 'Read-only student view' },
-  ];
-
   /** "My view": who is here and as what. Null when nobody is signed in (portal / entra). */
   protected readonly myView = computed(() => {
     if (this.auth.secured() && !this.auth.signedIn()) return null;
