@@ -69,7 +69,10 @@ describe('HomePage', () => {
     const login = vi.spyOn(auth, 'login').mockResolvedValue();
     const el = render();
     expect(buttons(el).filter((b) => b.includes('Sign in with Microsoft'))).toHaveLength(2);
-    expect(el.textContent).toContain('You are not signed in');
+    // Signed out: no empty "My view" card; the hero offers the public check and a hint points at the sign-in cards.
+    expect(Array.from(el.querySelectorAll('h2')).map((h) => h.textContent?.trim())).not.toContain('My view');
+    expect(el.querySelector('.hero a[href="/credit-check"]')).not.toBeNull();
+    expect(el.textContent).toContain('Sign in below with your university Microsoft account.');
     click(el, 'Sign in with Microsoft');
     expect(login).toHaveBeenCalledWith('Student');
     expect(router.navigateByUrl).not.toHaveBeenCalled();

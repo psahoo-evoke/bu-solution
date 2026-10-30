@@ -80,6 +80,47 @@ export class ReviewPage {
     return `Likely ${decision.toLowerCase()}`;
   }
 
+  /** One line on what the suggestion means for the evaluator, so "Evaluator decides" never reads as an instruction. */
+  protected suggestionHint(decision: string): string {
+    switch (decision) {
+      case 'Evaluator decides':
+        return 'Partial match (50–79% overlap): the AI defers this one to your judgement.';
+      case 'Equivalent':
+        return 'Strong outcome match (80% or more) with this BU course.';
+      case 'Elective':
+        return 'Too little overlap for an equivalent: elective (TR) credit fits best.';
+      case 'No credit':
+        return 'No BU course is close enough for credit.';
+      default:
+        return '';
+    }
+  }
+
+  /**
+   * Why the workbook note deserves a second look, or null: it rates the AI's suggested course as only a partial (or no)
+   * match, or it points at a different BU course. Reference data only; it never changes the AI result.
+   */
+  protected workbookCaution(notes: { bu_course: string; match_level: string }[], suggested: string | null): string | null {
+    if (!suggested || !notes.length) return null;
+    const same = notes.find((n) => n.bu_course === suggested);
+    if (same && /^(partial|no\b|not\b|none)/i.test(same.match_level.trim())) {
+      return `The workbook rates ${suggested} as "${same.match_level}", while the AI suggests it.`;
+    }
+    if (!same) {
+      return `The workbook points to ${notes.map((n) => n.bu_course).join(', ')}, not the AI's ${suggested}.`;
+    }
+    return null;
+  }
+
+  /** Candidates other than the selected one show their covered/missing outcomes only when asked. */
+  protected readonly expanded = signal<Set<string>>(new Set());
+  protected toggleOutcomes(buCode: string): void {
+    const next = new Set(this.expanded());
+    if (next.has(buCode)) next.delete(buCode);
+    else next.add(buCode);
+    this.expanded.set(next);
+  }
+
   /** Why a syllabus is incomplete, in words: "no learning outcomes, no weekly schedule". */
   protected missingSectionsLabel(sections: string[]): string {
     const words: Record<string, string> = { learning_outcomes: 'no learning outcomes', schedule: 'no weekly schedule' };
@@ -154,6 +195,8 @@ export class ReviewPage {
   protected readonly catalogYear = signal('2025-26');
   protected readonly note = signal('');
   protected readonly saving = signal(false);
+  /** A failed save, shown next to the decision button (the page-level banner may be far off screen). */
+  protected readonly saveError = signal<string | null>(null);
 
   protected readonly reasonCodes = signal<ReasonCode[]>([]);
   protected readonly reasonError = signal<string | null>(null);
@@ -164,8 +207,6 @@ export class ReviewPage {
   protected readonly canRecommend = computed(() => can(this.roles.role(), 'recommendation'));
   protected readonly canDecide = computed(() => can(this.roles.role(), 'decide'));
   protected readonly canBatch = computed(() => can(this.roles.role(), 'batch'));
-  /** Department approvers get a one-click Approve on the selected BU candidate. */
-  protected readonly isDepartment = computed(() => this.roles.role() === 'Department');
   protected readonly queueHint = switchRoleMessage('reviewQueue');
   protected readonly decideHint = switchRoleMessage('decide');
   protected readonly decideRole = suggestedRole('decide');
@@ -324,6 +365,8 @@ export class ReviewPage {
     this.recLoading.set(true);
     this.note.set('');
     this.reusable.set(true);
+    this.saveError.set(null);
+    this.expanded.set(new Set());
     // Narrow screens stack the queue above the detail: bring the opened course into view.
     if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 900px)').matches) {
       setTimeout(() => this.detail()?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' }));
@@ -380,18 +423,12 @@ export class ReviewPage {
     this.setDecision(this.decision(), c);
   }
 
-  /** Department one-click: record the picked candidate as Equivalent, using the form's catalog year, note and reusable flag. */
-  approveCandidate(c: Candidate): void {
-    this.candidateCode.set(c.bu_code);
-    this.setDecision('Equivalent', c);
-    this.submit();
-  }
-
   submit(): void {
     const item = this.selected();
     if (!item || !this.buCourseValid() || !this.reasonCode() || !this.canDecide()) return;
     this.saving.set(true);
     this.error.set(null);
+    this.saveError.set(null);
     const seconds = this.elapsedSeconds();
     this.api
       .postDecision({
@@ -414,10 +451,15 @@ export class ReviewPage {
           );
           this.close();
           this.loadQueue();
+          // The pane shrinks to its summary: bring the confirmation into view if the page was scrolled down to decide.
+          setTimeout(() => {
+            const el = this.detail()?.nativeElement;
+            if (el && el.getBoundingClientRect().top < 0) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
         },
         error: (err) => {
           this.saving.set(false);
-          this.error.set(this.fail(err, 'decide'));
+          this.saveError.set(this.fail(err, 'decide'));
         },
       });
   }

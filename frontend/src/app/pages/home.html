@@ -6,6 +6,11 @@
       TransferIQ pre-matches every transfer course, shows students what is secured and what is pending, and gives
       departments an evidence-backed recommendation.
     </p>
+    <!-- Public course-credit check: no sign-in -->
+    <div class="hero__actions">
+      <a class="btn hero__cta" routerLink="/credit-check">Will my course transfer? Check a course</a>
+      <span class="hero__note">No sign-in needed</span>
+    </div>
   </div>
 </section>
 
@@ -16,7 +21,8 @@
   </div>
 }
 
-<!-- My view -->
+<!-- My view: who is here and as what. Signed out, the Student / Department cards below are the way in. -->
+@if (noRole() || myView()) {
 <section class="myview" aria-labelledby="myview-h">
   <h2 id="myview-h">My view</h2>
   @if (noRole()) {
@@ -53,28 +59,14 @@
         }
       </div>
     </div>
-  } @else {
-    <div class="myview__row">
-      <div class="avatar avatar--empty" aria-hidden="true">?</div>
-      <div class="myview__who">
-        <p class="myview__name">You are not signed in</p>
-        <p class="muted small">
-          @if (auth.portal()) { Choose Student View or Department View to sign in with your email, or register if you are new. }
-          @else { Choose Student View or Department View to sign in with your university Microsoft account. }
-        </p>
-      </div>
-    </div>
   }
 </section>
-
-<!-- Public course-credit check: no sign-in -->
-<section class="card home-check" aria-labelledby="home-check-h">
-  <div>
-    <h2 id="home-check-h">Will my course transfer?</h2>
-    <p class="muted">Ask about a course from your previous school before you register. No sign-in needed.</p>
-  </div>
-  <a class="btn btn--primary" routerLink="/credit-check">Check a course</a>
-</section>
+} @else {
+  <p class="signin-hint muted">
+    @if (auth.portal()) { Sign in below with your email, or register if you are new. }
+    @else { Sign in below with your university Microsoft account. }
+  </p>
+}
 
 <!-- Student View / Department View -->
 <div class="views">

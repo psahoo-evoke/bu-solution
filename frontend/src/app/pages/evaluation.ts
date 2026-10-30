@@ -38,6 +38,8 @@ export class EvaluationPage {
   });
   protected readonly deferrals = computed(() => this.metrics()?.deferrals ?? null);
   protected readonly wrongPct = computed(() => toPct(this.metrics()?.wrong_credit_rate));
+  /** Meter scale: 0–10%, stretched to the next 5% when the rate is higher, so the bar never just pins at full. */
+  protected readonly wrongMax = computed(() => Math.max(10, Math.ceil(this.wrongPct() / 5) * 5));
   protected readonly agreementOk = computed(() => this.agreementPct() >= AGREEMENT_GATE_PCT);
   protected readonly wrongOk = computed(() => this.wrongPct() <= WRONG_CREDIT_GATE_PCT);
 
@@ -79,6 +81,16 @@ export class EvaluationPage {
   }
 
   label(col: string): string {
-    return col.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+    return COLUMN_LABELS[col] ?? col.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
   }
 }
+
+/** Plain names for the by-tier columns the API returns; unknown columns fall back to their key in words. */
+const COLUMN_LABELS: Record<string, string> = {
+  n: 'Decisions',
+  top1: 'Right course on top',
+  top1_deferrals: 'Of which deferred',
+  strict: 'Strict correct',
+  wrong_credit: 'Wrong credit',
+  top1_agreement: 'Top-1 agreement',
+};

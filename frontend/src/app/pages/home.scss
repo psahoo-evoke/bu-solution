@@ -12,6 +12,15 @@
 }
 .hero__eyebrow { margin: 0; text-transform: uppercase; letter-spacing: .12em; font-size: .75rem; font-weight: 700; opacity: .85; }
 .hero__lead { margin: 0; font-size: 1.02rem; max-width: 46rem; opacity: .95; }
+.hero__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-top: 1.25rem; }
+.hero__cta {
+  background: #fff; border-color: #fff; color: var(--brand-dark); padding: .6rem 1.1rem; font-size: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
+  &:hover:not(:disabled) { background: #fdf3f3; }
+  &:focus-visible { outline-color: #fff; }
+}
+.hero__note { font-size: .88rem; opacity: .9; }
+.signin-hint { margin: -.25rem 0 1rem; }
 
 .myview {
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;
@@ -79,5 +88,3 @@
 @media (max-width: 760px) {
   .hero { grid-template-columns: 1fr; padding: 1.5rem 1.25rem; }
 }
-
-.home-check { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; h2 { margin: 0 0 .25rem; } p { margin: 0; } }

@@ -14,7 +14,10 @@
       @if (showNav('reviewQueue')) {
         <a routerLink="/review" routerLinkActive="active" ariaCurrentWhenActive="page">Evaluator workbench</a>
       }
-      <a routerLink="/evaluation" routerLinkActive="active" ariaCurrentWhenActive="page">AI evaluation</a>
+      <!-- Model quality metrics are for staff; a student's status page never links to them. -->
+      @if (roleService.role() !== 'Student') {
+        <a routerLink="/evaluation" routerLinkActive="active" ariaCurrentWhenActive="page">AI evaluation</a>
+      }
       @if (showNav('export') || showNav('post')) {
         <a routerLink="/registrar" routerLinkActive="active" ariaCurrentWhenActive="page">Registrar</a>
       }

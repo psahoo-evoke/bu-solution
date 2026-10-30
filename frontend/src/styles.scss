@@ -9,6 +9,10 @@
   --brand-dark: #990000;
   --accent: #1f5fae;
   --focus: #1f5fae;
+  // Actions: BU red is the brand (top bar, logo, hero); buttons use ink so red never reads as "danger" or "error".
+  --primary: #22334a;
+  --primary-dark: #131f2e;
+  --approve: #1f7a3a;
   --secured-bg: #e3f4e8;
   --secured-fg: #155d2b;
   --pending-bg: #fff3d6;
@@ -118,6 +122,7 @@ code { font-size: .9em; background: #eef1f4; padding: 0 .25em; border-radius: 4p
   &__time { font-size: .75rem; color: var(--muted); }
 }
 .topbar__user { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 480px) { .topbar__user { display: none; } }
 .badge {
   display: inline-block; font-size: .75rem; padding: .15rem .5rem; border-radius: 999px; font-weight: 600;
 }
@@ -150,12 +155,12 @@ output { padding: .4rem 0; font-weight: 600; }
 input[type='checkbox'], input[type='radio'] { width: 1.05rem; height: 1.05rem; accent-color: var(--accent); }
 
 .btn {
-  font: inherit; display: inline-flex; align-items: center; gap: .35rem; cursor: pointer;
+  font: inherit; display: inline-flex; align-items: center; gap: .35rem; cursor: pointer; text-decoration: none;
   padding: .45rem .9rem; border-radius: 6px; border: 1px solid #9aa3ae; background: #fff; color: var(--text); font-weight: 600;
   &:hover:not(:disabled) { background: #f0f2f5; }
   &:disabled { opacity: .55; cursor: not-allowed; }
-  &--primary { background: var(--brand); border-color: var(--brand); color: #fff; &:hover:not(:disabled) { background: var(--brand-dark); } }
-  &--success { background: #1f7a3a; border-color: #1f7a3a; color: #fff; &:hover:not(:disabled) { background: var(--secured-fg); } }
+  &--primary { background: var(--primary); border-color: var(--primary); color: #fff; &:hover:not(:disabled) { background: var(--primary-dark); } }
+  &--success { background: var(--approve); border-color: var(--approve); color: #fff; &:hover:not(:disabled) { background: var(--secured-fg); } }
   &--danger { background: #fff; border-color: var(--brand); color: var(--brand-dark); }
   &--ghost { border-color: transparent; background: transparent; }
   &--small { padding: .25rem .6rem; font-size: .85rem; }
@@ -198,7 +203,15 @@ input[type='checkbox'], input[type='radio'] { width: 1.05rem; height: 1.05rem; a
 }
 
 // Student status
-.student-card { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; p { margin: 0; } }
+.summary {
+  padding: 0; overflow: hidden;
+  &__who {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem 1rem; padding: .85rem 1.1rem;
+    h2 { margin: 0; }
+    p { margin: .1rem 0 0; }
+  }
+  &__body { padding: 1rem 1.1rem 1.1rem; border-top: 1px solid var(--border); background: #fbfcfd; }
+}
 .spinner {
   display: inline-block; flex: none; width: 1em; height: 1em; border-radius: 50%;
   border: 2px solid currentColor; border-right-color: transparent; animation: spin .75s linear infinite;
@@ -219,19 +232,23 @@ input[type='checkbox'], input[type='radio'] { width: 1.05rem; height: 1.05rem; a
   &__step { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--brand-dark); margin-bottom: 0 !important; }
   @media (max-width: 600px) { .file-btn { width: 100%; justify-content: center; } }
 }
-.totals {
-  display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.25rem; padding: 1rem 1.25rem; margin-bottom: 1rem;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); border-top: 4px solid var(--brand);
-}
+.totals { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .75rem 2.25rem; }
 .total {
   display: flex; flex-direction: column;
-  &__label { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
-  &__value { font-size: 1.45rem; font-weight: 700; }
+  &__label { display: inline-flex; align-items: center; gap: .4rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+  &__value { font-size: 1.45rem; font-weight: 700; font-variant-numeric: tabular-nums; }
   &--secured .total__value { color: var(--secured-fg); }
   &--pending .total__value { color: var(--pending-fg); }
   &--cap { margin-left: auto; .total__value { font-size: 1rem; } }
 }
-.total__sep { font-size: 1.5rem; color: var(--muted); }
+// Legend swatches: the same fills as the progress bar, so the totals double as its key.
+.swatch {
+  flex: none; width: .75rem; height: .75rem; border-radius: 3px;
+  &--secured { background: var(--approve); }
+  &--pending { background: repeating-linear-gradient(45deg, #e0a526 0 3px, #ecc15e 3px 6px); }
+  &--nocredit { background: var(--nocredit-bg); border: 1px solid #c4c9d0; }
+}
+@media (max-width: 600px) { .totals { gap: .75rem 1.5rem; } .total--cap { margin-left: 0; } }
 meter { width: 10rem; height: 1rem; }
 .term h3 { margin-top: 0; }
 
@@ -360,7 +377,7 @@ meter { width: 10rem; height: 1rem; }
   transition: background .12s, border-color .12s, box-shadow .12s;
   &:hover { background: #f7f8fa; border-color: #c4cad2; }
   &:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-  &.is-selected { border-left-color: var(--brand); background: #fdf3f3; box-shadow: 0 1px 4px rgba(204, 0, 0, .12); }
+  &.is-selected { border-color: #a9c6ea; border-left-color: var(--accent); background: var(--info-bg); box-shadow: 0 1px 4px rgba(31, 95, 174, .14); }
 }
 .detail__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; p { margin: 0; } }
 .empty { padding: 2rem 0; text-align: center; }
@@ -372,8 +389,24 @@ meter { width: 10rem; height: 1rem; }
   &--over { background: var(--pending-bg); color: var(--pending-fg); border-color: #e6c77a; }
 }
 .suggestion {
-  display: flex; flex-wrap: wrap; gap: 1.5rem; padding: .6rem .8rem; margin: .75rem 0; background: var(--info-bg); border-radius: var(--radius);
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: .75rem 2rem; padding: .75rem .9rem .55rem; margin: .75rem 0;
+  background: var(--info-bg); border: 1px solid #c9dcf3; border-radius: var(--radius);
   &--prelim { background: var(--pending-bg); border: 1px dashed #e6c77a; }
+  p { margin: 0; }
+  &__main { flex: 1 1 20rem; display: grid; gap: .15rem; }
+  &__label { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  &__pick { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .6rem; }
+  &__code { font-size: 1.2rem; }
+  &__decision { font-weight: 600; }
+  &__why { font-size: .88rem; color: var(--text); }
+  &__conf { display: grid; justify-items: start; gap: .2rem; .conf__bar { width: 6rem; } }
+  &__pct { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+  &__engine { flex-basis: 100%; font-size: .75rem; color: var(--muted); text-align: right; code { font-size: .72rem; } }
+}
+.detail__saved { align-items: flex-start; flex-wrap: nowrap; }
+.detail__saved-icon {
+  flex: none; display: grid; place-items: center; width: 1.35rem; height: 1.35rem; border-radius: 50%;
+  background: var(--approve); color: #fff; font-size: .8rem; font-weight: 700;
 }
 .wb-notes {
   margin: -.25rem 0 .75rem; padding: .55rem .8rem; border: 1px solid var(--border); border-left: 3px solid var(--accent);
@@ -382,6 +415,13 @@ meter { width: 10rem; height: 1rem; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; }
   li { display: flex; flex-direction: column; gap: .1rem; font-size: .88rem; line-height: 1.45; }
   &__row { font-size: .8rem; color: var(--muted); strong { color: var(--text); } }
+  &__why { margin: 0 0 .4rem; font-weight: 600; color: var(--pending-fg); }
+  &__flag {
+    padding: .05rem .5rem; border-radius: 999px; background: #c48a00; color: #fff; font-size: .72rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  // The workbook disagrees with the AI's pick: worth reading before approving.
+  &--caution { border-color: #e6c77a; border-left: 4px solid #c48a00; background: #fffbf0; }
 }
 .prelim-tag {
   margin-left: .35rem; padding: 0 .45rem; border-radius: 999px; background: #fff; border: 1px solid #e6c77a;
@@ -393,7 +433,14 @@ meter { width: 10rem; height: 1rem; }
   &.is-selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   &__top { display: flex; gap: .75rem; align-items: flex-start; justify-content: space-between; }
   &__head { display: flex; gap: .5rem; align-items: flex-start; cursor: pointer; }
-  &__approve { flex: none; }
+  &__picked {
+    flex: none; padding: .1rem .55rem; border-radius: 999px; background: var(--accent); color: #fff; font-size: .75rem; font-weight: 700;
+  }
+  &__toggle {
+    margin-left: auto; font: inherit; font-size: .85rem; font-weight: 600; color: var(--accent); background: none; border: 0;
+    padding: .15rem .25rem; cursor: pointer; border-radius: 4px;
+    &:hover { text-decoration: underline; }
+  }
 }
 .tier {
   display: inline-block; font-size: .75rem; font-weight: 600; padding: .05rem .45rem; border-radius: 999px; margin-left: .35rem; border: 1px solid;
@@ -401,7 +448,7 @@ meter { width: 10rem; height: 1rem; }
   &--evaluator_decides { background: var(--pending-bg); color: var(--pending-fg); }
   &--elective { background: var(--nocredit-bg); color: var(--nocredit-fg); }
 }
-.overlap { display: flex; align-items: center; gap: .6rem; margin: .4rem 0; }
+.overlap { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; margin: .4rem 0; }
 .outcomes { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; @media (max-width: 600px) { grid-template-columns: 1fr; } }
 .outcome-list {
   list-style: none; margin: 0; padding: 0; font-size: .88rem;
@@ -409,7 +456,21 @@ meter { width: 10rem; height: 1rem; }
   &--covered span { color: var(--secured-fg); font-weight: 700; }
   &--missing span { color: var(--action-fg); font-weight: 700; }
 }
-.decision { border-top: 1px solid var(--border); margin-top: 1rem; padding-top: .25rem; }
+.decision {
+  border-top: 1px solid var(--border); margin: 1rem -1.1rem -1rem; padding: .6rem 1.1rem .75rem;
+  background: var(--surface); border-radius: 0 0 var(--radius) var(--radius);
+  h3 { margin: 0; }
+  &__top { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-bottom: .6rem; .segmented { margin: 0; } }
+  &__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; margin-top: .6rem; }
+  &__spacer { flex: 1; }
+  // Why the button is disabled: its own line under the buttons, so Close and Approve always stay side by side.
+  &__hint { order: 10; flex-basis: 100%; text-align: right; }
+  &__error { margin: .6rem 0 0; }
+}
+// Wide screens: the decision bar stays pinned to the bottom of the viewport while the evidence scrolls above it.
+@media (min-width: 901px) {
+  .decision { position: sticky; bottom: 0; z-index: 5; box-shadow: 0 -6px 16px rgba(27, 31, 36, .08); }
+}
 .segmented {
   display: flex; flex-wrap: wrap; gap: 0; border: 0; padding: 0; margin: 0 0 .75rem;
   label {
@@ -421,7 +482,12 @@ meter { width: 10rem; height: 1rem; }
     &:focus-within { outline: 3px solid var(--focus); outline-offset: 1px; z-index: 1; }
   }
 }
-.decision__fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .75rem; align-items: end; }
+.decision__fields {
+  display: grid; grid-template-columns: minmax(9rem, 1fr) minmax(14rem, 2fr) 7.5rem minmax(12rem, 2fr); gap: .6rem .75rem; align-items: end;
+  .field { min-width: 0; }
+  select, input[type='text'] { width: 100%; min-width: 0; }
+  @media (max-width: 1100px) { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
+}
 
 // Evaluation
 .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
@@ -432,14 +498,53 @@ meter { width: 10rem; height: 1rem; }
 }
 .total__note { font-size: .8rem; color: var(--pending-fg); }
 .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
-.registrar-student { max-width: 26rem; margin-bottom: 1rem; }
+// Registrar: one panel (student filter + the two steps it scopes), demo tools apart
+.registrar-panel { padding: 0; }
+.registrar-panel__head {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem 1rem;
+  padding: .85rem 1.1rem; border-bottom: 1px solid var(--border);
+  h2 { margin: 0; }
+  select { min-width: 16rem; max-width: 100%; }
+}
+.registrar-steps {
+  list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  > li { display: flex; gap: .85rem; padding: 1rem 1.1rem 1.15rem; }
+  > li + li { border-left: 1px solid var(--border); }
+  h3 { margin: .15rem 0 .35rem; font-size: 1.05rem; }
+  p { margin: 0 0 .75rem; }
+  @media (max-width: 660px) { > li + li { border-left: 0; border-top: 1px solid var(--border); } }
+}
+.registrar-steps__num {
+  flex: none; display: grid; place-items: center; width: 1.8rem; height: 1.8rem; border-radius: 50%;
+  background: var(--info-bg); color: var(--accent); font-weight: 700; font-size: .9rem;
+}
+.demo-tools {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .75rem 1.5rem;
+  margin: 1.5rem 0 1rem; padding: .85rem 1.1rem; border: 1px dashed #b9c0c9; border-radius: var(--radius); background: transparent;
+  h2 { margin: 0 0 .2rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  p { margin: 0; }
+}
 .field-error { color: var(--action-fg); font-weight: 600; }
 .metric__extra {
   display: flex; flex-wrap: wrap; gap: 1.25rem; margin: .75rem 0 .25rem;
   dt { font-size: .8rem; color: var(--muted); font-weight: 600; }
   dd { margin: 0; font-size: 1.15rem; font-weight: 700; }
 }
-.syllabus-done { display: inline-block; font-size: .82rem; font-weight: 600; color: var(--secured-fg); white-space: nowrap; }
+.syllabus-done { display: block; margin-top: .3rem; font-size: .82rem; font-weight: 600; color: var(--secured-fg); white-space: nowrap; }
+@media (min-width: 701px) {
+  .table--terms {
+    table-layout: fixed;
+    // Narrow columns in rem so "Next step" (instruction + its upload button) gets the remaining width.
+    .col-course { width: 20%; }
+    .col-status { width: 16.5rem; }
+    .col-bu { width: 10rem; }
+    .col-units { width: 6.5rem; }
+    .col-flags { width: 10rem; }
+    td { overflow-wrap: break-word; }
+  }
+}
+.next-action { margin-top: .45rem; }
+@media (max-width: 700px) { .table--stack .next-action .file-btn { width: 100%; justify-content: center; } }
 
 // Student "to do": courses waiting on a syllabus the student can upload
 .todo {
@@ -450,16 +555,24 @@ meter { width: 10rem; height: 1rem; }
     display: inline-grid; place-items: center; min-width: 1.7rem; height: 1.7rem; padding: 0 .4rem; border-radius: 999px;
     background: #c48a00; color: #fff; font-size: .9rem; font-weight: 700;
   }
-  &__list { margin: 0; padding-left: 1.2rem; font-size: .92rem; li { padding: .1rem 0; } }
+  &__list {
+    list-style: none; margin: .25rem 0 0; padding: 0; font-size: .92rem; display: grid; gap: .4rem;
+    li {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .4rem .75rem;
+      padding: .45rem .6rem; background: rgba(255, 255, 255, .7); border: 1px solid #ecd59a; border-radius: 6px;
+    }
+    @media (max-width: 600px) { .file-btn { width: 100%; justify-content: center; } }
+  }
 }
 .table tr.row--action { background: #fffaf0; td:first-child { box-shadow: inset 4px 0 0 #c48a00; } }
 
 // Student credit progress: secured vs pending units at a glance
 .progress {
-  margin-bottom: .6rem;
-  &__text { margin: 0 0 .35rem; }
-  &__bar { display: flex; height: .7rem; border-radius: 999px; overflow: hidden; background: var(--nocredit-bg); }
-  &__secured { background: #1f7a3a; }
+  margin-bottom: 1rem;
+  &__text { margin: 0 0 .45rem; }
+  &__pct { font-size: 1.15rem; margin-right: .35rem; }
+  &__bar { display: flex; height: .8rem; border-radius: 999px; overflow: hidden; background: var(--nocredit-bg); }
+  &__secured { background: var(--approve); }
   &__pending { background: repeating-linear-gradient(45deg, #e0a526 0 6px, #ecc15e 6px 12px); }
 }
 
@@ -477,7 +590,6 @@ meter { width: 10rem; height: 1rem; }
     }
     td:first-child { padding: 0 0 .4rem; &::before { display: none; } }
     td.is-empty { display: none; }
-    td.cell-actions { padding: .4rem 0 0; .file-btn { width: 100%; justify-content: center; } }
   }
 }
 

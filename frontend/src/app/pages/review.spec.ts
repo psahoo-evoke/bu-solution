@@ -251,15 +251,20 @@ describe('ReviewPage candidate Approve', () => {
     return fixture;
   }
 
-  it('shows Approve only on the selected candidate and posts it as Equivalent for Department', async () => {
+  function approveButtons(el: HTMLElement): HTMLButtonElement[] {
+    return Array.from(el.querySelectorAll<HTMLButtonElement>('button')).filter((b) => /Approve/.test(b.textContent ?? ''));
+  }
+
+  it('has one Approve, in the decision bar, and it posts the picked candidate for Department', async () => {
     const fixture = await openCourse('Department');
     const el = fixture.nativeElement as HTMLElement;
-    const radios = el.querySelectorAll<HTMLInputElement>('input[name="candidate"]');
-    radios[1].click();
+    el.querySelectorAll<HTMLInputElement>('input[name="candidate"]')[1].click();
     fixture.detectChanges();
-    const buttons = el.querySelectorAll<HTMLButtonElement>('.candidate__approve');
+    expect(el.querySelector('.decision output')?.textContent).toContain('CAS BI 108');
+    const buttons = approveButtons(el);
     expect(buttons.length).toBe(1);
-    expect(buttons[0].closest('.candidate')?.textContent).toContain('CAS BI 108');
+    expect(buttons[0].closest('.decision')).not.toBeNull();
+    expect(buttons[0].classList).toContain('btn--success');
     buttons[0].click();
     const req = http.expectOne((r) => r.method === 'POST' && r.url === '/api/decisions');
     expect(req.request.body).toEqual(expect.objectContaining({
@@ -267,8 +272,34 @@ describe('ReviewPage candidate Approve', () => {
     }));
   });
 
-  it('does not show the candidate Approve button for Evaluator', async () => {
+  it('has no per-candidate Approve button for Evaluator either', async () => {
     const fixture = await openCourse('Evaluator');
-    expect((fixture.nativeElement as HTMLElement).querySelector('.candidate__approve')).toBeNull();
+    const buttons = approveButtons(fixture.nativeElement as HTMLElement);
+    expect(buttons.length).toBe(1);
+    expect(buttons[0].closest('.candidate')).toBeNull();
+  });
+
+  it('shows a failed save next to the decision button, not only at the top of the page', async () => {
+    const fixture = await openCourse('Evaluator');
+    const el = fixture.nativeElement as HTMLElement;
+    approveButtons(el)[0].click();
+    http.expectOne((r) => r.method === 'POST' && r.url === '/api/decisions')
+      .flush({ detail: 'boom' }, { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+    const err = el.querySelector('.decision [role="alert"]');
+    expect(err?.textContent).toContain('Not saved');
+    expect(el.querySelector('.decision')).not.toBeNull();   // the course stays open, so the evaluator can retry
+  });
+
+  it('shows outcomes for the selected candidate and the others on request', async () => {
+    const fixture = await openCourse('Evaluator');
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('.candidate .outcomes').length).toBe(1);
+    const toggle = el.querySelector<HTMLButtonElement>('.candidate__toggle')!;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.click();
+    fixture.detectChanges();
+    expect(el.querySelectorAll('.candidate .outcomes').length).toBe(2);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
   });
 });

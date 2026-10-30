@@ -45,7 +45,13 @@ export class StudentStatusPage {
   /** A student only ever sees their own record, so no student picker; staff use it to switch students. */
   protected readonly showPicker = computed(() => this.roles.role() !== 'Student');
   protected readonly heading = computed(() => statusTitle(this.roles.role()));
-  protected readonly groups = computed(() => groupByTerm(this.evaluation()?.lines ?? []));
+  /** Students see plain status only: no reason codes or AI tiers (evaluator language). */
+  protected readonly isStudent = computed(() => this.roles.role() === 'Student');
+  /** Same columns in every term table (so they line up): Flags only when it has something to show for this viewer. */
+  protected readonly showFlags = computed(() => {
+    const lines = this.evaluation()?.lines ?? [];
+    return lines.some((l) => l.flags.length) || (!this.isStudent() && lines.some((l) => l.reason_code));
+  });  protected readonly groups = computed(() => groupByTerm(this.evaluation()?.lines ?? []));
   protected readonly totals = computed(() => this.evaluation()?.totals ?? null);
   protected readonly hasCourses = computed(() => (this.evaluation()?.lines.length ?? 0) > 0);
   /** Courses still missing a (complete) syllabus that this user can upload: the "to do" card and highlighted rows. */

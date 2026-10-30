@@ -13,14 +13,19 @@
 
 @if (metrics(); as m) {
   <div class="banner" [class.banner--success]="m.gates_met" [class.banner--warning]="!m.gates_met" role="status">
-    <strong>{{ m.gates_met ? 'Gates met' : 'Gates not met' }}</strong> on {{ m.n }} held-out decisions · engine <code>{{ m.engine }}</code>
+    <strong>{{ m.gates_met ? 'Gates met' : 'Gates not met' }}</strong> on {{ m.n }} held-out decisions ·
+    engine <code>{{ m.engine }}</code>
+    <span class="muted small">
+      ({{ m.engine === 'offline-fallback' ? 'deterministic offline matcher, no Azure OpenAI key set' : 'Azure OpenAI outcome comparison' }})
+    </span>
   </div>
 
   <div class="metrics">
     <section class="card metric" aria-labelledby="m-agree">
       <h2 id="m-agree">Top-1 candidate agreement</h2>
       <p class="metric__value">{{ agreementPct() | number: '1.0-1' }}%</p>
-      <meter min="0" max="100" [low]="agreementGate" [optimum]="100" [value]="agreementPct()" aria-label="Top-1 candidate agreement"></meter>
+      <!-- low = high = gate: green at or above the gate, red below it (no amber band). -->
+      <meter min="0" max="100" [low]="agreementGate" [high]="agreementGate" [optimum]="100" [value]="agreementPct()" aria-label="Top-1 candidate agreement"></meter>
       <p class="metric__gate" [class.ok]="agreementOk()" [class.bad]="!agreementOk()">
         <span aria-hidden="true">{{ agreementOk() ? '✓' : '✗' }}</span>
         {{ agreementOk() ? 'Pass' : 'Fail' }}: gate is at least {{ agreementGate }}%
@@ -43,17 +48,11 @@
     <section class="card metric" aria-labelledby="m-wrong">
       <h2 id="m-wrong">Wrongly suggested credit</h2>
       <p class="metric__value">{{ wrongPct() | number: '1.0-1' }}%</p>
-      <meter min="0" max="10" [high]="wrongGate" [optimum]="0" [value]="wrongPct()" aria-label="Wrongly suggested credit rate"></meter>
+      <!-- Green up to the gate, red above it; the scale grows when the rate is beyond 10%. -->
+      <meter min="0" [max]="wrongMax()" [low]="wrongGate" [high]="wrongGate" [optimum]="0" [value]="wrongPct()" aria-label="Wrongly suggested credit rate"></meter>
       <p class="metric__gate" [class.ok]="wrongOk()" [class.bad]="!wrongOk()">
         <span aria-hidden="true">{{ wrongOk() ? '✓' : '✗' }}</span>
         {{ wrongOk() ? 'Pass' : 'Fail' }}: gate is at most {{ wrongGate }}%
-      </p>
-    </section>
-    <section class="card metric" aria-labelledby="m-engine">
-      <h2 id="m-engine">Engine</h2>
-      <p class="metric__value metric__value--text"><code>{{ m.engine }}</code></p>
-      <p class="muted small">
-        {{ m.engine === 'offline-fallback' ? 'Deterministic offline matcher (no Azure OpenAI key set).' : 'Azure OpenAI outcome comparison.' }}
       </p>
     </section>
   </div>

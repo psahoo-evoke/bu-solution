@@ -1,7 +1,7 @@
 <section class="page-head">
   <div>
     <h1>Registrar</h1>
-    <p class="muted">Export approved courses for posting in MyBU, and reset the demo.</p>
+    <p class="muted">Post evaluator-approved credit so students see it as secured, and export it for MyBU.</p>
   </div>
 </section>
 
@@ -16,52 +16,53 @@
   <div class="banner banner--success" role="status">{{ message() }}</div>
 }
 
-<div class="field registrar-student">
-  <label for="export-student">Student</label>
-  <select id="export-student" [ngModel]="studentId()" (ngModelChange)="studentId.set($event)">
-    <option value="">All students</option>
-    @for (s of students(); track s.student_id) {
-      <option [value]="s.student_id">{{ s.student_id }} · {{ s.name }}</option>
-    }
-  </select>
-</div>
+<!-- The student filter scopes both steps below, so it sits above them as the panel's heading row. -->
+<section class="card registrar-panel" aria-labelledby="posting-h">
+  <header class="registrar-panel__head">
+    <h2 id="posting-h">Posting and export</h2>
+    <div class="field field--inline">
+      <label for="export-student">Student</label>
+      <select id="export-student" [ngModel]="studentId()" (ngModelChange)="studentId.set($event)">
+        <option value="">All students</option>
+        @for (s of students(); track s.student_id) {
+          <option [value]="s.student_id">{{ s.student_id }} · {{ s.name }}</option>
+        }
+      </select>
+    </div>
+  </header>
 
-<div class="grid-3">
-  <section class="card" aria-labelledby="post-h">
-    <h2 id="post-h">Post approved courses</h2>
-    <p class="muted small">
-      Evaluator-approved courses wait here as TP ("Approved – awaiting posting"). Posting makes them secured (T) for the student.
-    </p>
-    <button type="button" class="btn btn--primary" (click)="post()" [disabled]="posting() || !canPost()" [attr.aria-describedby]="canPost() ? null : 'post-hint'">
-      {{ posting() ? 'Posting…' : 'Post approved courses' }}
-    </button>
-    @if (!canPost()) {
-      <p id="post-hint" class="muted small">{{ postHint }}</p>
-    }
-  </section>
-
-  <section class="card" aria-labelledby="export-h">
-    <h2 id="export-h">MyBU posting export</h2>
-    <p class="muted small">Rows contain the BU course or TR code, units and grade T/TX (US-09, R24).</p>
-    <button type="button" class="btn btn--primary" (click)="download()" [disabled]="downloading() || !canExport()" [attr.aria-describedby]="canExport() ? null : 'export-hint'">
-      {{ downloading() ? 'Preparing…' : 'Download MyBU CSV' }}
-    </button>
-    @if (!canExport()) {
-      <p id="export-hint" class="muted small">{{ exportHint }}</p>
-    }
-  </section>
-
-  <section class="card" aria-labelledby="reset-h">
-    <h2 id="reset-h">Demo reset</h2>
-    <p class="muted small">Restores the original data and removes decisions made during the demo.</p>
-    <button type="button" class="btn btn--danger" (click)="reset()" [disabled]="resetting() || !canReset()" [attr.aria-describedby]="canReset() ? null : 'reset-hint'">
-      {{ resetting() ? 'Resetting…' : 'Reset demo data' }}
-    </button>
-    @if (!canReset()) {
-      <p id="reset-hint" class="muted small">{{ resetHint }}</p>
-    }
-  </section>
-</div>
+  <ol class="registrar-steps">
+    <li>
+      <span class="registrar-steps__num" aria-hidden="true">1</span>
+      <div>
+        <h3 id="post-h">Post approved courses</h3>
+        <p class="muted small">
+          Evaluator-approved courses wait as TP ("Approved – awaiting posting"). Posting makes them secured (T) on the
+          student's status page.
+        </p>
+        <button type="button" class="btn btn--primary" (click)="post()" [disabled]="posting() || !canPost()" [attr.aria-describedby]="canPost() ? null : 'post-hint'">
+          {{ posting() ? 'Posting…' : 'Post approved courses' }}
+        </button>
+        @if (!canPost()) {
+          <p id="post-hint" class="muted small">{{ postHint }}</p>
+        }
+      </div>
+    </li>
+    <li>
+      <span class="registrar-steps__num" aria-hidden="true">2</span>
+      <div>
+        <h3 id="export-h">MyBU posting export</h3>
+        <p class="muted small">A CSV for MyBU: one row per course with the BU course or TR code, units and grade T or TX.</p>
+        <button type="button" class="btn" (click)="download()" [disabled]="downloading() || !canExport()" [attr.aria-describedby]="canExport() ? null : 'export-hint'">
+          {{ downloading() ? 'Preparing…' : 'Download MyBU CSV' }}
+        </button>
+        @if (!canExport()) {
+          <p id="export-hint" class="muted small">{{ exportHint }}</p>
+        }
+      </div>
+    </li>
+  </ol>
+</section>
 
 @if (posted(); as p) {
   <section class="card" aria-labelledby="posted-h">
@@ -118,3 +119,17 @@
     </div>
   </section>
 }
+
+<!-- Demo-only control, kept apart from the real posting steps so it is never clicked by mistake. -->
+<section class="demo-tools" aria-labelledby="reset-h">
+  <div>
+    <h2 id="reset-h">Demo tools</h2>
+    <p class="muted small">Reset demo data restores the original data and removes decisions made during the demo. It asks before it runs.</p>
+    @if (!canReset()) {
+      <p id="reset-hint" class="muted small">{{ resetHint }}</p>
+    }
+  </div>
+  <button type="button" class="btn btn--danger" (click)="reset()" [disabled]="resetting() || !canReset()" [attr.aria-describedby]="canReset() ? null : 'reset-hint'">
+    {{ resetting() ? 'Resetting…' : 'Reset demo data' }}
+  </button>
+</section>

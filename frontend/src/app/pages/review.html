@@ -32,11 +32,6 @@
   </div>
 }
 <app-error-banner [message]="error()" (retry)="loadQueue()" />
-@if (success()) {
-  <div class="banner banner--success" role="status">
-    <strong>Saved.</strong> {{ success() }}
-  </div>
-}
 
 @if (canQueue()) {
 <div class="workbench">
@@ -141,6 +136,13 @@
   </section>
 
   <section class="card detail" #detail aria-labelledby="detail-h" aria-live="polite">
+    <!-- Confirmation where the evaluator is looking (the detail pane), not at the top of a long page. -->
+    @if (success()) {
+      <div class="banner banner--success detail__saved" role="status">
+        <span aria-hidden="true" class="detail__saved-icon">✓</span>
+        <span><strong>Saved.</strong> {{ success() }}</span>
+      </div>
+    }
     @if (selected(); as item) {
       <div class="detail__head">
         <div>
@@ -208,28 +210,40 @@
         }
 
         <div class="suggestion" [class.suggestion--prelim]="notDecidable()">
-          <div>
-            <span class="muted small">AI suggestion</span>
-            @if (notDecidable()) { <span class="prelim-tag" title="Based on the catalogue description only; decide once a complete syllabus arrives">Preliminary</span> }
-            <br /><strong>{{ suggestionLabel(r.suggested_decision) }}</strong> {{ r.suggested_code }}
+          <div class="suggestion__main">
+            <p class="suggestion__label">
+              AI suggests
+              @if (notDecidable()) { <span class="prelim-tag" title="Based on the catalogue description only; decide once a complete syllabus arrives">Preliminary</span> }
+            </p>
+            <p class="suggestion__pick">
+              @if (r.suggested_code) { <strong class="suggestion__code">{{ r.suggested_code }}</strong> }
+              <span class="suggestion__decision">{{ suggestionLabel(r.suggested_decision) }}</span>
+            </p>
+            <p class="suggestion__why">{{ suggestionHint(r.suggested_decision) }}</p>
           </div>
-          @if (notDecidable()) {
-            <div title="Outcome overlap with {{ r.suggested_code }} from the catalogue record, less a penalty when the runner-up is within 25 points. Not a decision confidence until a complete syllabus arrives.">
-              <span class="muted small">Confidence</span><br /><strong class="prelim-conf">{{ r.confidence_pct }}%</strong>
-              <span class="small prelim-conf__note">catalogue estimate</span>
-            </div>
-          } @else {
-            <div><span class="muted small">Confidence</span><br /><strong>{{ r.confidence_pct }}%</strong></div>
-          }
-          <div><span class="muted small">Engine</span><br /><code>{{ r.engine }}</code></div>
+          <div class="suggestion__conf"
+               [attr.title]="notDecidable() ? 'Outcome overlap with ' + r.suggested_code + ' from the catalogue record, less a penalty when the runner-up is within 25 points. Not a decision confidence until a complete syllabus arrives.' : null">
+            <span class="suggestion__label">Confidence</span>
+            <strong class="suggestion__pct" [class.prelim-conf]="notDecidable()">{{ r.confidence_pct }}%</strong>
+            <span class="conf conf--{{ confidenceTone(r.confidence_pct) }}">
+              <span class="conf__bar" aria-hidden="true"><span [style.width.%]="r.confidence_pct"></span></span>
+            </span>
+            @if (notDecidable()) { <span class="small prelim-conf__note">catalogue estimate</span> }
+          </div>
+          <p class="suggestion__engine">via <code>{{ r.engine }}</code></p>
         </div>
 
         @if (item.workbook_notes?.length) {
-          <aside class="wb-notes" aria-label="Workbook notes">
+          @let caution = workbookCaution(item.workbook_notes!, r.suggested_code);
+          <aside class="wb-notes" [class.wb-notes--caution]="caution" aria-label="Workbook notes">
             <p class="wb-notes__h">
+              @if (caution) { <span class="wb-notes__flag">Check before you approve</span> }
               Workbook note{{ item.workbook_notes!.length > 1 ? 's' : '' }}
               <span class="muted small">BU transfer course-match workbook · reference only, not used by the AI</span>
             </p>
+            @if (caution) {
+              <p class="wb-notes__why small">{{ caution }}</p>
+            }
             <ul>
               @for (n of item.workbook_notes; track n.bu_course) {
                 <li>
@@ -344,23 +358,23 @@
                     <span class="tier tier--{{ c.tier }}">{{ tierLabel(c.tier) }}</span>
                   </span>
                 </label>
-                @if (isDepartment() && candidateCode() === c.bu_code) {
-                  <button
-                    type="button"
-                    class="btn btn--success candidate__approve"
-                    [disabled]="saving() || notDecidable() || !reasonCodes().length"
-                    [attr.aria-label]="'Approve ' + c.bu_code + ' as equivalent'"
-                    (click)="approveCandidate(c)"
-                  >
-                    {{ saving() ? 'Saving…' : 'Approve' }}
+                @if (candidateCode() === c.bu_code) {
+                  <span class="candidate__picked">Selected</span>
+                }
+              </div>
+              @let showOutcomes = candidateCode() === c.bu_code || expanded().has(c.bu_code);
+              <div class="overlap">
+                <meter min="0" max="100" low="50" high="80" optimum="100" [value]="c.overlap_pct" [attr.aria-label]="c.bu_code + ' overlap'"></meter>
+                <span><strong>{{ c.overlap_pct }}%</strong> outcome overlap · {{ c.covered.length }} covered, {{ c.missing.length }} missing</span>
+                @if (candidateCode() !== c.bu_code) {
+                  <button type="button" class="linkish candidate__toggle" [attr.aria-expanded]="showOutcomes"
+                          [attr.aria-controls]="'outcomes-' + $index" (click)="toggleOutcomes(c.bu_code)">
+                    {{ showOutcomes ? 'Hide outcomes' : 'Show outcomes' }}
                   </button>
                 }
               </div>
-              <div class="overlap">
-                <meter min="0" max="100" low="50" high="80" optimum="100" [value]="c.overlap_pct" [attr.aria-label]="c.bu_code + ' overlap'"></meter>
-                <span><strong>{{ c.overlap_pct }}%</strong> outcome overlap</span>
-              </div>
-              <div class="outcomes">
+              @if (showOutcomes) {
+              <div class="outcomes" [id]="'outcomes-' + $index">
                 <div>
                   <h4>Covered ({{ c.covered.length }})</h4>
                   <ul class="outcome-list outcome-list--covered">
@@ -382,6 +396,7 @@
                   </ul>
                 </div>
               </div>
+              }
             </article>
           } @empty {
             <p class="muted">No BU candidates found.</p>
@@ -420,7 +435,9 @@
           <p class="muted small">No earlier decisions for this course.</p>
         }
 
+        <!-- Pinned to the bottom of the screen on wide layouts: the decision is always one glance away while reading. -->
         <form class="decision" (ngSubmit)="submit()" aria-labelledby="decide-h">
+          <div class="decision__top">
           <h3 id="decide-h">Your decision</h3>
           <fieldset class="segmented">
             <legend class="visually-hidden">Decision</legend>
@@ -431,6 +448,7 @@
               </label>
             }
           </fieldset>
+          </div>
 
           <div class="decision__fields">
             @switch (decision()) {
@@ -480,34 +498,40 @@
                 <app-error-banner [message]="reasonError()" (retry)="loadReasonCodes()" />
               </div>
             }
-            <div class="field">
+            <div class="field field--year">
               <label for="catalog-year">Catalog year</label>
               <input id="catalog-year" name="catalogYear" type="text" [ngModel]="catalogYear()" (ngModelChange)="catalogYear.set($event)" />
             </div>
-            <div class="field field--wide">
+            <div class="field field--note">
               <label for="note">Note (optional)</label>
               <input id="note" name="note" type="text" [ngModel]="note()" (ngModelChange)="note.set($event)" />
             </div>
+          </div>
+
+          @if (saveError()) {
+            <div class="banner banner--error decision__error" role="alert"><strong>Not saved:</strong> {{ saveError() }}</div>
+          }
+          <div class="decision__actions">
             <label class="check">
               <input type="checkbox" name="reusable" [ngModel]="reusable()" (ngModelChange)="reusable.set($event)" />
               Reusable – apply to the next student with this course
             </label>
-          </div>
-
-          <div class="row">
+            <span class="decision__spacer"></span>
+            @if (!canDecide()) {
+              <span class="muted small decision__hint">{{ decideHint }}</span>
+            } @else if (notDecidable()) {
+              <span class="muted small decision__hint">Disabled: preliminary recommendation.</span>
+            }
+            <button type="button" class="btn btn--ghost" (click)="close()">Close</button>
             <button
               type="submit"
-              class="btn btn--primary"
+              class="btn"
+              [class.btn--success]="decision() !== 'No credit'"
+              [class.btn--primary]="decision() === 'No credit'"
               [disabled]="saving() || !canDecide() || notDecidable() || !buCourseValid() || !reasonCode()"
             >
               {{ saving() ? 'Saving…' : decision() === 'Equivalent' ? 'Approve equivalent' : decision() === 'Elective' ? 'Approve as elective' : 'Record no credit' }}
             </button>
-            <button type="button" class="btn btn--ghost" (click)="close()">Close</button>
-            @if (!canDecide()) {
-              <span class="muted small">{{ decideHint }}</span>
-            } @else if (notDecidable()) {
-              <span class="muted small">Disabled: preliminary recommendation.</span>
-            }
           </div>
         </form>
       }
