@@ -81,6 +81,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-29 | [developer-30](2026-10-29/developer-30.md) | Chat keeps its context; partial school and course codes get matches | psahoo (POD) |
 | 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
 | 2026-10-29 | [security-04](2026-10-29/security-04.md) | Security review of the public credit check and chat (developer-26) | psahoo (POD) |
+| 2026-10-30 | [adoption-01](2026-10-30/adoption-01.md) | README: every feature we built, clearly | Sagar (spathur) |
 | 2026-10-30 | [architect-06](2026-10-30/architect-06.md) | Review of the course picker, chat context, partial matching and workbench identity | psahoo (POD) |
 | 2026-10-30 | [developer-01](2026-10-30/developer-01.md) | One-click Approve on the selected BU candidate for Department approvers | Sagar (spathur) |
 | 2026-10-30 | [developer-02](2026-10-30/developer-02.md) | Green candidate Approve button | Sagar (spathur) |
