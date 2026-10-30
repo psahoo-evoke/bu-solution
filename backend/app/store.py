@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import csv
 import os
+import re
 import threading
 from dataclasses import dataclass, field
 from typing import Optional
@@ -224,9 +225,12 @@ class Store:
         rec = self.syllabi.get(ext_id)
         return rec.state if rec else "missing"
 
-    def next_decision_id(self) -> str:
-        n = len(self.decisions) + len(self.holdout_decisions) + 1
-        return f"D-{n:04d}"
+    def next_decision_id(self, floor: int = 0) -> str:
+        """One above the highest D-number in use (not the count: a gap would hand out a taken id). `floor` is the
+        highest number already in the database, which another app instance may have used (db.max_decision_number)."""
+        used = [int(m.group(1)) for d in (*self.decisions, *self.holdout_decisions)
+                if (m := re.fullmatch(r"D-(\d+)", d.decision_id))]
+        return f"D-{max([floor, *used]) + 1:04d}"
 
 
 _SYLLABUS_TEXT_CACHE: dict[str, str] = {}

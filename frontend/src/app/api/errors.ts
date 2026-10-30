@@ -9,8 +9,11 @@ export function describeError(err: unknown, role?: string, op?: Operation): stri
   if (err instanceof HttpErrorResponse) {
     const detail = typeof err.error === 'object' && typeof err.error?.detail === 'string' ? err.error.detail : '';
     if (err.status === 502 && detail) return detail;   // API-reported upstream failure, e.g. storing an upload
+    if (err.status === 503 && detail) return detail;   // the API answered, e.g. "The change could not be saved. …"
     if (err.status === 0 || err.status === 502 || err.status === 503 || err.status === 504) {
-      return 'The TransferIQ API is not reachable. Start the backend on http://localhost:8000 and try again.';
+      return ['localhost', '127.0.0.1'].includes(location.hostname)
+        ? 'The TransferIQ API is not reachable. Start the backend on http://localhost:8000 and try again.'
+        : 'TransferIQ is not reachable right now. Please try again in a moment.';
     }
     if (err.status === 401) {
       return detail.startsWith('Sign in') || detail.startsWith('Invalid or expired') || detail.includes('session has expired')
