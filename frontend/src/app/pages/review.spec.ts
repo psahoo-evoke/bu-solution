@@ -157,7 +157,8 @@ describe('ReviewPage role gating', () => {
     const el = fixture.nativeElement as HTMLElement;
     (el.querySelector('.queue__item') as HTMLButtonElement).click();
     http.expectOne('/api/courses/NEU%7CCS%202700/syllabus').flush({
-      ext_id: 'NEU|CS 2700', state: 'incomplete', source: 'on file', uploaded_at: null, injection_detected: false,
+      ext_id: 'NEU|CS 2700', state: 'incomplete', missing_sections: ['learning_outcomes', 'schedule'],
+      source: 'on file', uploaded_at: null, injection_detected: false,
       text: 'Course description\nData Structures.\nLearning outcomes\nTo be discussed in the first class meeting.\nAssessment',
       truncated: false, requests: [], catalogue_outcomes: ['Explain the core ideas of linked lists', 'Analyze problems involving hash tables'],
     });
@@ -170,6 +171,7 @@ describe('ReviewPage role gating', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     const panel = el.querySelector('.syllabus-panel')?.textContent ?? '';
+    expect(el.querySelector('.syl-reason')?.textContent?.trim()).toBe('no learning outcomes, no weekly schedule');
     expect(panel).toContain('Syllabus: To be discussed in the first class meeting.');
     expect(panel).toContain('Catalogue lists');
     expect(el.querySelectorAll('.syl-sec__catalogue li').length).toBe(2);

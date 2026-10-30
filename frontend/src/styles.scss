@@ -262,6 +262,7 @@ meter { width: 10rem; height: 1rem; }
   &--incomplete { background: var(--pending-bg); color: var(--pending-fg); border-color: #e6c77a; }
   &--missing { background: var(--action-bg); color: var(--action-fg); border-color: #e2a3a3; }
 }
+.syl-reason { font-size: .82rem; font-weight: 600; color: var(--pending-fg); }
 .conf {
   display: inline-flex; align-items: center; gap: .35rem; font-weight: 600; font-variant-numeric: tabular-nums;
   &__bar { width: 3.5rem; height: .4rem; border-radius: 999px; background: #e3e6ea; overflow: hidden; span { display: block; height: 100%; border-radius: inherit; } }

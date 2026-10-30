@@ -206,6 +206,11 @@
             <span>Syllabus</span>
             @if (syllabus(); as s) {
               <span class="syl syl--{{ s.state }}">{{ s.state }}</span>
+              @if (s.missing_sections?.length) {
+                <span class="syl-reason" title="A complete syllabus needs at least 2 numbered learning outcomes and 3 weekly schedule rows (R23)">
+                  {{ missingSectionsLabel(s.missing_sections!) }}
+                </span>
+              }
               @if (s.source) { <span class="muted small">{{ s.source === 'upload' ? 'uploaded ' + (s.uploaded_at | date: 'd MMM y') : 'on file' }}</span> }
             } @else if (syllabusError()) {
               <span class="muted small">{{ syllabusError() }}</span>

@@ -124,6 +124,8 @@ export interface StudentNotifications {
 export interface CourseSyllabus {
   ext_id: string;
   state: 'complete' | 'incomplete' | 'missing';
+  /** Incomplete only: which R23 requirement the syllabus fails. */
+  missing_sections?: ('learning_outcomes' | 'schedule')[];
   source: 'upload' | 'on file' | null;
   uploaded_at: string | null;
   injection_detected: boolean;

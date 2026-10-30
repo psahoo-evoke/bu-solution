@@ -469,6 +469,10 @@ components:
       properties:
         ext_id: { type: string }
         state: { type: string, enum: [complete, incomplete, missing] }
+        missing_sections:
+          type: array
+          items: { type: string, enum: [learning_outcomes, schedule] }
+          description: "Only for an incomplete syllabus: which R23 requirement it fails (fewer than 2 numbered learning outcomes, fewer than 3 weekly schedule rows). Empty otherwise."
         source: { type: string, nullable: true, enum: [upload, on file], description: "upload: uploaded through the app; on file: received earlier (sample data)" }
         uploaded_at: { type: string, format: date-time, nullable: true }
         injection_detected: { type: boolean }

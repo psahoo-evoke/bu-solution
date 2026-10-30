@@ -80,6 +80,12 @@ export class ReviewPage {
     return `Likely ${decision.toLowerCase()}`;
   }
 
+  /** Why a syllabus is incomplete, in words: "no learning outcomes, no weekly schedule". */
+  protected missingSectionsLabel(sections: string[]): string {
+    const words: Record<string, string> = { learning_outcomes: 'no learning outcomes', schedule: 'no weekly schedule' };
+    return sections.map((s) => words[s] ?? `no ${s.replace(/_/g, ' ')}`).join(', ');
+  }
+
   /** Same bands as the R20 tiers: 80+ high, 50-79 mid, below 50 low. */
   protected matchTone(pct: number): 'high' | 'mid' | 'low' {
     return pct >= 80 ? 'high' : pct >= 50 ? 'mid' : 'low';
