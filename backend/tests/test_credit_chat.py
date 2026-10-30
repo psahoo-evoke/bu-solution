@@ -56,7 +56,86 @@ def test_a_bu_code_the_tools_did_not_return_is_never_shown(anon, model):
     model["script"] = [dict(content="Good news: it transfers as CAS PS 999 for sure!")]   # no tool call at all
     body = ask(anon, "Will my psychology course transfer?").json()
     assert body["grounded"] is False and "CAS PS 999" not in body["reply"]
+    assert "Matching courses:" in body["reply"] and "NYU PSYCH-UA 1 (Intro to Psychology)" in body["reply"]
+
+
+def test_an_ungrounded_reply_with_nothing_to_search_asks_for_the_course(anon, model):
+    model["script"] = [dict(content="It transfers as CAS PS 999 for sure!")]
+    body = ask(anon, "Will my underwater basket weaving class transfer?").json()
+    assert body["grounded"] is False and "CAS PS 999" not in body["reply"]
     assert "school and the course code" in body["reply"]
+
+
+@pytest.mark.parametrize("text, query, expect", [
+    ("psychology", "psychology", "PSYCH-UA 1"),
+    ("calculus", "calculus", "Calculus I"),
+    ("NYU math courses", "NYU math", "MATH-UA 121"),
+    ("Which Northeastern biology courses do you have?", "biology", "BIOL 1107"),
+])
+def test_keywords_and_subjects_are_searched_in_the_catalog(anon, model, text, query, expect):
+    model["script"] = [dict(content=None, tool_calls=[call("search_courses", query=query,
+                                                           **({"school": "NEU"} if "Northeastern" in text else {}))]),
+                       dict(content="These courses match. Which one should I check? The official decision is made "
+                                    "when your transcript is evaluated after registering.")]
+    body = ask(anon, text).json()
+    tool = json.loads(model["sent"][1][-1]["content"])
+    assert body["grounded"] is True and body["results"] == []
+    assert any(expect in f"{m['course_code']} {m['title']}" for m in tool["matches"])
+    assert {k for m in tool["matches"] for k in m} == {"school_code", "school_name", "course_code", "title", "subject",
+                                                      "credits"}            # catalog fields only, never gt_*
+
+
+@pytest.mark.parametrize("text", ["course", "subject", "Subjects?", "NYU"])
+def test_a_first_message_without_a_search_word_lists_the_subjects_without_the_model(anon, model, text):
+    body = ask(anon, text).json()
+    assert body["grounded"] is True and body["results"] == [] and model["sent"] == []
+    assert body["reply"].startswith("Subjects in the catalog:") and "Psychology (" in body["reply"]
+
+
+def test_a_follow_up_without_a_search_word_still_goes_to_the_model(anon, model):
+    model["script"] = [dict(content="Which school is it from?")]
+    first = ask(anon, "Will PSYCH-UA 10 transfer?").json()
+    msgs = [dict(role="user", content="Will PSYCH-UA 10 transfer?"),
+            dict(role="assistant", content=first["reply"], signature=first["signature"]), dict(role="user", content="NYU")]
+    model["script"] = [dict(content="Thanks. Which grade did you get?")]
+    body = anon.post(URL, json=dict(messages=msgs)).json()
+    assert len(model["sent"]) == 2 and body["reply"] == "Thanks. Which grade did you get?"
+
+
+def test_a_course_code_without_a_school_is_found_exactly(anon, model):
+    model["script"] = [dict(content=None, tool_calls=[call("search_courses", query="PSYCH-UA 10")]), dict(content="")]
+    body = ask(anon, "PSYCH-UA 10").json()
+    tool = json.loads(model["sent"][1][-1]["content"])
+    assert [(m["school_code"], m["course_code"]) for m in tool["matches"]] == [("NYU", "PSYCH-UA 10")]
+    # the one match is checked straight away and its result goes to the model and to the page
+    assert tool["check_result"]["course_code"] == "PSYCH-UA 10"
+    assert [(r["school_code"], r["course_code"]) for r in body["results"]] == [("NYU", "PSYCH-UA 10")]
+
+
+def test_a_full_title_with_a_grade_is_checked_with_that_grade(anon, model):
+    model["script"] = [dict(content=None, tool_calls=[call("search_courses", query="Calculus I", school="NYU")]),
+                       dict(content="")]
+    body = ask(anon, "I took Calculus I at NYU and got a D. Will it transfer?").json()
+    assert [(r["course_code"], r["kind"]) for r in body["results"]] == [("MATH-UA 121", "not_transferable")]
+    assert len(model["sent"]) == 2                    # one search round, then the answer: no extra lookup round
+
+
+@pytest.mark.parametrize("topic, expect", [
+    ("syllabus", "syllabus is needed"), ("Do I need a syllabus?", "syllabus is needed"),
+    ("pass/fail", "Pass/fail grades"), ("minimum grade", "minimum grade is C"), ("quarter credits", "times 2/3"),
+    ("how does it work", "decided by the department"), ("something else entirely", "decided by the department"),
+])
+def test_general_questions_are_answered_from_the_rules(anon, model, topic, expect):
+    model["script"] = [dict(content=None, tool_calls=[call("transfer_info", topic=topic)]),
+                       dict(content="You will definitely get credit.")]                 # rejected -> the rules
+    body = ask(anon, topic).json()
+    assert body["grounded"] is False and "definitely" not in body["reply"]
+    assert expect in body["reply"] and "official decision" in body["reply"]
+
+
+def test_rule_answers_pass_the_grounding_check():
+    for _keys, text in credit_chat.TRANSFER_INFO:
+        assert credit_chat.grounded(text, []), text
 
 
 def test_a_promise_beyond_the_estimate_is_replaced_by_the_facts(anon, model):
@@ -76,7 +155,7 @@ def test_tool_rounds_are_capped(anon, model):
 def test_bad_tool_arguments_go_back_to_the_model_not_the_user(anon, model):
     model["script"] = [dict(content=None, tool_calls=[call("check_course", school="NYU", course_code="!!")]),
                        dict(content="Which course code was it? The official decision is made at evaluation.")]
-    r = ask(anon, "NYU course !!")
+    r = ask(anon, "Check NYU course !!")
     assert r.status_code == 200
     err = json.loads(model["sent"][1][-1]["content"])
     assert "error" in err and r.json()["results"] == []
