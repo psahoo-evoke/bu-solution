@@ -170,8 +170,13 @@
         @if (notDecidable()) {
           <div class="banner banner--warning" role="status">
             <div>
-              <strong>Preliminary – not decidable.</strong> No complete syllabus is on file, so this comparison uses the
-              catalogue description only. Decide once the syllabus arrives.
+              <strong>Preliminary – not decidable.</strong>
+              @if ((syllabus()?.state ?? item.syllabus_state) === 'incomplete') {
+                Syllabus incomplete@if (syllabus()?.missing_sections?.length) { ({{ missingSectionsLabel(syllabus()!.missing_sections!) }})}.
+                This estimate uses the course's catalogue record. Decide once a complete syllabus arrives.
+              } @else {
+                No syllabus on file. This estimate uses the course's catalogue record. Decide once the syllabus arrives.
+              }
               @if (syllabus(); as s) {
                 @for (q of s.requests; track q.student_id + q.requested_at) {
                   <span class="req-line">
@@ -183,9 +188,20 @@
                     @if (q.next_reminder_at) { · next reminder {{ q.next_reminder_at | date: 'd MMM, HH:mm' }} }
                     @else { · no more reminders planned }
                   </span>
-                } @empty {
-                  <span class="req-line">No request on record yet: the student is asked automatically when their transcript is uploaded.</span>
                 }
+                @if (unaskedStudents().length) {
+                  <span class="req-line req-line--ask">
+                    No syllabus request sent yet to {{ unaskedStudents().join(', ') }}.
+                    @if (canRequestSyllabus()) {
+                      @for (sid of unaskedStudents(); track sid) {
+                        <button type="button" class="btn btn--small" [disabled]="requestBusy()" (click)="askForSyllabus(sid)">
+                          {{ requestBusy() ? 'Requesting…' : 'Request syllabus' + (unaskedStudents().length > 1 ? ' from ' + sid : '') }}
+                        </button>
+                      }
+                    }
+                  </span>
+                }
+                @if (requestError()) { <span class="req-line req-line--error" role="alert">{{ requestError() }}</span> }
               }
             </div>
           </div>
@@ -197,7 +213,14 @@
             @if (notDecidable()) { <span class="prelim-tag" title="Based on the catalogue description only; decide once a complete syllabus arrives">Preliminary</span> }
             <br /><strong>{{ suggestionLabel(r.suggested_decision) }}</strong> {{ r.suggested_code }}
           </div>
-          <div><span class="muted small">Confidence</span><br /><strong>{{ r.confidence_pct }}%</strong></div>
+          @if (notDecidable()) {
+            <div title="Outcome overlap with {{ r.suggested_code }} from the catalogue record, less a penalty when the runner-up is within 25 points. Not a decision confidence until a complete syllabus arrives.">
+              <span class="muted small">Confidence</span><br /><strong class="prelim-conf">{{ r.confidence_pct }}%</strong>
+              <span class="small prelim-conf__note">catalogue estimate</span>
+            </div>
+          } @else {
+            <div><span class="muted small">Confidence</span><br /><strong>{{ r.confidence_pct }}%</strong></div>
+          }
           <div><span class="muted small">Engine</span><br /><code>{{ r.engine }}</code></div>
         </div>
 

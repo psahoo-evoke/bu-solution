@@ -270,7 +270,13 @@ meter { width: 10rem; height: 1rem; }
   &--mid &__bar span { background: #c48a00; }
   &--low &__bar span { background: #b00020; }
 }
-.req-line { display: block; margin-top: .3rem; font-size: .88rem; }
+.req-line {
+  display: block; margin-top: .3rem; font-size: .88rem;
+  &--ask { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; }
+  &--error { color: var(--action-fg); font-weight: 600; }
+}
+.prelim-conf { color: var(--pending-fg); }
+.prelim-conf__note { margin-left: .3rem; color: var(--pending-fg); }
 .syllabus-panel {
   margin: .75rem 0 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fafbfc;
   summary { display: flex; align-items: center; gap: .6rem; padding: .6rem .8rem; cursor: pointer; font-weight: 600; }

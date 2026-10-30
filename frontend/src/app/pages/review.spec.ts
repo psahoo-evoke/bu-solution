@@ -178,6 +178,28 @@ describe('ReviewPage role gating', () => {
     expect(panel).toContain('90% match · CAS CS 112');
     expect(panel).toContain('5 of 6 CAS CS 112 outcomes');
     expect(el.querySelector('.suggestion')?.textContent).toContain('Likely equivalent');
+    expect(el.querySelector('.suggestion')?.textContent).toContain('catalogue estimate');
+
+    const banner = el.querySelector('.banner--warning') as HTMLElement;
+    expect(banner.textContent).toContain('Syllabus incomplete (no learning outcomes, no weekly schedule).');
+    expect(banner.textContent).toContain('No syllabus request sent yet to SYN-24002.');
+    const ask = banner.querySelector('.req-line--ask button') as HTMLButtonElement;
+    expect(ask.textContent?.trim()).toBe('Request syllabus');
+    ask.click();
+    const post = http.expectOne('/api/students/SYN-24002/courses/NEU%7CCS%202700/syllabus-request');
+    expect(post.request.method).toBe('POST');
+    post.flush({ student_id: 'SYN-24002', ext_id: 'NEU|CS 2700', status: 'not_sent', to: [], cc: [], requested_at: '2026-10-30T12:00:00+00:00' });
+    http.expectOne('/api/courses/NEU%7CCS%202700/syllabus').flush({
+      ext_id: 'NEU|CS 2700', state: 'incomplete', missing_sections: ['learning_outcomes', 'schedule'], source: 'on file',
+      uploaded_at: null, injection_detected: false, text: null, truncated: false, catalogue_outcomes: [],
+      requests: [{ student_id: 'SYN-24002', student_name: 'Jordan Reyes', requested_at: '2026-10-30T12:00:00+00:00',
+                   last_sent_at: null, reminders: 0, next_reminder_at: null, status: 'not_sent', automatic: false,
+                   emailed_student: false }],
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(banner.textContent).toContain('Requested from Jordan Reyes');
+    expect(banner.querySelector('.req-line--ask')).toBeNull();
   });
 });
 
