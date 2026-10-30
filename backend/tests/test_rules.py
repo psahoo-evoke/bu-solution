@@ -186,3 +186,37 @@ def test_holdout_decisions_invisible_to_lookup():
     s = store_mod.STORE
     for d in s.holdout_decisions:
         assert rules.lookup(s, d.ext_id, "SYN-24001") == (None, "")
+
+
+# ------------------------------------------------------------------ Store.lines_for index (scalability report)
+def _scan(s, sid):
+    return [ln for ln in s.lines if ln.student_id == sid]
+
+
+def test_lines_for_matches_a_full_scan_in_transcript_order():
+    s = store_mod.STORE
+    for sid in list(s.students) + ["SYN-NOBODY"]:
+        assert s.lines_for(sid) == _scan(s, sid)
+    assert s.lines_for("SYN-NOBODY") == []
+
+
+def test_lines_for_follows_appends_replacements_and_same_length_lists():
+    s = store_mod.STORE
+    sid = "SYN-24002"
+    before = s.lines_for(sid)
+    s.lines.append(TranscriptLine(sid, "NEU", "Spring 2026", "NEU|FILM 2000", "FILM 2000", "Film Genres", 3, "Semester", "B"))
+    assert s.lines_for(sid) == before + [s.lines[-1]]                # append: same list, longer
+    s.lines = [ln for ln in s.lines if ln.student_id != sid]
+    assert s.lines_for(sid) == []                                     # replaced by a shorter list
+    other = next(ln for ln in s.lines if ln.student_id != sid)
+    s.lines = [TranscriptLine(sid, ln.school_code, ln.term, ln.ext_id, ln.course_code, ln.title, ln.credits,
+                              ln.calendar, ln.grade) if ln is other else ln for ln in s.lines]
+    assert s.lines_for(sid) == _scan(s, sid) and len(s.lines_for(sid)) == 1   # new list of the same length
+    assert s.lines_for(other.student_id) == _scan(s, other.student_id)
+
+
+def test_lines_for_returns_a_copy():
+    s = store_mod.STORE
+    got = s.lines_for("SYN-24001")
+    got.clear()
+    assert s.lines_for("SYN-24001") == _scan(s, "SYN-24001") != []

@@ -194,6 +194,8 @@ class Store:
     # Registrar posting step: (student_id, ext_id, term) -> {decision_id, posted_at, actor_role}
     postings: dict[tuple[str, str, str], dict] = field(default_factory=dict)
     lock: threading.RLock = field(default_factory=threading.RLock)
+    # lines_for() index: (the indexed `lines` list itself, its length, student_id -> lines in transcript order).
+    _lines_index: Optional[tuple] = field(default=None, repr=False, compare=False)
 
     # ---------------------------------------------------------------- lookups
     def visible_decisions(self, ext_id: str) -> list[Decision]:
@@ -201,7 +203,18 @@ class Store:
         return [d for d in self.decisions if d.ext_id == ext_id and d.split != "holdout"]
 
     def lines_for(self, student_id: str) -> list[TranscriptLine]:
-        return [ln for ln in self.lines if ln.student_id == student_id]
+        """One student's lines in transcript order. Indexed by student, because the review queue and the export call
+        this for every student (a full scan each time made them quadratic; docs/quality/scalability-report.md).
+        `lines` is only ever replaced or appended to, so the index is rebuilt when the list object or its length
+        changes. Holding the indexed list keeps its id from being reused by a later list."""
+        src = self.lines
+        idx = self._lines_index
+        if idx is None or idx[0] is not src or idx[1] != len(src):
+            by_student: dict[str, list[TranscriptLine]] = {}
+            for ln in src:
+                by_student.setdefault(ln.student_id, []).append(ln)
+            idx = self._lines_index = (src, len(src), by_student)
+        return list(idx[2].get(student_id, ()))
 
     def latest_transcript(self, student_id: str, school_code: str) -> Optional[TranscriptRecord]:
         return next((t for t in reversed(self.transcripts)
