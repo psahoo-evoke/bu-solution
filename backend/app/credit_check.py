@@ -30,6 +30,8 @@ CAVEATS = [
 ]
 MAX_DESCRIPTION = 2000
 _CODE_RE = re.compile(r"^[A-Za-z]{2,8}(?:-[A-Za-z]{2})?\s*\d{1,4}[A-Za-z]?$")
+_PARTIAL_RE = re.compile(r"^(?:[A-Z]{2,8}(?:-[A-Z]{2})?|\d{1,4})$")     # just a department ("CS") or a number ("3000")
+MAX_SUGGESTIONS = 6
 _TERM_RE = re.compile(r"^(Winter|Spring|Summer|Fall)\s+(\d{4})$", re.IGNORECASE)
 NO_CREDIT_TEXT = {
     "NC-ACCRED": "{school} is not regionally accredited, so its courses do not transfer.",
@@ -64,6 +66,48 @@ def find_school(store: Store, school: str):
     """By code ('NYU') or name, case-insensitive."""
     s = (school or "").strip().lower()
     return next((sc for sc in store.schools.values() if s in (sc.school_code.lower(), sc.name.lower())), None)
+
+
+def resolve_school(store: Store, school: str):
+    """(school, suggestions). Exact code or name first; otherwise a partial match: the start of a code ("NE" -> NEU),
+    the start of a word in the name ("northeastern", 3+ letters) or part of the name (4+ letters). Exactly one
+    partial match is used; several (or none) come back as suggestions for the student to pick from."""
+    exact = find_school(store, school)
+    if exact is not None:
+        return exact, []
+    q = re.sub(r"\s+", " ", (school or "").strip().lower())
+    every = list(store.schools.values())
+    if len(q) < 2:
+        return None, every
+    hits = [sc for sc in every if sc.school_code.lower().startswith(q)
+            or (len(q) >= 3 and any(w.startswith(q) for w in re.findall(r"[a-z]+", sc.name.lower())))
+            or (len(q) >= 4 and q in sc.name.lower())]
+    return (hits[0], []) if len(hits) == 1 else (None, hits or every)
+
+
+def course_suggestions(store: Store, school_code: str, code: str = "", title: str = "") -> list[dict]:  # all matches
+    """Catalog courses (never upload-only ones) whose code starts with the partial `code` ("CS 30" -> CS 3000, CS
+    3001; "3000" -> any department's 3000), or, without a code, whose title contains `title`."""
+    q = re.sub(r"[\s-]+", "", code.upper())
+    t = (title or "").strip().lower()
+    rows = []
+    for c in store.ext_courses.values():
+        if c.school_code != school_code or not c.program_area:
+            continue
+        cc = re.sub(r"[\s-]+", "", c.course_code.upper())
+        number = c.course_code.split()[-1]
+        if q and (cc.startswith(q) or (q.isdigit() and number.startswith(q))):
+            rows.append(c)
+        elif not q and len(t) >= 3 and t in c.title.lower():
+            rows.append(c)
+    rows.sort(key=lambda c: c.course_code)
+    return [dict(course_code=c.course_code, title=c.title, credits=c.credits) for c in rows]
+
+
+def _did_you_mean(rows: list[dict]) -> str:
+    shown = ", ".join(f"{r['course_code']} ({r['title']})" for r in rows[:MAX_SUGGESTIONS])
+    more = len(rows) - MAX_SUGGESTIONS
+    return f"Did you mean {shown}" + (f", or one of {more} more (type more of the code)?" if more > 0 else "?")
 
 
 def schools(store: Store) -> list[dict]:
@@ -118,17 +162,30 @@ def _conflict(res: dict, flag: str) -> dict:
 def check_course(store: Store, school: str, course_code: str = "", title: str = "", description: str = "",
                  grade: str = "", credits: Optional[float] = None, term: str = "", start_term: str = "Fall 2026",
                  estimate: bool = True) -> dict:
-    sc = find_school(store, school)
+    sc, school_options = resolve_school(store, school)
     if sc is None:
-        return _result("unknown_school", message=f"'{school[:60]}' is not a school in the catalog yet. Upload the "
-                       "transcript and a syllabus after you register, and an evaluator will review it.")
+        options = [dict(school_code=o.school_code, name=o.name) for o in school_options]
+        return _result("unknown_school", school_suggestions=options,
+                       message=f"'{school[:60]}' does not match one school in the catalog. Schools: "
+                               + ", ".join(f"{o['name']} ({o['school_code']})" for o in options)
+                               + ". If yours is not listed, upload the transcript and a syllabus after you register, and an "
+                                 "evaluator will review it.")
+    res = _check(store, sc, course_code, title, description, grade, credits, term, start_term, estimate)
+    if find_school(store, school) is None:                  # partial school name: say which school was used
+        res["message"] = f"Taking '{school.strip()[:60]}' to mean {sc.name} ({sc.school_code}). " + res["message"]
+    return res
+
+
+def _check(store: Store, sc, course_code: str, title: str, description: str, grade: str, credits: Optional[float],
+           term: str, start_term: str, estimate: bool) -> dict:
     code = normalize_code(course_code) if course_code else ""
-    if code and not _CODE_RE.match(code):
+    partial = bool(code) and not _CODE_RE.match(code)
+    if partial and not _PARTIAL_RE.match(code):
         raise CheckError("Course code must look like 'PSYCH-UA 10'")
     grade = (grade or "").strip().upper()
     term_n, start_n = _term(term), _term(start_term) or "Fall 2026"
     description = (description or "")[:MAX_DESCRIPTION]
-    course = catalog_course(store, f"{sc.school_code}|{code}") if code else None
+    course = catalog_course(store, f"{sc.school_code}|{code}") if code and not partial else None
     calendar = course.calendar if course else sc.calendar
     cr = float(credits) if credits else (course.credits if course else None)
     units = convert_units(cr, calendar) if cr else None                                   # R08 / R09
@@ -147,6 +204,11 @@ def check_course(store: Store, school: str, course_code: str = "", title: str = 
     if term_n and term_year(term_n) <= int(start_n.split()[1]) - 5:                        # R07
         return _result("pending_review", **base, reason_code="RV-AGE", units=units,
                        message="Courses five or more years old are reviewed before any credit is given.")
+    if partial:                                            # "CS" or "3000": which course exactly?
+        rows = course_suggestions(store, sc.school_code, code)
+        return _result("unknown_course", **base, units=units, suggestions=rows[:MAX_SUGGESTIONS],
+                       message=(f"'{code}' is only part of a course code. " + _did_you_mean(rows)) if rows else
+                               f"No {sc.name} course code starts with '{code}'. Check the code on your transcript.")
 
     if course:
         dec, flag = lookup_public(store, course.ext_id)                                    # R10 / R11 (reusable only)
@@ -171,14 +233,17 @@ def check_course(store: Store, school: str, course_code: str = "", title: str = 
                               message=f"Already decided: transfers as elective credit ({dec.bu_course}).")
             return _conflict(_assume_grade(res, grade), flag)
 
+    rows = course_suggestions(store, sc.school_code, code, title) if not course else []
     if not course and not (title or description):
-        return _result("unknown_course", **base, units=units,
-                       message="This course is not in the catalog yet. Add its title or a short description for "
+        return _result("unknown_course", **base, units=units, suggestions=rows[:MAX_SUGGESTIONS],
+                       message=(f"{code} is not in the catalog. " + _did_you_mean(rows) + " If it is none of these, add "
+                                "what the course covers for a preliminary estimate.") if rows else
+                               "This course is not in the catalog yet. Add its title or a short description for "
                                "a preliminary estimate, or upload the syllabus after registering.")
     est = None
     if estimate:
         est = _estimate(store, course, sc, code, title, description)
-    return _result("needs_evaluation", **base, units=units, estimate=est,
+    return _result("needs_evaluation", **base, units=units, estimate=est, **({"suggestions": rows[:MAX_SUGGESTIONS]} if rows else {}),
                    message="No decision yet: an evaluator will compare the syllabus with BU courses. "
                            + ("The possible matches below are a preliminary estimate, not a promise of credit."
                               if est and est["candidates"] else ""))

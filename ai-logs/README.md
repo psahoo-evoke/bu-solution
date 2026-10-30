@@ -77,6 +77,8 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-29 | [developer-26](2026-10-29/developer-26.md) | Public "Will my course transfer?" check and chat (no login) | psahoo (POD) |
 | 2026-10-29 | [developer-27](2026-10-29/developer-27.md) | Fix the architect-05 and security-04 findings on the public credit check and chat | psahoo (POD) |
 | 2026-10-29 | [developer-28](2026-10-29/developer-28.md) | Quick check: a course picker for the chosen school | psahoo (POD) |
+| 2026-10-29 | [developer-29](2026-10-29/developer-29.md) | Chat UX polish on the public "Will my course transfer?" page | psahoo (POD) |
+| 2026-10-29 | [developer-30](2026-10-29/developer-30.md) | Chat keeps its context; partial school and course codes get matches | psahoo (POD) |
 | 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
 | 2026-10-29 | [security-04](2026-10-29/security-04.md) | Security review of the public credit check and chat (developer-26) | psahoo (POD) |
 <!-- INDEX:END -->

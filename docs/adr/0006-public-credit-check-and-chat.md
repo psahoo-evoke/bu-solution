@@ -33,7 +33,8 @@
 - **Estimates.** An undecided course gets at most a *preliminary* estimate, always labelled "not a promise of credit" (R22). A course typed in by the caller is ranked without entering the shared model cache, and the offline cache is bounded.
 - **Chat:**
   - The model may only call `check_course` and `list_schools`.
-  - Only the user's turns are sent to it. The browser holds the conversation, so client-sent assistant turns are dropped as forgeable. User turns are sanitised (ADR 0004).
+  - The browser holds the conversation. Each reply carries an HMAC `signature` (key `TRANSFERIQ_CHAT_SECRET`, or a random per-process key), and an assistant turn reaches the model only when correctly signed, so the model keeps its own context ("Did you mean Northeastern?" → "yes"). If any assistant turn is unsigned or edited, all assistant turns are dropped and the student's earlier turns are sent as one context message. User turns are sanitised (ADR 0004).
+  - Partial input: a school given in part that matches exactly one catalog school is used, and the reply says which ("NE" → Northeastern). A partial course code ("CS", "cs 30", "3000") returns up to 6 matching *catalog* courses as suggestions, never courses known only from uploads, and the model asks which one is meant.
   - The **result cards** come from `results` and are the source of truth.
   - The reply text is checked after NFKC normalisation and with invisible characters removed. It is replaced by a plain summary when it:
     - names a BU code other than a *decided* result (estimate candidates may not be named)
@@ -52,6 +53,7 @@
 - **Unavailable AI.** Without Azure OpenAI the chat returns 503 and the page switches to the form. A model failure returns 502. The form always works, offline if needed.
 
 **Consequences and accepted risks (demo):**
+- With several replicas and no shared `TRANSFERIQ_CHAT_SECRET`, a reply signed by one replica is not accepted by another, so that turn falls back to context-only history. Set the secret (Key Vault) when deploying.
 - Limits are kept in memory per replica, so the real budget is the configured number × replicas (max 2).
 - The API ingress is external, so callers can skip nginx. They are still keyed on their own address, but there is no WAF.
 - The check works as a public existence oracle for *catalog* courses and their reusable decisions. That is intended: these are the same facts every student sees.

@@ -9,8 +9,16 @@
 </section>
 
 <div class="tabs cc-tabs" role="tablist" aria-label="Ask or quick check">
-  <button type="button" role="tab" class="tabs__tab" [class.is-active]="tab() === 'chat'" [attr.aria-selected]="tab() === 'chat'" (click)="tab.set('chat')">Ask</button>
-  <button type="button" role="tab" class="tabs__tab" [class.is-active]="tab() === 'form'" [attr.aria-selected]="tab() === 'form'" (click)="tab.set('form')">Quick check</button>
+  <button type="button" role="tab" id="cc-tab-chat" class="tabs__tab" aria-controls="cc-panel-chat"
+          [class.is-active]="tab() === 'chat'" [attr.aria-selected]="tab() === 'chat'" (click)="tab.set('chat')">
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 4h16v12H7l-3 3zm2 2v8.2L6.2 14H18V6z"/></svg>
+    Ask in your words
+  </button>
+  <button type="button" role="tab" id="cc-tab-form" class="tabs__tab" aria-controls="cc-panel-form"
+          [class.is-active]="tab() === 'form'" [attr.aria-selected]="tab() === 'form'" (click)="tab.set('form')">
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 5h16v2H4zm0 6h10v2H4zm0 6h16v2H4z"/></svg>
+    Quick check
+  </button>
 </div>
 
 <ng-template #resultCard let-r>
@@ -26,6 +34,22 @@
       }
     </header>
     <p>{{ r.message }}</p>
+    @if (r.school_suggestions?.length && tab() === 'chat') {
+      <div class="cc-pick" aria-label="Schools to pick from">
+        @for (s of r.school_suggestions; track s.school_code) {
+          <button type="button" class="cc-chip" [disabled]="sending()" (click)="pickSchool(s.name)">{{ s.name }}</button>
+        }
+      </div>
+    }
+    @if (r.suggestions?.length) {
+      <div class="cc-pick" aria-label="Courses to pick from">
+        @for (c of r.suggestions; track c.course_code) {
+          <button type="button" class="cc-chip" [disabled]="sending() || checking()" (click)="pickCourse(r, c.course_code)">
+            <strong>{{ c.course_code }}</strong> · {{ c.title }}
+          </button>
+        }
+      </div>
+    }
     @if (r.estimate?.candidates?.length) {
       <div class="cc-estimate">
         <p class="small"><strong>Preliminary estimate – not a promise of credit</strong></p>
@@ -40,40 +64,78 @@
 </ng-template>
 
 @if (tab() === 'chat') {
-  <section class="card cc-chat" aria-label="Ask about a course">
-    <div class="cc-log" #log role="log" aria-live="polite">
+  <section class="card cc-chat" id="cc-panel-chat" role="tabpanel" aria-labelledby="cc-tab-chat">
+    <header class="cc-chat__head">
+      <span class="cc-avatar" aria-hidden="true">TIQ</span>
+      <div class="cc-chat__title">
+        <strong>Transfer credit assistant</strong>
+        <span class="muted small">Answers come from BU's transfer rules and past decisions · nothing is stored</span>
+      </div>
+      @if (turns().length) {
+        <button type="button" class="btn btn--ghost btn--small" (click)="newChat()">New chat</button>
+      }
+    </header>
+
+    <div class="cc-log" #log role="log" aria-live="polite" aria-label="Conversation">
+      <div class="cc-row">
+        <span class="cc-avatar cc-avatar--small" aria-hidden="true">TIQ</span>
+        <div class="cc-msg">
+          <p>Hi! Tell me the <strong>school</strong> and <strong>course code</strong> (and your grade, if you know it), and I'll
+            check how it transfers to BU.</p>
+        </div>
+      </div>
       @if (!turns().length) {
-        <p class="muted">Ask about a course, for example:</p>
-        <div class="cc-suggest">
+        <div class="cc-suggest" aria-label="Example questions">
           @for (s of suggestions; track s) {
-            <button type="button" class="btn btn--small" (click)="ask(s)">{{ s }}</button>
+            <button type="button" class="cc-chip" (click)="ask(s)">{{ s }}</button>
           }
         </div>
       }
       @for (t of turns(); track $index) {
-        <div class="cc-msg" [class.cc-msg--user]="t.role === 'user'">
-          <p>{{ t.content }}</p>
-          @for (r of t.results ?? []; track $index) {
-            <ng-container *ngTemplateOutlet="resultCard; context: { $implicit: r }" />
-          }
-        </div>
+        @if (t.role === 'user') {
+          <div class="cc-row cc-row--user">
+            <div class="cc-msg cc-msg--user"><p>{{ t.content }}</p></div>
+          </div>
+        } @else {
+          <div class="cc-row">
+            <span class="cc-avatar cc-avatar--small" aria-hidden="true">TIQ</span>
+            <div class="cc-msg">
+              <p>{{ t.content }}</p>
+              @for (r of t.results ?? []; track $index) {
+                <ng-container *ngTemplateOutlet="resultCard; context: { $implicit: r }" />
+              }
+            </div>
+          </div>
+        }
       }
       @if (sending()) {
-        <div class="cc-msg" role="status"><span class="spinner" aria-hidden="true"></span> Checking…</div>
+        <div class="cc-row" role="status">
+          <span class="cc-avatar cc-avatar--small" aria-hidden="true">TIQ</span>
+          <div class="cc-msg cc-typing"><span></span><span></span><span></span><span class="visually-hidden">Checking…</span></div>
+        </div>
       }
     </div>
+
     @if (chatError()) {
-      <div class="banner banner--error" role="alert">{{ chatError() }}</div>
+      <div class="banner banner--error cc-error" role="alert">{{ chatError() }}</div>
     }
-    <form class="cc-input" (ngSubmit)="ask()">
+    <form class="cc-composer" (ngSubmit)="ask()">
       <label for="cc-text" class="visually-hidden">Your question</label>
-      <textarea id="cc-text" name="draft" rows="2" maxlength="600" [(ngModel)]="draft" (keydown)="onKey($event)"
-                placeholder="e.g. Will NYU PSYCH-UA 10 transfer? I got a B+." [disabled]="sending()"></textarea>
-      <button type="submit" class="btn btn--primary" [disabled]="sending() || !draft.trim()">Send</button>
+      <textarea id="cc-text" #composer name="draft" rows="1" maxlength="600" [(ngModel)]="draft"
+                (keydown)="onKey($event)" (input)="autoGrow()"
+                placeholder="Ask about a course, e.g. Will NYU PSYCH-UA 10 transfer? I got a B+."
+                [disabled]="sending()"></textarea>
+      <button type="submit" class="cc-send" [disabled]="sending() || !draft.trim()" aria-label="Send">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
+      </button>
     </form>
+    <p class="cc-hint muted small">
+      <span><kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line</span>
+      @if (draft.length > 450) { <span [class.cc-hint--warn]="draft.length > 570">{{ draft.length }}/600</span> }
+    </p>
   </section>
 } @else {
-  <section class="card cc-form" aria-label="Quick check">
+  <section class="card cc-form" id="cc-panel-form" role="tabpanel" aria-labelledby="cc-tab-form">
     <form class="form" (ngSubmit)="check()">
       <div class="cc-grid">
         <div class="field">
@@ -140,6 +202,10 @@
   </section>
 }
 
-<p class="muted small cc-foot">
-  Ready to make it official? <a routerLink="/login/student">Register or sign in</a> and upload your transcript.
-</p>
+<aside class="cc-cta">
+  <div>
+    <strong>Ready to make it official?</strong>
+    <p class="muted small">Register, upload your transcript, and BU evaluates every course. You can follow each one on your status page.</p>
+  </div>
+  <a class="btn btn--primary" routerLink="/login/student">Register or sign in</a>
+</aside>

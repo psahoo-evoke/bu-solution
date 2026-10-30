@@ -242,7 +242,9 @@ def post_credit_check(inp: CreditCheckInput, request: Request):
 class ChatMessage(BaseModel):
     model_config = ConfigDict(extra="forbid")
     role: Literal["user", "assistant"]
-    content: str = Field(min_length=1, max_length=credit_chat.MAX_MESSAGE_CHARS)
+    # user turns: at most MAX_MESSAGE_CHARS (checked in credit_chat); assistant turns are earlier replies, up to 1500
+    content: str = Field(min_length=1, max_length=credit_chat.MAX_REPLY_CHARS)
+    signature: Optional[str] = Field(None, max_length=128)     # the server's HMAC of an earlier reply
 
 
 class CreditChatInput(BaseModel):

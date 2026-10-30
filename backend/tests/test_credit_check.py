@@ -204,3 +204,34 @@ def test_course_picker_lists_a_schools_catalog_courses_only(anon, fresh_store):
 def test_an_unlisted_course_with_only_a_title_still_gets_an_estimate(anon):
     r = check(anon, school="NYU", course_code="PSYCH-UA 77", title="Statistics: probability, hypothesis testing, regression").json()
     assert r["kind"] == "needs_evaluation" and r["estimate"]["candidates"], r
+
+
+@pytest.mark.parametrize("school, code", [("NE", "CS 3000"), ("northeastern", "CS 3000"), ("Northeastern Univ", "CS 3000")])
+def test_one_partial_school_match_is_used_and_named(anon, school, code):
+    r = check(anon, school=school, course_code=code).json()
+    assert r["school_code"] == "NEU" and r["message"].startswith(f"Taking '{school}' to mean Northeastern University (NEU).")
+
+
+def test_an_ambiguous_school_lists_the_options(anon):
+    r = check(anon, school="N", course_code="PSYCH-UA 1").json()
+    assert r["kind"] == "unknown_school" and {s["school_code"] for s in r["school_suggestions"]} >= {"NEU", "NYU"}
+    r = check(anon, school="fictional", course_code="PSY 215").json()     # two fictional schools
+    assert [s["school_code"] for s in r["school_suggestions"]] == ["PSC", "SOI"]
+
+
+@pytest.mark.parametrize("code, expected", [("cs 30", ["CS 3000"]), ("3000", ["CS 3000", "DS 3000"])])
+def test_a_partial_course_code_suggests_catalog_courses(anon, code, expected):
+    r = check(anon, school="NEU", course_code=code).json()
+    assert r["kind"] == "unknown_course" and [s["course_code"] for s in r["suggestions"]] == expected
+    assert "Did you mean" in r["message"]
+
+
+def test_a_department_alone_lists_its_courses_and_says_there_are_more(anon, fresh_store):
+    from app.store import ExtCourse
+    fresh_store.ext_courses["NEU|CS 9999"] = ExtCourse("NEU|CS 9999", "NEU", "CS 9999", "Someone's upload", 4.0,
+                                                       "Semester", "", "Academic", 100, "x", [], [])
+    r = check(anon, school="NEU", course_code="cs").json()
+    codes = [s["course_code"] for s in r["suggestions"]]
+    assert len(codes) == credit_check.MAX_SUGGESTIONS and all(c.startswith("CS ") for c in codes)
+    assert "more (type more of the code)" in r["message"]
+    assert "CS 9999" not in str(credit_check.course_suggestions(fresh_store, "NEU", "CS 99"))   # uploads stay private

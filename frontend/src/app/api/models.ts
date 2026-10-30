@@ -266,15 +266,22 @@ export interface CreditCheckResult {
     injection_detected: boolean;
   } | null;
   caveats: string[];
+  /** Partial or unknown course code: matching catalog courses to pick from. */
+  suggestions?: CreditCourse[];
+  /** unknown_school: the schools the input could mean. */
+  school_suggestions?: { school_code: string; name: string }[];
 }
 
 export interface ChatTurn {
   role: 'user' | 'assistant';
   content: string;
+  /** Assistant turns: the server's signature of that reply, sent back so the model keeps its context. */
+  signature?: string;
 }
 
 export interface CreditChatReply {
   reply: string;
   results: CreditCheckResult[];
   grounded: boolean;
+  signature: string;
 }

@@ -43,6 +43,7 @@ export function trimHistory(turns: ChatTurn[], max = 12): ChatTurn[] {
 export class CreditCheckPage implements OnInit {
   private readonly api = inject(ApiService);
   private readonly log = viewChild<ElementRef<HTMLElement>>('log');
+  private readonly composer = viewChild<ElementRef<HTMLTextAreaElement>>('composer');
 
   protected kindLabel(kind: string): string {
     return KIND_LABEL[kind as CreditKind] ?? kind;
@@ -53,6 +54,7 @@ export class CreditCheckPage implements OnInit {
     'Will NYU PSYCH-UA 1 transfer to BU?',
     'I got a C- in NYU MATH-UA 121. Does it count?',
     'What could NYU PSYCH-UA 10 be at BU?',
+    'Which schools can I ask about?',
   ];
 
   // chat
@@ -93,16 +95,18 @@ export class CreditCheckPage implements OnInit {
       return;
     }
     this.draft = '';
+    this.autoGrow();
     this.chatError.set(null);
     this.turns.update((t) => [...t, { role: 'user', content }]);
     this.sending.set(true);
     this.scroll();
-    const history = trimHistory(this.turns().map(({ role, content: c }) => ({ role, content: c })));
+    const history = trimHistory(this.turns().map(({ role, content: c, signature }) => ({ role, content: c, signature })));
     this.api.creditChat(history).subscribe({
       next: (r) => {
-        this.turns.update((t) => [...t, { role: 'assistant', content: r.reply, results: r.results }]);
+        this.turns.update((t) => [...t, { role: 'assistant', content: r.reply, signature: r.signature, results: r.results }]);
         this.sending.set(false);
         this.scroll();
+        this.focusComposer();
       },
       error: (err: unknown) => {
         this.sending.set(false);
@@ -113,6 +117,7 @@ export class CreditCheckPage implements OnInit {
           this.tab.set('form');
         } else {
           this.chatError.set(detail || 'The chat could not answer. Please try again or use the quick check.');
+          this.focusComposer();
         }
       },
     });
@@ -170,6 +175,44 @@ export class CreditCheckPage implements OnInit {
       e.preventDefault();
       this.ask();
     }
+  }
+
+  /** A suggested course from a result card: ask about it in the chat, or check it in the form. */
+  protected pickCourse(r: CreditCheckResult, code: string): void {
+    if (this.tab() === 'chat') {
+      this.ask(`${r.school_code} ${code}`);
+    } else {
+      this.courseCode.set(code);
+      this.check();
+    }
+  }
+
+  /** A suggested school (chat only: the form picks schools from a list). */
+  protected pickSchool(name: string): void {
+    this.ask(`I mean ${name}`);
+  }
+
+  /** Start over: the conversation only lives in this page, so clearing it forgets everything. */
+  protected newChat(): void {
+    this.turns.set([]);
+    this.chatError.set(null);
+    this.draft = '';
+    this.autoGrow();
+    this.focusComposer();
+  }
+
+  /** The composer grows with its text up to about six lines, then scrolls. */
+  protected autoGrow(): void {
+    setTimeout(() => {
+      const el = this.composer()?.nativeElement;
+      if (!el) return;
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    });
+  }
+
+  private focusComposer(): void {
+    setTimeout(() => this.composer()?.nativeElement.focus());
   }
 
   private scroll(): void {
