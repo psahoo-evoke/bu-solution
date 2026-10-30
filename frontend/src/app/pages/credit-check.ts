@@ -21,6 +21,25 @@ export const KIND_LABEL: Record<CreditKind, string> = {
   unknown_course: 'Course not in catalog',
 };
 
+/** Colour family of a result: words always come first, colour and icon are secondary cues. */
+export type CreditTone = 'good' | 'warn' | 'bad' | 'info';
+export const KIND_TONE: Record<CreditKind, CreditTone> = {
+  decided_equivalent: 'good',
+  decided_elective: 'good',
+  not_transferable: 'bad',
+  pending_review: 'warn',
+  needs_evaluation: 'warn',
+  unknown_school: 'info',
+  unknown_course: 'info',
+};
+/** Inner stroke of the round status icon (drawn inside a 24x24 circle). */
+export const TONE_ICON: Record<CreditTone, string> = {
+  good: 'm8.5 12.2 2.4 2.4 4.6-4.9',
+  warn: 'M12 7v5l3.2 1.9',
+  bad: 'm15 9-6 6M9 9l6 6',
+  info: 'M9.4 9.2a2.7 2.7 0 0 1 5.2.9c0 1.8-2.6 2.4-2.6 2.4M12 16.6h.01',
+};
+
 /** 'psych-ua10' and 'PSYCH-UA 10' are the same course code. */
 export function normCode(code: string): string {
   return code.toUpperCase().replace(/\s+/g, '');
@@ -48,13 +67,30 @@ export class CreditCheckPage implements OnInit {
   protected kindLabel(kind: string): string {
     return KIND_LABEL[kind as CreditKind] ?? kind;
   }
+  protected kindTone(kind: string): CreditTone {
+    return KIND_TONE[kind as CreditKind] ?? 'info';
+  }
+  protected toneIcon(tone: CreditTone): string {
+    return TONE_ICON[tone];
+  }
   protected readonly tab = signal<'chat' | 'form'>('chat');
   protected readonly schools = signal<CreditSchool[]>([]);
+  protected readonly schoolsState = signal<'loading' | 'ready' | 'error'>('loading');
+  /** The side panel lists a handful of schools; the rest are counted, not listed. */
+  protected readonly shownSchools = computed(() => this.schools().slice(0, 8));
+  protected readonly moreSchools = computed(() => Math.max(0, this.schools().length - 8));
   protected readonly suggestions = [
-    'Will NYU PSYCH-UA 1 transfer to BU?',
-    'I got a C- in NYU MATH-UA 121. Does it count?',
-    'What could NYU PSYCH-UA 10 be at BU?',
-    'Which schools can I ask about?',
+    { label: 'Check a course', text: 'Will NYU PSYCH-UA 1 transfer to BU?', icon: 'M20 20l-4-4M11 17a6 6 0 1 1 0-12 6 6 0 0 1 0 12z' },
+    { label: 'Does my grade count?', text: 'I got a C- in NYU MATH-UA 121. Does it count?', icon: 'M12 14a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM8.6 12.8 7.5 21l4.5-2.5 4.5 2.5-1.1-8.2' },
+    { label: 'Not decided yet?', text: 'What could NYU PSYCH-UA 10 be at BU?', icon: 'M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9V15h7v-1.1A6 6 0 0 0 12 3z' },
+    { label: 'What is covered', text: 'Which schools can I ask about?', icon: 'M3 21h18M5 21V9l7-5 7 5v12M9.5 21v-5h5v5' },
+  ];
+  /** "What the answers mean": one entry per tone, in the order a student hopes for. */
+  protected readonly legend: { tone: CreditTone; label: string; text: string }[] = [
+    { tone: 'good', label: 'Already decided', text: 'BU has ruled on this course before, so you will most likely get the same credit.' },
+    { tone: 'warn', label: 'Needs evaluation', text: 'No decision yet. An evaluator reviews it; you see a preliminary estimate.' },
+    { tone: 'bad', label: 'Not transferable', text: 'BU has decided this course does not earn credit.' },
+    { tone: 'info', label: 'Not in the catalog', text: 'The school or course is new to us. Check the code or describe what it covers.' },
   ];
 
   // chat
@@ -84,7 +120,13 @@ export class CreditCheckPage implements OnInit {
   protected readonly result = signal<CreditCheckResult | null>(null);
 
   ngOnInit(): void {
-    this.api.creditSchools().subscribe({ next: (s) => this.schools.set(s), error: () => undefined });
+    this.api.creditSchools().subscribe({
+      next: (s) => {
+        this.schools.set(s);
+        this.schoolsState.set('ready');
+      },
+      error: () => this.schoolsState.set('error'),
+    });
   }
 
   protected ask(text?: string): void {
@@ -190,6 +232,22 @@ export class CreditCheckPage implements OnInit {
   /** A suggested school (chat only: the form picks schools from a list). */
   protected pickSchool(name: string): void {
     this.ask(`I mean ${name}`);
+  }
+
+  /** A school from the side panel: start the question in the chat, or choose it in the form. */
+  protected useSchool(s: CreditSchool): void {
+    if (this.tab() === 'form') {
+      this.onSchool(s.school_code);
+      return;
+    }
+    this.draft = `Will ${s.school_code} `;
+    this.autoGrow();
+    setTimeout(() => {
+      const el = this.composer()?.nativeElement;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
   }
 
   /** Start over: the conversation only lives in this page, so clearing it forgets everything. */

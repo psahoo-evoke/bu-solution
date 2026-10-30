@@ -1,10 +1,28 @@
-<section class="page-head">
+<ng-template #statusIcon let-tone>
+  <svg class="cc-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="9.5" /><path [attr.d]="toneIcon(tone)" />
+  </svg>
+</ng-template>
+
+<section class="page-head cc-head">
   <div>
     <h1>Will my course transfer?</h1>
-    <p class="muted">
-      Check courses from your previous school against BU's past decisions and transfer rules. No sign-in needed and
-      nothing you type is stored. Results are an estimate; the official decision is made when your transcript is evaluated.
-    </p>
+    <p class="muted">Check courses from your previous school against BU's past decisions and transfer rules.</p>
+    <ul class="cc-trust" aria-label="About this check">
+      <li>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+        No sign-in needed
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        Nothing you type is stored
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 8v4M12 16h.01"/></svg>
+        An estimate, not the official decision
+      </li>
+    </ul>
   </div>
 </section>
 
@@ -22,20 +40,33 @@
 </div>
 
 <ng-template #resultCard let-r>
-  <article class="cc-result" [class]="'cc-result cc-result--' + r.kind">
+  <article [class]="'cc-result cc-result--' + r.kind + ' cc-tone--' + kindTone(r.kind)">
     <header class="cc-result__head">
-      <span class="cc-badge">{{ kindLabel(r.kind) }}</span>
-      <strong>{{ r.school_code }} {{ r.course_code || r.title }}</strong>
-      @if (r.bu_course && r.kind !== 'not_transferable') {
-        <span class="cc-result__bu">→ {{ r.bu_course }}@if (r.bu_title) { · {{ r.bu_title }}}</span>
-      }
+      <span class="cc-badge"><ng-container *ngTemplateOutlet="statusIcon; context: { $implicit: kindTone(r.kind) }" />{{ kindLabel(r.kind) }}</span>
       @if (r.units !== null && r.kind !== 'not_transferable') {
-        <span class="muted small">{{ r.units }} units</span>
+        <span class="cc-result__units">{{ r.units }} units</span>
       }
     </header>
-    <p>{{ r.message }}</p>
+    <div class="cc-map">
+      <div class="cc-map__side">
+        <span class="cc-map__k">{{ r.school_code || 'Your course' }}</span>
+        <strong>{{ r.course_code || r.title }}</strong>
+      </div>
+      @if (r.bu_course && r.kind !== 'not_transferable') {
+        <svg class="cc-map__arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        <span class="visually-hidden">transfers as</span>
+        <div class="cc-map__side cc-map__side--bu">
+          <span class="cc-map__k">BU</span>
+          <strong>{{ r.bu_course }}</strong>
+          @if (r.bu_title) { <span class="cc-map__title">{{ r.bu_title }}</span> }
+        </div>
+      }
+    </div>
+    <p class="cc-result__msg">{{ r.message }}</p>
     @if (r.school_suggestions?.length && tab() === 'chat') {
       <div class="cc-pick" aria-label="Schools to pick from">
+        <span class="cc-pick__label">Did you mean</span>
         @for (s of r.school_suggestions; track s.school_code) {
           <button type="button" class="cc-chip" [disabled]="sending()" (click)="pickSchool(s.name)">{{ s.name }}</button>
         }
@@ -43,6 +74,7 @@
     }
     @if (r.suggestions?.length) {
       <div class="cc-pick" aria-label="Courses to pick from">
+        <span class="cc-pick__label">Did you mean</span>
         @for (c of r.suggestions; track c.course_code) {
           <button type="button" class="cc-chip" [disabled]="sending() || checking()" (click)="pickCourse(r, c.course_code)">
             <strong>{{ c.course_code }}</strong> · {{ c.title }}
@@ -52,10 +84,14 @@
     }
     @if (r.estimate?.candidates?.length) {
       <div class="cc-estimate">
-        <p class="small"><strong>Preliminary estimate – not a promise of credit</strong></p>
+        <p class="cc-estimate__title">Preliminary estimate – not a promise of credit</p>
         <ul>
           @for (c of r.estimate.candidates; track c.bu_code) {
-            <li>{{ c.bu_code }} · {{ c.title }} <span class="muted small">({{ c.overlap_pct }}% outcome overlap)</span></li>
+            <li>
+              <span class="cc-estimate__course"><strong>{{ c.bu_code }}</strong> · {{ c.title }}</span>
+              <span class="cc-estimate__bar" aria-hidden="true"><span [style.width.%]="c.overlap_pct"></span></span>
+              <span class="cc-estimate__pct">{{ c.overlap_pct }}% outcome overlap</span>
+            </li>
           }
         </ul>
       </div>
@@ -63,149 +99,216 @@
   </article>
 </ng-template>
 
-@if (tab() === 'chat') {
-  <section class="card cc-chat" id="cc-panel-chat" role="tabpanel" aria-labelledby="cc-tab-chat">
-    <header class="cc-chat__head">
-      <span class="cc-avatar" aria-hidden="true">TIQ</span>
-      <div class="cc-chat__title">
-        <strong>Transfer credit assistant</strong>
-        <span class="muted small">Answers come from BU's transfer rules and past decisions · nothing is stored</span>
-      </div>
-      @if (turns().length) {
-        <button type="button" class="btn btn--ghost btn--small" (click)="newChat()">New chat</button>
-      }
-    </header>
+<div class="cc-layout">
+  <div class="cc-main">
+    @if (tab() === 'chat') {
+      <section class="card cc-chat" id="cc-panel-chat" role="tabpanel" aria-labelledby="cc-tab-chat">
+        <header class="cc-chat__head">
+          <span class="cc-avatar" aria-hidden="true">TIQ</span>
+          <div class="cc-chat__title">
+            <strong>Transfer credit assistant</strong>
+            <span class="muted small">Answers come from BU's transfer rules and past decisions</span>
+          </div>
+          @if (turns().length) {
+            <button type="button" class="btn btn--ghost btn--small" (click)="newChat()">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              New chat
+            </button>
+          }
+        </header>
 
-    <div class="cc-log" #log role="log" aria-live="polite" aria-label="Conversation">
-      <div class="cc-row">
-        <span class="cc-avatar cc-avatar--small" aria-hidden="true">TIQ</span>
-        <div class="cc-msg">
-          <p>Hi! Tell me the <strong>school</strong> and <strong>course code</strong> (and your grade, if you know it), and I'll
-            check how it transfers to BU.</p>
-        </div>
-      </div>
-      @if (!turns().length) {
-        <div class="cc-suggest" aria-label="Example questions">
-          @for (s of suggestions; track s) {
-            <button type="button" class="cc-chip" (click)="ask(s)">{{ s }}</button>
+        <div class="cc-log" [class.is-empty]="!turns().length" #log role="log" aria-live="polite" aria-label="Conversation">
+          @if (!turns().length) {
+            <div class="cc-welcome">
+              <span class="cc-avatar cc-avatar--large" aria-hidden="true">TIQ</span>
+              <h2>Ask about any course you've taken</h2>
+              <p class="muted">Tell me the <strong>school</strong> and <strong>course code</strong>, and your grade if you know it.
+                I'll check how it transfers to BU.</p>
+              <div class="cc-suggest" aria-label="Example questions">
+                @for (s of suggestions; track s.text) {
+                  <button type="button" class="cc-suggest__card" (click)="ask(s.text)">
+                    <span class="cc-suggest__icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path [attr.d]="s.icon"/></svg>
+                    </span>
+                    <span class="cc-suggest__text">
+                      <span class="cc-suggest__label">{{ s.label }}</span>
+                      <span>{{ s.text }}</span>
+                    </span>
+                  </button>
+                }
+              </div>
+            </div>
+          }
+          @for (t of turns(); track $index) {
+            @if (t.role === 'user') {
+              <div class="cc-row cc-row--user">
+                <div class="cc-msg cc-msg--user"><p>{{ t.content }}</p></div>
+              </div>
+            } @else {
+              <div class="cc-row">
+                <span class="cc-avatar cc-avatar--small" aria-hidden="true">TIQ</span>
+                <div class="cc-reply">
+                  <div class="cc-msg"><p>{{ t.content }}</p></div>
+                  @for (r of t.results ?? []; track $index) {
+                    <ng-container *ngTemplateOutlet="resultCard; context: { $implicit: r }" />
+                  }
+                </div>
+              </div>
+            }
+          }
+          @if (sending()) {
+            <div class="cc-row" role="status">
+              <span class="cc-avatar cc-avatar--small" aria-hidden="true">TIQ</span>
+              <div class="cc-msg cc-typing"><span></span><span></span><span></span><span class="visually-hidden">Checking…</span></div>
+            </div>
           }
         </div>
-      }
-      @for (t of turns(); track $index) {
-        @if (t.role === 'user') {
-          <div class="cc-row cc-row--user">
-            <div class="cc-msg cc-msg--user"><p>{{ t.content }}</p></div>
-          </div>
-        } @else {
-          <div class="cc-row">
-            <span class="cc-avatar cc-avatar--small" aria-hidden="true">TIQ</span>
-            <div class="cc-msg">
-              <p>{{ t.content }}</p>
-              @for (r of t.results ?? []; track $index) {
-                <ng-container *ngTemplateOutlet="resultCard; context: { $implicit: r }" />
-              }
+
+        <footer class="cc-chat__foot">
+          @if (chatError()) {
+            <div class="banner banner--error cc-error" role="alert">{{ chatError() }}</div>
+          }
+          <form class="cc-composer" (ngSubmit)="ask()">
+            <label for="cc-text" class="visually-hidden">Your question</label>
+            <textarea id="cc-text" #composer name="draft" rows="1" maxlength="600" [(ngModel)]="draft"
+                      (keydown)="onKey($event)" (input)="autoGrow()"
+                      placeholder="Ask about a course, e.g. NYU PSYCH-UA 10, I got a B+"
+                      [disabled]="sending()"></textarea>
+            <button type="submit" class="cc-send" [disabled]="sending() || !draft.trim()" aria-label="Send">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </button>
+          </form>
+          <p class="cc-hint muted small">
+            <span><kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line</span>
+            @if (draft.length > 450) { <span [class.cc-hint--warn]="draft.length > 570">{{ draft.length }}/600</span> }
+          </p>
+        </footer>
+      </section>
+    } @else {
+      <section class="card cc-form" id="cc-panel-form" role="tabpanel" aria-labelledby="cc-tab-form">
+        <header class="cc-form__head">
+          <h2>Check one course</h2>
+          <p class="muted small">Pick the school, then the course. Grade and term make the answer more precise.</p>
+        </header>
+        <form class="form" (ngSubmit)="check()">
+          <div class="cc-grid">
+            <div class="field">
+              <label for="cc-school">School</label>
+              <select id="cc-school" name="school" [ngModel]="school" (ngModelChange)="onSchool($event)" required>
+                <option value="" disabled>Choose a school</option>
+                @for (s of schools(); track s.school_code) {
+                  <option [value]="s.school_code">{{ s.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="field">
+              <label for="cc-code">Course code</label>
+              <input id="cc-code" type="text" name="code" list="cc-course-list" autocomplete="off"
+                     [ngModel]="courseCode()" (ngModelChange)="courseCode.set($event)" [placeholder]="codePlaceholder()"
+                     maxlength="20" required [disabled]="!school" />
+              <datalist id="cc-course-list">
+                @for (c of courses(); track c.course_code) {
+                  <option [value]="c.course_code">{{ c.title }} ({{ c.credits }} cr)</option>
+                }
+              </datalist>
+              <small class="muted">
+                @if (!school) { Choose a school first. }
+                @else if (loadingCourses()) { Loading courses… }
+                @else if (courses().length) { Pick from {{ courses().length }} catalog courses or type a code. }
+                @else { Type the course code. }
+              </small>
+            </div>
+            @if (unlisted()) {
+              <div class="field cc-covers">
+                <label for="cc-covers">What does the course cover? (not in the list)</label>
+                <textarea id="cc-covers" name="covers" rows="2" [(ngModel)]="covers" maxlength="600"
+                          placeholder="Statistics for psychology: probability, hypothesis testing, regression"></textarea>
+                <small class="muted">The title and main topics give a preliminary estimate; a title alone is usually not enough.</small>
+              </div>
+            }
+            <div class="field">
+              <label for="cc-grade">Grade (optional)</label>
+              <select id="cc-grade" name="grade" [(ngModel)]="grade">
+                <option value="">–</option>
+                @for (g of ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F', 'P']; track g) {
+                  <option [value]="g">{{ g }}</option>
+                }
+              </select>
+            </div>
+            <div class="field">
+              <label for="cc-term">Term (optional)</label>
+              <input id="cc-term" type="text" name="term" [(ngModel)]="term" placeholder="Fall 2024" maxlength="20" />
             </div>
           </div>
-        }
-      }
-      @if (sending()) {
-        <div class="cc-row" role="status">
-          <span class="cc-avatar cc-avatar--small" aria-hidden="true">TIQ</span>
-          <div class="cc-msg cc-typing"><span></span><span></span><span></span><span class="visually-hidden">Checking…</span></div>
-        </div>
-      }
-    </div>
-
-    @if (chatError()) {
-      <div class="banner banner--error cc-error" role="alert">{{ chatError() }}</div>
-    }
-    <form class="cc-composer" (ngSubmit)="ask()">
-      <label for="cc-text" class="visually-hidden">Your question</label>
-      <textarea id="cc-text" #composer name="draft" rows="1" maxlength="600" [(ngModel)]="draft"
-                (keydown)="onKey($event)" (input)="autoGrow()"
-                placeholder="Ask about a course, e.g. Will NYU PSYCH-UA 10 transfer? I got a B+."
-                [disabled]="sending()"></textarea>
-      <button type="submit" class="cc-send" [disabled]="sending() || !draft.trim()" aria-label="Send">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
-      </button>
-    </form>
-    <p class="cc-hint muted small">
-      <span><kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line</span>
-      @if (draft.length > 450) { <span [class.cc-hint--warn]="draft.length > 570">{{ draft.length }}/600</span> }
-    </p>
-  </section>
-} @else {
-  <section class="card cc-form" id="cc-panel-form" role="tabpanel" aria-labelledby="cc-tab-form">
-    <form class="form" (ngSubmit)="check()">
-      <div class="cc-grid">
-        <div class="field">
-          <label for="cc-school">School</label>
-          <select id="cc-school" name="school" [ngModel]="school" (ngModelChange)="onSchool($event)" required>
-            <option value="" disabled>Choose a school</option>
-            @for (s of schools(); track s.school_code) {
-              <option [value]="s.school_code">{{ s.name }}</option>
+          @if (formError()) {
+            <div class="banner banner--error" role="alert">{{ formError() }}</div>
+          }
+          <button type="submit" class="btn btn--primary cc-form__submit" [disabled]="checking()">
+            @if (checking()) { <span class="spinner" aria-hidden="true"></span> Checking… } @else { Check this course }
+          </button>
+        </form>
+        @if (result(); as r) {
+          <div class="cc-form__result" aria-live="polite">
+            <ng-container *ngTemplateOutlet="resultCard; context: { $implicit: r }" />
+            @if (r.caveats.length) {
+              <ul class="cc-caveats muted small">
+                @for (c of r.caveats; track c) { <li>{{ c }}</li> }
+              </ul>
             }
-          </select>
-        </div>
-        <div class="field">
-          <label for="cc-code">Course code</label>
-          <input id="cc-code" type="text" name="code" list="cc-course-list" autocomplete="off"
-                 [ngModel]="courseCode()" (ngModelChange)="courseCode.set($event)" [placeholder]="codePlaceholder()"
-                 maxlength="20" required [disabled]="!school" />
-          <datalist id="cc-course-list">
-            @for (c of courses(); track c.course_code) {
-              <option [value]="c.course_code">{{ c.title }} ({{ c.credits }} cr)</option>
-            }
-          </datalist>
-          <small class="muted">
-            @if (!school) { Choose a school first. }
-            @else if (loadingCourses()) { Loading courses… }
-            @else if (courses().length) { Pick from {{ courses().length }} catalog courses or type a code. }
-            @else { Type the course code. }
-          </small>
-        </div>
-        @if (unlisted()) {
-          <div class="field cc-covers">
-            <label for="cc-covers">What does the course cover? (not in the list)</label>
-            <textarea id="cc-covers" name="covers" rows="2" [(ngModel)]="covers" maxlength="600"
-                      placeholder="Statistics for psychology: probability, hypothesis testing, regression"></textarea>
-            <small class="muted">The title and main topics give a preliminary estimate; a title alone is usually not enough.</small>
           </div>
         }
-        <div class="field">
-          <label for="cc-grade">Grade (optional)</label>
-          <select id="cc-grade" name="grade" [(ngModel)]="grade">
-            <option value="">–</option>
-            @for (g of ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F', 'P']; track g) {
-              <option [value]="g">{{ g }}</option>
-            }
-          </select>
-        </div>
-        <div class="field">
-          <label for="cc-term">Term (optional)</label>
-          <input id="cc-term" type="text" name="term" [(ngModel)]="term" placeholder="Fall 2024" maxlength="20" />
-        </div>
-      </div>
-      @if (formError()) {
-        <div class="banner banner--error" role="alert">{{ formError() }}</div>
-      }
-      <button type="submit" class="btn btn--primary" [disabled]="checking()">
-        @if (checking()) { <span class="spinner" aria-hidden="true"></span> Checking… } @else { Check }
-      </button>
-    </form>
-    @if (result(); as r) {
-      <ng-container *ngTemplateOutlet="resultCard; context: { $implicit: r }" />
-      <ul class="cc-caveats muted small">
-        @for (c of r.caveats; track c) { <li>{{ c }}</li> }
-      </ul>
+      </section>
     }
-  </section>
-}
-
-<aside class="cc-cta">
-  <div>
-    <strong>Ready to make it official?</strong>
-    <p class="muted small">Register, upload your transcript, and BU evaluates every course. You can follow each one on your status page.</p>
   </div>
-  <a class="btn btn--primary" routerLink="/login/student">Register or sign in</a>
-</aside>
+
+  <aside class="cc-rail" aria-label="Help">
+    <section class="cc-panel">
+      <h2 class="cc-panel__title">What the answers mean</h2>
+      <ul class="cc-legend">
+        @for (l of legend; track l.tone) {
+          <li [class]="'cc-tone--' + l.tone">
+            <span class="cc-legend__icon"><ng-container *ngTemplateOutlet="statusIcon; context: { $implicit: l.tone }" /></span>
+            <span><strong>{{ l.label }}</strong><span class="muted small">{{ l.text }}</span></span>
+          </li>
+        }
+      </ul>
+    </section>
+
+    <section class="cc-panel">
+      <h2 class="cc-panel__title">Schools you can ask about</h2>
+      @switch (schoolsState()) {
+        @case ('loading') { <p class="muted small cc-panel__note"><span class="spinner" aria-hidden="true"></span> Loading schools…</p> }
+        @case ('error') { <p class="muted small cc-panel__note">The list could not load. Ask the assistant which schools are covered.</p> }
+        @default {
+          @if (schools().length) {
+            <ul class="cc-schools">
+              @for (s of shownSchools(); track s.school_code) {
+                <li>
+                  <button type="button" class="cc-school" [disabled]="sending()" (click)="useSchool(s)"
+                          [attr.aria-label]="(tab() === 'chat' ? 'Ask about ' : 'Choose ') + s.name">
+                    <span class="cc-school__code">{{ s.school_code }}</span>
+                    <span class="cc-school__name">{{ s.name }}</span>
+                    @if (s.calendar && s.calendar !== 'Semester') { <span class="cc-school__cal">{{ s.calendar }}</span> }
+                  </button>
+                </li>
+              }
+            </ul>
+            @if (moreSchools()) { <p class="muted small cc-panel__note">and {{ moreSchools() }} more; ask the assistant.</p> }
+          } @else {
+            <p class="muted small cc-panel__note">No schools are in the catalog yet.</p>
+          }
+        }
+      }
+    </section>
+
+    <section class="cc-panel cc-cta">
+      <h2 class="cc-panel__title">Ready to make it official?</h2>
+      <ol class="cc-steps">
+        <li>Register or sign in</li>
+        <li>Upload your transcript</li>
+        <li>BU evaluates every course; follow each one on your status page</li>
+      </ol>
+      <a class="btn btn--primary" routerLink="/login/student">Register or sign in</a>
+    </section>
+  </aside>
+</div>

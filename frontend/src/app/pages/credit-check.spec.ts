@@ -125,6 +125,37 @@ describe('CreditCheckPage', () => {
   });
 });
 
+describe('CreditCheckPage help rail', () => {
+  it('starts a chat question from a school, and chooses it in the quick check', async () => {
+    const { fixture, http, el } = setup();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    (el.querySelector('.cc-school') as HTMLButtonElement).click();
+    expect(fixture.componentInstance['draft']).toBe('Will NYU ');
+
+    (el.querySelectorAll('.tabs__tab')[1] as HTMLButtonElement).click();
+    fixture.detectChanges();
+    (el.querySelector('.cc-school') as HTMLButtonElement).click();
+    http.expectOne((r) => r.url === '/api/credit-check/courses' && r.params.get('school') === 'NYU').flush([]);
+    expect(fixture.componentInstance['school']).toBe('NYU');
+  });
+
+  it('says so when the school list cannot load', async () => {
+    TestBed.configureTestingModule({
+      imports: [CreditCheckPage],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    });
+    const fixture = TestBed.createComponent(CreditCheckPage);
+    fixture.detectChanges();
+    TestBed.inject(HttpTestingController).expectOne('/api/credit-check/schools').flush('down', { status: 500, statusText: 'Error' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.cc-school')).toBeNull();
+    expect(el.textContent).toContain('The list could not load');
+  });
+});
+
 describe('trimHistory', () => {
   it('keeps at most 12 turns and starts with a user turn', () => {
     const turns = Array.from({ length: 15 }, (_, i) => ({ role: (i % 2 ? 'assistant' : 'user') as 'user' | 'assistant', content: `${i}` }));
