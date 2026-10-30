@@ -843,11 +843,18 @@ def _save_decision(inp: DecisionInput, role: str, rec: Optional[dict]) -> Decisi
     applies_to = None
     if not inp.reusable:  # one-off decision: only the students waiting on this course right now
         applies_to = sorted({ln.student_id for ln in s.lines if ln.ext_id == inp.ext_id})
-    d = Decision(decision_id=s.next_decision_id(), ext_id=inp.ext_id, decision=inp.decision, bu_course=inp.bu_course,
+    d = Decision(decision_id="", ext_id=inp.ext_id, decision=inp.decision, bu_course=inp.bu_course,
                  reason_code=inp.reason_code, reusable=inp.reusable, catalog_year=inp.catalog_year,
                  decided_by=inp.evaluator, decision_date=dt.datetime.now(dt.timezone.utc).isoformat(),
                  split="runtime", note=inp.note, ai_suggestion=sugg, ai_agreed=agreed, applies_to=applies_to)
-    with s.lock:
+    with s.lock:                     # the id is taken under the lock, so two saves at once never share it
+        floor = 0
+        if db.enabled():
+            try:
+                floor = db.max_decision_number()
+            except db.DBError as e:
+                raise HTTPException(503, str(e))
+        d.decision_id = s.next_decision_id(floor)
         _persist(db.save_decisions, [d])
         s.decisions.append(d)
     _audit(role, "decision", inp.ext_id, None, d.to_api())   # actor role recorded (checklist section 1)

@@ -147,6 +147,7 @@ def test_department_approve_is_written_to_postgres(client, fresh_store, monkeypa
     from app import db
     saved, posted, audited = [], [], []
     monkeypatch.setattr(db, "enabled", lambda: True)
+    monkeypatch.setattr(db, "max_decision_number", lambda: 0)
     monkeypatch.setattr(db, "save_decisions", lambda ds: saved.extend(ds))
     monkeypatch.setattr(db, "save_postings", lambda items: posted.extend(items))
     monkeypatch.setattr(db, "save_audit", lambda e: audited.append(e))
@@ -163,6 +164,36 @@ def test_department_approve_is_written_to_postgres(client, fresh_store, monkeypa
     before = len(fresh_store.decisions)
     assert client.post("/api/decisions", json=DEC, headers=role("Department")).status_code == 503
     assert len(fresh_store.decisions) == before   # nothing changed in memory
+
+
+def test_a_new_decision_id_is_never_one_already_used(client, fresh_store, monkeypatch):
+    """Live bug: "Not saved" on Approve, the database refused a duplicate decision id. The id was the count + 1,
+    which repeats an id once there is a gap, or once another app instance (two revisions run during a deploy)
+    saved a decision this one never loaded."""
+    from app import db
+    from app.store import Decision
+    ids = {d.decision_id for d in fresh_store.decisions + fresh_store.holdout_decisions}
+    gap = Decision("D-0150", "NYU|PSYCH-UA 1", "Equivalent", "CAS PS 101", "EQ-EVALUATOR", True, "", "x",
+                   "2026-10-30", split="runtime")
+    fresh_store.decisions.append(gap)                        # count + 1 would be an id below D-0150
+    first = client.post("/api/decisions", json=DEC, headers=role("Evaluator")).json()["decision_id"]
+    assert first == "D-0151" and first not in ids
+
+    saved = []
+    monkeypatch.setattr(db, "enabled", lambda: True)
+    monkeypatch.setattr(db, "max_decision_number", lambda: 300)     # another instance already saved up to D-0300
+    monkeypatch.setattr(db, "save_decisions", lambda ds: saved.extend(ds))
+    monkeypatch.setattr(db, "save_audit", lambda e: None)
+    second = client.post("/api/decisions", json=DEC, headers=role("Evaluator")).json()["decision_id"]
+    assert second == "D-0301" and [d.decision_id for d in saved] == ["D-0301"]
+
+    def down():
+        raise db.DBError("The database is not reachable. Please try again in a moment.")
+    monkeypatch.setattr(db, "max_decision_number", down)
+    before = len(fresh_store.decisions)
+    r = client.post("/api/decisions", json=DEC, headers=role("Evaluator"))
+    assert r.status_code == 503 and r.json()["detail"].startswith("The database is not reachable")
+    assert len(fresh_store.decisions) == before
 
 
 def test_non_reusable_decision_only_for_waiting_students(client, fresh_store):

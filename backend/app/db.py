@@ -282,6 +282,14 @@ def save_syllabus(rec, blob_path: Optional[str], missing_sections: list[str]) ->
                      rec.seed_state or None, rec.text))
 
 
+def max_decision_number() -> int:
+    """Highest D-number stored, so a new decision id is never one another app instance already used (two
+    revisions run side by side during a deploy, each with its own memory)."""
+    with tx() as cur:
+        cur.execute(r"select coalesce(max(substring(decision_id from '^D-(\d+)$')::int), 0) from decisions")
+        return int(cur.fetchone()[0])
+
+
 def save_decisions(decisions: list) -> None:
     with tx() as cur:
         for d in decisions:

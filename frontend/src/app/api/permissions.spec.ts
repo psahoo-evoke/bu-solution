@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { vi } from 'vitest';
 import { describeError } from './errors';
 import { can, switchRoleMessage } from './permissions';
 
@@ -37,5 +38,23 @@ describe('role matrix (openapi x-roles v0.3.0)', () => {
     );
     const unauth = new HttpErrorResponse({ status: 401, statusText: 'Unauthorized' });
     expect(describeError(unauth, 'Student', 'decide')).toContain('Pick a role in the top bar');
+  });
+
+  it("shows the API's own reason for a 503 instead of 'start the backend on localhost'", () => {
+    const busy = new HttpErrorResponse({ status: 503, error: { detail: 'The change could not be saved. Please try again.' } });
+    expect(describeError(busy)).toBe('The change could not be saved. Please try again.');
+    expect(describeError(busy)).not.toContain('localhost');
+  });
+
+  it('gives live users a plain message when the API does not answer, and developers the localhost hint', () => {
+    const down = new HttpErrorResponse({ status: 0 });
+    const original = location.hostname;
+    expect(describeError(down)).toContain(original === 'localhost' ? 'localhost:8000' : 'not reachable right now');
+    vi.stubGlobal('location', { hostname: 'bu-solutions.example.io' });
+    try {
+      expect(describeError(down)).toBe('TransferIQ is not reachable right now. Please try again in a moment.');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
