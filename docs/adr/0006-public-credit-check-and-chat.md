@@ -12,7 +12,7 @@
 
 **Decision.**
 - **Access.** `guard.PUBLIC` is an exact `(method, path)` allowlist, public in every auth mode:
-  - `GET /credit-check/schools`
+  - `GET /credit-check/schools` and `GET /credit-check/courses?school=` (catalog courses for the form picker; code, title, credits only)
   - `POST /credit-check`
   - `POST /credit-chat`
 

@@ -184,3 +184,23 @@ def test_public_bodies_are_small_and_strict(anon):
     big = anon.post(URL, content=b'{"school": "' + b"x" * 70_000 + b'"}', headers={"Content-Type": "application/json"})
     assert big.status_code == 413
     assert check(anon, school="NYU", course_code="PSYCH-UA 1", admin=True).status_code == 422
+
+
+def test_course_picker_lists_a_schools_catalog_courses_only(anon, fresh_store):
+    from app.store import ExtCourse
+    fresh_store.ext_courses["NYU|SECRET-UA 77"] = ExtCourse("NYU|SECRET-UA 77", "NYU", "SECRET-UA 77", "Applicant's course",
+                                                            4.0, "Semester", "", "Academic", 100, "x", [], [])
+    r = anon.get("/api/credit-check/courses", params={"school": "nyu"})
+    assert r.status_code == 200
+    rows = r.json()
+    codes = [c["course_code"] for c in rows]
+    assert "PSYCH-UA 1" in codes and "SECRET-UA 77" not in codes and codes == sorted(codes)
+    assert set(rows[0]) == {"course_code", "title", "credits"}           # no decisions, no ids
+    assert all(c.school_code == "NYU" for c in fresh_store.ext_courses.values() if c.course_code in codes)
+    assert anon.get("/api/credit-check/courses", params={"school": "Hogwarts"}).status_code == 404
+    assert anon.get("/api/credit-check/courses").status_code == 422
+
+
+def test_an_unlisted_course_with_only_a_title_still_gets_an_estimate(anon):
+    r = check(anon, school="NYU", course_code="PSYCH-UA 77", title="Statistics: probability, hypothesis testing, regression").json()
+    assert r["kind"] == "needs_evaluation" and r["estimate"]["candidates"], r

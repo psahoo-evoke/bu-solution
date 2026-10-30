@@ -222,6 +222,13 @@ export interface CreditSchool {
   calendar: string;
 }
 
+/** A school's catalog course, for the quick check's course picker. */
+export interface CreditCourse {
+  course_code: string;
+  title: string;
+  credits: number;
+}
+
 export interface CreditCheckInput {
   school: string;
   course_code?: string;

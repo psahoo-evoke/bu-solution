@@ -225,6 +225,15 @@ def credit_check_schools(request: Request):
     return credit_check.schools(S())
 
 
+@api.get("/credit-check/courses")
+def credit_check_courses(request: Request, school: str = Query(..., min_length=1, max_length=80)):
+    _public_limit(request)
+    rows = credit_check.courses(S(), school)
+    if rows is None:
+        raise HTTPException(404, "School not in the catalog")
+    return rows
+
+
 @api.post("/credit-check")
 def post_credit_check(inp: CreditCheckInput, request: Request):
     return run_credit_check(inp, _public_limit(request))

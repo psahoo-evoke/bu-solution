@@ -20,6 +20,7 @@
   textarea { flex: 1; font: inherit; padding: .5rem .6rem; border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
 }
 .cc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .75rem; }
+.cc-covers { grid-column: 1 / -1; textarea { font: inherit; padding: .5rem .6rem; border: 1px solid var(--border); border-radius: 6px; resize: vertical; } }
 .cc-result {
   margin-top: .6rem; padding: .7rem .85rem; border: 1px solid var(--border); border-left: 4px solid var(--muted);
   border-radius: 8px; background: var(--surface);

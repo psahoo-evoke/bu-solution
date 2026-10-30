@@ -7,7 +7,7 @@ info:
     AI recommends, the rules engine computes, evaluators decide.
     Demo auth: send `X-Demo-Role` (Student | CreditStaff | Evaluator | Department | Registrar | Advisor).
     Production auth: Entra ID bearer token with the same app roles.
-    Default deny (ADR 0005) with a public allowlist: /health, /auth/* (sign-in and registration) and the credit check and chat (/credit-check, /credit-check/schools, /credit-chat; ADR 0006) need no login. Every other route requires a valid role; `x-roles` lists the roles allowed per operation (others get 403, missing/unknown role 401).
+    Default deny (ADR 0005) with a public allowlist: /health, /auth/* (sign-in and registration) and the credit check and chat (/credit-check, /credit-check/schools, /credit-check/courses, /credit-chat; ADR 0006) need no login. Every other route requires a valid role; `x-roles` lists the roles allowed per operation (others get 403, missing/unknown role 401).
     In production, Student may only read or upload for their own student_id; /demo/reset is disabled.
 servers:
   - url: /api
@@ -27,6 +27,17 @@ paths:
       security: []
       responses:
         "200": { description: Schools, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/CreditSchool" } } } } }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /credit-check/courses:
+    get:
+      summary: "Public, no login (ADR 0006): a school's catalog courses for the form's course picker. Courses known only from a transcript upload are not listed; no decisions are included."
+      security: []
+      parameters:
+        - { name: school, in: query, required: true, description: "School code or name", schema: { type: string, minLength: 1, maxLength: 80, example: NYU } }
+      responses:
+        "200": { description: Courses sorted by code, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/CreditCourse" } } } } }
+        "404": { description: School not in the catalog }
+        "422": { $ref: "#/components/responses/PublicInvalid" }
         "429": { $ref: "#/components/responses/RateLimited" }
   /credit-check:
     post:
@@ -283,6 +294,13 @@ components:
         school_code: { type: string, example: NYU }
         name: { type: string }
         calendar: { type: string, enum: [Semester, Quarter] }
+    CreditCourse:
+      type: object
+      required: [course_code, title, credits]
+      properties:
+        course_code: { type: string, example: "PSYCH-UA 10" }
+        title: { type: string }
+        credits: { type: number }
     CreditCheckInput:
       type: object
       required: [school]

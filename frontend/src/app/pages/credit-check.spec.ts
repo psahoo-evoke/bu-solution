@@ -61,6 +61,34 @@ describe('CreditCheckPage', () => {
     expect(el.querySelector('#cc-school')).not.toBeNull();
     expect(el.textContent).toContain('The chat is not available right now');
   });
+
+  it("loads the chosen school's courses once and asks what an unlisted course covers", async () => {
+    const { fixture, http, el } = setup();
+    (el.querySelectorAll('.tabs__tab')[1] as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const page = fixture.componentInstance;
+    const render = async () => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+    page['onSchool']('NYU');
+    http.expectOne((r) => r.url === '/api/credit-check/courses' && r.params.get('school') === 'NYU')
+      .flush([{ course_code: 'PSYCH-UA 1', title: 'Intro to Psychology', credits: 4 }]);
+    await render();
+    expect(el.querySelectorAll('#cc-course-list option').length).toBe(1);
+    expect((el.querySelector('#cc-code') as HTMLInputElement).placeholder).toBe('PSYCH-UA 1');
+
+    page['courseCode'].set('psych-ua1');
+    await render();
+    expect(el.querySelector('#cc-covers')).toBeNull();          // listed (case and spaces ignored)
+    page['courseCode'].set('PSYCH-UA 999');
+    await render();
+    expect(el.querySelector('#cc-covers')).not.toBeNull();      // unlisted: its topics give a preliminary estimate
+
+    page['onSchool']('NYU');                                   // same school again: cached, no second request
+    http.expectNone((r) => r.url === '/api/credit-check/courses');
+    expect(page['courseCode']()).toBe('');
+  });
 });
 
 describe('trimHistory', () => {

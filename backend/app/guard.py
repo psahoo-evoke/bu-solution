@@ -55,7 +55,7 @@ ROUTE_ROLES: list[tuple[str, str, set[str]]] = [
 ]
 UPLOAD_ROUTES = {"/students/{student_id}/transcripts", "/courses/{ext_id}/syllabus"}
 PUBLIC = {("GET", "/health"), ("POST", "/auth/login"), ("POST", "/auth/register/student"),
-          ("GET", "/credit-check/schools"), ("POST", "/credit-check"), ("POST", "/credit-chat"),   # public, no login
+          ("GET", "/credit-check/schools"), ("GET", "/credit-check/courses"),("POST", "/credit-check"), ("POST", "/credit-chat"),   # public, no login
           ("POST", "/auth/register/department"), ("GET", "/auth/options")}
 _STUDENT_PATH = re.compile(r"^/students/([^/]+)(/|$)")
 

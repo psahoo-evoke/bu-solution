@@ -20,6 +20,7 @@ import {
   CreditChatReply,
   CreditCheckInput,
   CreditCheckResult,
+  CreditCourse,
   CreditSchool,
 } from './models';
 
@@ -42,6 +43,11 @@ export class ApiService {
   /** Public (no sign-in): schools in the catalog. */
   creditSchools(): Observable<CreditSchool[]> {
     return this.http.get<CreditSchool[]>(`${API_BASE}/credit-check/schools`);
+  }
+
+  /** Public (no sign-in): a school's catalog courses (code, title, credits) for the course picker. */
+  creditCourses(school: string): Observable<CreditCourse[]> {
+    return this.http.get<CreditCourse[]>(`${API_BASE}/credit-check/courses`, { params: { school } });
   }
 
   /** Public (no sign-in): will this course transfer? Facts from the rules engine; estimates are preliminary. */

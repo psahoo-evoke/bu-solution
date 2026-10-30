@@ -1,10 +1,10 @@
-import { Component, ElementRef, OnInit, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, OnInit, computed, inject, signal, viewChild } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../api/api.service';
-import { ChatTurn, CreditCheckResult, CreditKind, CreditSchool } from '../api/models';
+import { ChatTurn, CreditCheckResult, CreditCourse, CreditKind, CreditSchool } from '../api/models';
 
 /** Shown under each assistant reply / form result: facts straight from the rules engine, not the model's prose. */
 interface ChatEntry extends ChatTurn {
@@ -20,6 +20,11 @@ export const KIND_LABEL: Record<CreditKind, string> = {
   unknown_school: 'School not in catalog',
   unknown_course: 'Course not in catalog',
 };
+
+/** 'psych-ua10' and 'PSYCH-UA 10' are the same course code. */
+export function normCode(code: string): string {
+  return code.toUpperCase().replace(/\s+/g, '');
+}
 
 /** Keep the last turns the API accepts (12), starting with a user turn. */
 export function trimHistory(turns: ChatTurn[], max = 12): ChatTurn[] {
@@ -58,7 +63,18 @@ export class CreditCheckPage implements OnInit {
 
   // form
   protected school = '';
-  protected courseCode = '';
+  protected readonly courseCode = signal('');
+  protected covers = '';
+  /** The chosen school's catalog courses (course picker); loaded once per school. */
+  protected readonly courses = signal<CreditCourse[]>([]);
+  protected readonly loadingCourses = signal(false);
+  private readonly courseCache = new Map<string, CreditCourse[]>();
+  /** The typed code is not one of the school's catalog courses: ask what it covers so it can still be estimated. */
+  protected readonly unlisted = computed(() => {
+    const code = normCode(this.courseCode());
+    return !!code && !this.loadingCourses() && !this.courses().some((c) => normCode(c.course_code) === code);
+  });
+  protected readonly codePlaceholder = computed(() => this.courses()[0]?.course_code ?? 'PSYCH-UA 10');
   protected grade = '';
   protected term = '';
   protected readonly checking = signal(false);
@@ -102,16 +118,40 @@ export class CreditCheckPage implements OnInit {
     });
   }
 
+  /** New school: clear the course and load that school's catalog courses (cached for the visit). */
+  protected onSchool(school: string): void {
+    this.school = school;
+    this.courseCode.set('');
+    this.covers = '';
+    this.result.set(null);
+    const cached = this.courseCache.get(school);
+    if (cached) {
+      this.courses.set(cached);
+      return;
+    }
+    this.courses.set([]);
+    this.loadingCourses.set(true);
+    this.api.creditCourses(school).subscribe({
+      next: (rows) => {
+        this.courseCache.set(school, rows);
+        if (this.school === school) this.courses.set(rows);
+        this.loadingCourses.set(false);
+      },
+      error: () => this.loadingCourses.set(false),       // the field stays free text
+    });
+  }
+
   protected check(): void {
-    if (!this.school || !this.courseCode.trim() || this.checking()) {
+    if (!this.school || !this.courseCode().trim() || this.checking()) {
       this.formError.set('Choose a school and enter the course code.');
       return;
     }
     this.formError.set(null);
     this.checking.set(true);
     this.api
-      .creditCheck({ school: this.school, course_code: this.courseCode.trim(), grade: this.grade || undefined,
-                     term: this.term.trim() || undefined })
+      .creditCheck({ school: this.school, course_code: this.courseCode().trim(), grade: this.grade || undefined,
+                     term: this.term.trim() || undefined,
+                     description: (this.unlisted() && this.covers.trim()) || undefined })
       .subscribe({
         next: (r) => {
           this.result.set(r);

@@ -5,8 +5,8 @@ import { Observable, catchError, from, switchMap, throwError } from 'rxjs';
 import { AuthService } from './auth.service';
 import { RoleService } from './role.service';
 
-/** Public course-credit check and chat: exactly the three routes in guard.py PUBLIC (ADR 0006). */
-const PUBLIC_CREDIT = new Set(['/api/credit-check', '/api/credit-check/schools', '/api/credit-chat']);
+/** Public course-credit check and chat: exactly the routes in guard.py PUBLIC (ADR 0006). */
+const PUBLIC_CREDIT = new Set(['/api/credit-check', '/api/credit-check/schools', '/api/credit-check/courses', '/api/credit-chat']);
 
 /**
  * Adds the active role (X-Demo-Role) to every /api call, and in portal / entra mode the bearer token as well

@@ -78,7 +78,7 @@
       <div class="cc-grid">
         <div class="field">
           <label for="cc-school">School</label>
-          <select id="cc-school" name="school" [(ngModel)]="school" required>
+          <select id="cc-school" name="school" [ngModel]="school" (ngModelChange)="onSchool($event)" required>
             <option value="" disabled>Choose a school</option>
             @for (s of schools(); track s.school_code) {
               <option [value]="s.school_code">{{ s.name }}</option>
@@ -87,8 +87,29 @@
         </div>
         <div class="field">
           <label for="cc-code">Course code</label>
-          <input id="cc-code" type="text" name="code" [(ngModel)]="courseCode" placeholder="PSYCH-UA 10" maxlength="20" required />
+          <input id="cc-code" type="text" name="code" list="cc-course-list" autocomplete="off"
+                 [ngModel]="courseCode()" (ngModelChange)="courseCode.set($event)" [placeholder]="codePlaceholder()"
+                 maxlength="20" required [disabled]="!school" />
+          <datalist id="cc-course-list">
+            @for (c of courses(); track c.course_code) {
+              <option [value]="c.course_code">{{ c.title }} ({{ c.credits }} cr)</option>
+            }
+          </datalist>
+          <small class="muted">
+            @if (!school) { Choose a school first. }
+            @else if (loadingCourses()) { Loading courses… }
+            @else if (courses().length) { Pick from {{ courses().length }} catalog courses or type a code. }
+            @else { Type the course code. }
+          </small>
         </div>
+        @if (unlisted()) {
+          <div class="field cc-covers">
+            <label for="cc-covers">What does the course cover? (not in the list)</label>
+            <textarea id="cc-covers" name="covers" rows="2" [(ngModel)]="covers" maxlength="600"
+                      placeholder="Statistics for psychology: probability, hypothesis testing, regression"></textarea>
+            <small class="muted">The title and main topics give a preliminary estimate; a title alone is usually not enough.</small>
+          </div>
+        }
         <div class="field">
           <label for="cc-grade">Grade (optional)</label>
           <select id="cc-grade" name="grade" [(ngModel)]="grade">

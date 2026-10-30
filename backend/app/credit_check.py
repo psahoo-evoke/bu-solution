@@ -70,6 +70,17 @@ def schools(store: Store) -> list[dict]:
     return [dict(school_code=s.school_code, name=s.name, calendar=s.calendar) for s in store.schools.values()]
 
 
+def courses(store: Store, school: str) -> Optional[list[dict]]:
+    """A school's catalog courses for the form's course picker (code, title, credits), sorted by code; None for an
+    unknown school. Courses known only from a transcript upload are left out, as in check_course."""
+    sc = find_school(store, school)
+    if sc is None:
+        return None
+    rows = [c for c in store.ext_courses.values() if c.school_code == sc.school_code and c.program_area]
+    return [dict(course_code=c.course_code, title=c.title, credits=c.credits)
+            for c in sorted(rows, key=lambda c: c.course_code)]
+
+
 def catalog_course(store: Store, ext_id: str) -> Optional[ExtCourse]:
     """A catalog course, or None. Courses created by a transcript upload have no program area and are private."""
     c = store.ext_courses.get(ext_id)
@@ -180,7 +191,7 @@ def _estimate(store: Store, course: Optional[ExtCourse], sc, code: str, title: s
     if adhoc:
         course = ExtCourse(f"{sc.school_code}|{code or 'UNLISTED'}", sc.school_code, code or "UNLISTED",
                            sanitize(title)[:120], 3.0, sc.calendar, "", "Academic", 100,
-                           sanitize(description)[:MAX_DESCRIPTION], [], [])
+                           sanitize(description or title)[:MAX_DESCRIPTION], [], [])   # the ranker reads the text
     syllabus = None if adhoc else store.syllabi.get(course.ext_id)
     rec = recommend(course, list(store.bu_courses.values()), syllabus, cache=not adhoc)
     cands = [dict(bu_code=c["bu_code"], title=c["title"], overlap_pct=c["overlap_pct"]) for c in rec["candidates"]
