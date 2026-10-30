@@ -5,10 +5,9 @@
   </svg>
 </ng-template>
 
-<section class="page-head cc-head">
+<header class="cc-top">
   <div>
     <h1>Will my course transfer?</h1>
-    <p class="muted">Check courses from your previous school against BU's past decisions and transfer rules.</p>
     <ul class="cc-trust" aria-label="About this check">
       <li>
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
@@ -24,7 +23,19 @@
       </li>
     </ul>
   </div>
-</section>
+  <div class="tabs cc-tabs" role="tablist" aria-label="Ask or quick check">
+    <button type="button" role="tab" id="cc-tab-chat" class="tabs__tab" aria-controls="cc-panel-chat"
+            [class.is-active]="tab() === 'chat'" [attr.aria-selected]="tab() === 'chat'" (click)="tab.set('chat')">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 4h16v12H7l-3 3zm2 2v8.2L6.2 14H18V6z"/></svg>
+      Ask in your words
+    </button>
+    <button type="button" role="tab" id="cc-tab-form" class="tabs__tab" aria-controls="cc-panel-form"
+            [class.is-active]="tab() === 'form'" [attr.aria-selected]="tab() === 'form'" (click)="tab.set('form')">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 5h16v2H4zm0 6h10v2H4zm0 6h16v2H4z"/></svg>
+      Quick check
+    </button>
+  </div>
+</header>
 
 <ng-template #resultCard let-r>
   <article [class]="'cc-result cc-result--' + r.kind + ' cc-tone--' + kindTone(r.kind)">
@@ -87,26 +98,16 @@
 </ng-template>
 
 <div class="cc-layout" [class.cc-layout--form]="tab() === 'form'">
-  <div class="tabs cc-tabs" role="tablist" aria-label="Ask or quick check">
-    <button type="button" role="tab" id="cc-tab-chat" class="tabs__tab" aria-controls="cc-panel-chat"
-            [class.is-active]="tab() === 'chat'" [attr.aria-selected]="tab() === 'chat'" (click)="tab.set('chat')">
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 4h16v12H7l-3 3zm2 2v8.2L6.2 14H18V6z"/></svg>
-      Ask in your words
-    </button>
-    <button type="button" role="tab" id="cc-tab-form" class="tabs__tab" aria-controls="cc-panel-form"
-            [class.is-active]="tab() === 'form'" [attr.aria-selected]="tab() === 'form'" (click)="tab.set('form')">
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 5h16v2H4zm0 6h10v2H4zm0 6h16v2H4z"/></svg>
-      Quick check
-    </button>
-  </div>
   <div class="cc-main">
     @if (tab() === 'chat') {
       <section class="card cc-chat" id="cc-panel-chat" role="tabpanel" aria-labelledby="cc-tab-chat">
         <header class="cc-chat__head">
-          <span class="cc-avatar" aria-hidden="true">TIQ</span>
+          <span class="cc-avatar-wrap">
+            <span class="cc-avatar" aria-hidden="true">TIQ</span><span class="cc-status-dot" aria-hidden="true"></span>
+          </span>
           <div class="cc-chat__title">
-            <strong>Transfer credit assistant</strong>
-            <span class="muted small">Answers come from BU's transfer rules and past decisions</span>
+            <strong>Transfer credit assistant <span class="cc-ai-tag">AI bot</span></strong>
+            <span class="muted small"><span class="cc-online">Online</span> · answers come from BU's transfer rules and past decisions</span>
           </div>
           @if (turns().length) {
             <button type="button" class="btn btn--ghost btn--small" (click)="newChat()">
@@ -262,18 +263,6 @@
 
   <aside class="cc-rail" aria-label="Help">
     <section class="cc-panel">
-      <h2 class="cc-panel__title">What the answers mean</h2>
-      <ul class="cc-legend">
-        @for (l of legend; track l.tone) {
-          <li [class]="'cc-tone--' + l.tone">
-            <span class="cc-legend__icon"><ng-container *ngTemplateOutlet="statusIcon; context: { $implicit: l.tone }" /></span>
-            <span><strong>{{ l.label }}</strong><span class="muted small">{{ l.text }}</span></span>
-          </li>
-        }
-      </ul>
-    </section>
-
-    <section class="cc-panel">
       <h2 class="cc-panel__title">Schools you can ask about</h2>
       @switch (schoolsState()) {
         @case ('loading') { <p class="muted small cc-panel__note"><span class="spinner" aria-hidden="true"></span> Loading schools…</p> }
@@ -299,17 +288,27 @@
         }
       }
     </section>
+
+    <details class="cc-panel cc-details" [open]="tab() === 'form'">
+      <summary class="cc-panel__title">What the answers mean</summary>
+      <ul class="cc-legend">
+        @for (l of legend; track l.tone) {
+          <li [class]="'cc-tone--' + l.tone">
+            <span class="cc-legend__icon"><ng-container *ngTemplateOutlet="statusIcon; context: { $implicit: l.tone }" /></span>
+            <span><strong>{{ l.label }}</strong><span class="muted small">{{ l.text }}</span></span>
+          </li>
+        }
+      </ul>
+    </details>
+
+    <section class="cc-panel cc-cta">
+      <h2 class="cc-panel__title">Ready to make it official?</h2>
+      <ol class="cc-steps">
+        <li>Register or sign in</li>
+        <li>Upload your transcript</li>
+        <li>BU evaluates every course; follow each one on your status page</li>
+      </ol>
+      <a class="btn btn--primary" routerLink="/login/student">Register or sign in</a>
+    </section>
   </aside>
 </div>
-
-<aside class="cc-cta">
-  <div class="cc-cta__text">
-    <h2 class="cc-panel__title">Ready to make it official?</h2>
-    <ol class="cc-steps">
-      <li>Register or sign in</li>
-      <li>Upload your transcript</li>
-      <li>BU evaluates every course; follow each one on your status page</li>
-    </ol>
-  </div>
-  <a class="btn btn--primary" routerLink="/login/student">Register or sign in</a>
-</aside>

@@ -6,13 +6,14 @@
 .cc-icon { flex: none; }
 
 // ------------------------------------------------------------------ page head
-.cc-head h1 { font-size: 1.75rem; letter-spacing: -.01em; }
+.cc-top {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem 1.5rem; margin-bottom: .9rem;
+  h1 { font-size: 1.4rem; letter-spacing: -.01em; margin: 0 0 .3rem; }
+  .tabs { margin: 0; width: 22rem; max-width: 100%; }
+}
 .cc-trust {
-  display: flex; flex-wrap: wrap; gap: .4rem .5rem; margin: .7rem 0 0; padding: 0; list-style: none;
-  li {
-    display: inline-flex; align-items: center; gap: .35rem; padding: .22rem .65rem; border-radius: 999px;
-    font-size: .82rem; color: var(--muted); background: var(--surface); border: 1px solid var(--border);
-  }
+  display: flex; flex-wrap: wrap; gap: .2rem 1.1rem; margin: 0; padding: 0; list-style: none;
+  li { display: inline-flex; align-items: center; gap: .35rem; font-size: .82rem; color: var(--muted); }
   svg { color: var(--approve); }
 }
 
@@ -30,21 +31,20 @@
 }
 
 // ------------------------------------------------------------------ layout: conversation + help rail
-.cc-layout {
-  display: grid; grid-template-columns: minmax(0, 1fr) 20rem; grid-template-rows: auto 1fr; column-gap: 1.25rem; align-items: stretch;
-  > .tabs { grid-column: 1; grid-row: 1; max-width: none; width: 100%; margin-bottom: 1rem; }   // as wide as the card under it
-  .cc-main { grid-column: 1; grid-row: 2; }
-  .cc-rail { grid-column: 2; grid-row: 1 / span 2; }
+// Chat-first: on wide screens the page is one viewport tall; the conversation scrolls inside its card and the help rail
+// scrolls on its own. Narrow screens and the Quick check tab use the natural page height.
+.cc-layout { display: grid; grid-template-columns: minmax(0, 1fr) 17rem; gap: 1.25rem; align-items: stretch; }
+.cc-layout:not(.cc-layout--form) {
+  height: clamp(30rem, calc(100dvh - 13rem), 64rem); grid-template-rows: minmax(0, 1fr);
+  .cc-rail { overflow-y: auto; min-height: 0; padding-bottom: 2px; }
 }
-// The card fills the column, so it ends level with the help rail instead of leaving a gap under it.
-.cc-main { display: flex; flex-direction: column; }
-.cc-main > .card { margin-bottom: 0; flex: 1; }
+.cc-main { display: flex; flex-direction: column; min-height: 0; }
+.cc-main > .card { margin-bottom: 0; flex: 1; min-height: 0; }
 // Quick check is a short form: no side column, the help panels sit in a row below it.
 .cc-layout--form {
-  grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; align-items: start;
+  grid-template-columns: minmax(0, 1fr); align-items: start;
   .cc-main > .card { flex: none; }
-  .cc-rail { grid-column: 1; grid-row: auto; margin-top: 1.25rem; }
-  .cc-rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); align-items: stretch; }
+  .cc-rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); align-items: stretch; }
 }
 .cc-main, .cc-rail { min-width: 0; }
 
@@ -57,6 +57,16 @@
   display: flex; align-items: center; gap: .75rem; padding: .85rem 1.1rem; border-bottom: 1px solid var(--border);
   .btn { margin-left: auto; flex: none; white-space: nowrap; }
 }
+.cc-avatar-wrap { position: relative; flex: none; display: inline-flex; }
+.cc-status-dot {
+  position: absolute; right: -1px; bottom: -1px; width: .7rem; height: .7rem; border-radius: 50%;
+  background: #22a455; border: 2px solid var(--surface);
+}
+.cc-ai-tag {
+  display: inline-block; margin-left: .35rem; padding: 0 .4rem; border-radius: 999px; vertical-align: 1px;
+  font-size: .68rem; font-weight: 700; letter-spacing: .03em; background: #eef1f4; color: var(--nocredit-fg);
+}
+.cc-online { color: var(--secured-fg); font-weight: 600; }
 .cc-chat__title { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
 .cc-avatar {
   flex: none; display: inline-grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: 50%;
@@ -68,10 +78,10 @@
 
 // The conversation takes the card's leftover height (zero basis, so a long chat scrolls instead of growing the card);
 // the composer stays in view.
-.cc-chat { min-height: 36rem; }
+// Content stays in a readable column (about 50rem) however wide the card gets.
 .cc-log {
-  flex: 1 1 0; min-height: 20rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem;
-  padding: 1.1rem; background: #fbfcfd; scroll-behavior: smooth;
+  position: relative; flex: 1 1 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem;
+  padding: 1.1rem max(1.1rem, calc((100% - 50rem) / 2)); background: #fbfcfd; scroll-behavior: smooth;
 }
 .cc-welcome {
   display: flex; flex-direction: column; align-items: center; text-align: center; gap: .35rem; margin: auto 0;
@@ -113,7 +123,7 @@
   .cc-suggest__card, .cc-school { transition: none; &:hover { transform: none; } }
 }
 
-.cc-chat__foot { padding: .75rem 1.1rem .6rem; border-top: 1px solid var(--border); background: var(--surface); }
+.cc-chat__foot { padding: .75rem max(1.1rem, calc((100% - 50rem) / 2)) .6rem; border-top: 1px solid var(--border); background: var(--surface); }
 .cc-error { margin: 0 0 .6rem; }
 .cc-composer {
   display: flex; align-items: flex-end; gap: .5rem; padding: .35rem .35rem .35rem .9rem;
@@ -197,7 +207,14 @@
   padding: 1rem 1.05rem; border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
   > .btn { margin-top: .85rem; width: 100%; justify-content: center; }
 }
+.cc-panel { flex: none; }
 .cc-panel__title { font-size: .95rem; margin: 0 0 .7rem; }
+.cc-details > summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; margin: 0; font-weight: 700;
+  &::-webkit-details-marker { display: none; }
+  &::after { content: ""; width: .5rem; height: .5rem; border: solid var(--muted); border-width: 0 2px 2px 0; transform: rotate(45deg); transition: transform .15s; }
+}
+.cc-details[open] > summary { margin-bottom: .7rem; &::after { transform: rotate(-135deg); } }
 .cc-panel__note { display: flex; align-items: center; gap: .45rem; margin: .5rem 0 0; }
 
 .cc-legend {
@@ -226,15 +243,9 @@
 .cc-school__name { flex: 1; min-width: 0; font-size: .88rem; overflow-wrap: anywhere; }
 .cc-school__cal { flex: none; font-size: .72rem; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 .45rem; }
 
-.cc-cta {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .85rem 1.5rem;
-  margin-top: 1.25rem; padding: 1rem 1.25rem; border: 1px solid #efc4c4; border-radius: 14px;
-  background: linear-gradient(90deg, #fff7f7 0%, var(--surface) 100%);
-  .cc-panel__title { margin-bottom: .5rem; }
-  .btn { text-decoration: none; }
-}
+.cc-cta { margin-top: auto; background: linear-gradient(180deg, #fff7f7 0%, var(--surface) 100%); border-color: #efc4c4; > .btn { text-decoration: none; } }
 .cc-steps {
-  counter-reset: step; margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; font-size: .88rem;
+  counter-reset: step; margin: 0; padding: 0; list-style: none; display: grid; gap: .5rem; font-size: .88rem;
   li { counter-increment: step; display: flex; align-items: flex-start; gap: .55rem; line-height: 1.35; }
   li::before {
     content: counter(step); flex: none; display: inline-grid; place-items: center; width: 1.35rem; height: 1.35rem;
@@ -244,19 +255,26 @@
 
 // ------------------------------------------------------------------ narrower screens
 @media (max-width: 1000px) {
-  .cc-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; }
-  .cc-layout .cc-rail { grid-column: 1; grid-row: auto; margin-top: 1.25rem; }
-  .cc-chat { min-height: 0; }
+  .cc-layout, .cc-layout:not(.cc-layout--form) { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; height: auto; }
+  .cc-layout:not(.cc-layout--form) .cc-rail { overflow: visible; }
   .cc-log { flex: none; height: clamp(24rem, 65vh, 40rem); }
   .cc-rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
 }
+// Short wide screens: tighter help column so it fits beside the chat without scrolling.
+@media (min-width: 1001px) and (max-height: 860px) {
+  .cc-rail { gap: .7rem; }
+  .cc-panel { padding: .8rem .9rem; }
+  .cc-panel__title { margin-bottom: .5rem; }
+  .cc-schools { gap: .1rem; }
+  .cc-school { padding: .3rem .45rem; }
+  .cc-steps { gap: .35rem; }
+}
 @media (max-width: 600px) {
-  .cc-head h1 { font-size: 1.45rem; }
+  .cc-top h1 { font-size: 1.3rem; }
   .cc-log { height: clamp(22rem, 65vh, 34rem); padding: .85rem; &.is-empty { height: auto; } }  // examples never hide behind a scroll
   .cc-msg { max-width: 100%; }
   .cc-suggest { grid-template-columns: minmax(0, 1fr); }
   .cc-chat__head .muted { display: none; }
   .cc-hint > span:first-child { display: none; }       // no physical keyboard hints on phones
-  .cc-cta .btn { width: 100%; justify-content: center; }
   .cc-estimate li { grid-template-columns: minmax(0, 1fr) auto; .cc-estimate__bar { grid-column: 1 / -1; grid-row: 2; } }
 }
