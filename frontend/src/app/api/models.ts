@@ -116,7 +116,12 @@ export interface CourseSyllabus {
   requests: {
     student_id: string;
     student_name: string;
+    /** First request. */
     requested_at: string;
+    last_sent_at: string | null;
+    reminders: number;
+    /** null: no more reminders (syllabus arrived, maximum reached, or reminders off). */
+    next_reminder_at: string | null;
     status: 'sent' | 'not_sent' | 'failed';
     automatic: boolean;
     emailed_student: boolean;

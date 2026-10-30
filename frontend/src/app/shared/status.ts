@@ -76,15 +76,8 @@ export function displayStatus(line: CourseEvaluation): { label: string; code: Bu
   return { label: line.status, code: line.bu_status_code };
 }
 
-export const REMINDER_NOTE = 'Reminders scheduled for days 7, 21 and 45 (email sending not enabled in this prototype).';
-
-/** The prototype does not send email, so never claim reminders were sent. */
+/** The API's next step, as is: it states the real reminder schedule (TRANSFERIQ_SYLLABUS_REMINDER_DAYS), so the page
+ * never adds or invents one. */
 export function nextStepText(line: CourseEvaluation): string {
-  const text = (line.next_step ?? '').trim();
-  const pattern = /\s*Reminders?\b[^.]*\b7, 21 and 45\b[^.]*\.?/i;
-  if (pattern.test(text)) return `${text.replace(pattern, '').trim()} ${REMINDER_NOTE}`.trim();
-  if ((line.state === 'maybe_ts' || line.state === 'maybe_tm') && !/reminder/i.test(text)) {
-    return `${text} ${REMINDER_NOTE}`.trim();
-  }
-  return text;
+  return (line.next_step ?? '').trim();
 }

@@ -91,7 +91,9 @@ describe('ReviewPage role gating', () => {
     http.expectOne('/api/courses/NYU%7CPSYCH-UA%2025/syllabus').flush({
       ext_id: 'NYU|PSYCH-UA 25', state: 'missing', source: null, uploaded_at: null, injection_detected: false, text: null,
       truncated: false, requests: [{ student_id: 'SYN-24001', student_name: 'Maya R. Delgado', requested_at: '2026-10-30T09:15:00+00:00',
-                                     status: 'sent', automatic: true, emailed_student: true }],
+                                     last_sent_at: '2026-11-01T09:15:00+00:00', reminders: 1,
+                                     next_reminder_at: '2026-11-03T09:15:00+00:00', status: 'sent', automatic: true,
+                                     emailed_student: true }],
     });
     http.expectOne('/api/courses/NYU%7CPSYCH-UA%2025/recommendation').flush({
       ext_id: 'NYU|PSYCH-UA 25', candidates: [], suggested_decision: 'Elective', suggested_code: 'CAS PS 1TR', confidence_pct: 40,
@@ -102,6 +104,8 @@ describe('ReviewPage role gating', () => {
     const banner = el.querySelector('.banner--warning')?.textContent ?? '';
     expect(banner).toContain('Requested from Maya R. Delgado');
     expect(banner).toContain('emailed to the student');
+    expect(banner).toContain('reminded 1×');
+    expect(banner).toContain('next reminder 3 Nov');
     expect(banner).not.toContain('Request the syllabus');
     expect(el.querySelector('.syllabus-panel')?.textContent).toContain('No syllabus on file yet');
   });

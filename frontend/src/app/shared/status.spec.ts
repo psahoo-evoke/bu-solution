@@ -2,7 +2,7 @@ import { CourseEvaluation, ReviewItem } from '../api/models';
 import { toPct } from '../pages/evaluation';
 import { parseCsv } from '../pages/registrar';
 import { formatElapsed, isBatchEligible } from '../pages/review';
-import { BU_COURSE_PATTERN, REMINDER_NOTE, displayStatus, electiveCodeFor, groupByTerm, nextStepText, toneFor } from './status';
+import { BU_COURSE_PATTERN, displayStatus, electiveCodeFor, groupByTerm, nextStepText, toneFor } from './status';
 
 const line = (term: string, code: string) => ({ term, course_code: code }) as CourseEvaluation;
 
@@ -26,11 +26,9 @@ describe('status helpers', () => {
     expect(displayStatus(posted)).toEqual({ label: 'Posted', code: 'T' });
   });
 
-  it('never claims reminder emails were sent', () => {
-    const ts = { state: 'maybe_ts', next_step: 'Upload the course syllabus. Reminders are sent on days 7, 21 and 45.' } as CourseEvaluation;
-    expect(nextStepText(ts)).toBe(`Upload the course syllabus. ${REMINDER_NOTE}`);
-    const tm = { state: 'maybe_tm', next_step: 'Upload a syllabus with outcomes. Reminders on days 7, 21 and 45.' } as CourseEvaluation;
-    expect(nextStepText(tm)).toBe(`Upload a syllabus with outcomes. ${REMINDER_NOTE}`);
+  it('shows the API next step as is (the API states the real reminder schedule)', () => {
+    const ts = { state: 'maybe_ts', next_step: 'Upload the course syllabus. We email a reminder every 2 days until it arrives. ' } as CourseEvaluation;
+    expect(nextStepText(ts)).toBe('Upload the course syllabus. We email a reminder every 2 days until it arrives.');
     expect(nextStepText({ state: 'matched', next_step: 'Nothing to do.' } as CourseEvaluation)).toBe('Nothing to do.');
   });
 

@@ -106,3 +106,100 @@ def test_a_department_reads_only_its_own_courses(anon, monkeypatch):
     r = anon.get("/api/courses/NYU%7CPSYCH-UA%2010/syllabus", headers={"Authorization": f"Bearer {tok}"})
     assert r.status_code == 403
     accounts.reset_accounts()
+
+
+# ------------------------------------------------------------------ reminders every 2 days (TRANSFERIQ_SYLLABUS_REMINDER_DAYS)
+import asyncio  # noqa: E402
+import datetime as dt  # noqa: E402
+
+from app import main, rules  # noqa: E402
+
+DAY = dt.timedelta(days=1)
+
+
+def remind(at):
+    return asyncio.run(main.send_due_reminders(at))
+
+
+@pytest.fixture
+def requested(client, fresh_store, monkeypatch):
+    """Maya's NYU transcript uploaded now: PSYCH-UA 25 requested; mails captured."""
+    sent = []
+    monkeypatch.setattr(notify, "configured", lambda: True)
+    monkeypatch.setattr(notify, "send", lambda subject, *a, **k: sent.append(subject) or "sent")
+    fresh_store.lines = [ln for ln in fresh_store.lines if ln.student_id != "SYN-24001"]
+    upload(client, "SYN-24001", MAYA_NYU, role("Student"))
+    return dict(t0=dt.datetime.now(dt.timezone.utc), sent=sent)
+
+
+def test_a_reminder_goes_out_every_two_days_and_only_once(requested):
+    t0, sent = requested["t0"], requested["sent"]
+    assert rules.SYLLABUS_REMINDER_DAYS == 2
+    assert remind(t0 + DAY)["courses"] == []                                   # not due yet
+    assert remind(t0 + 2 * DAY + dt.timedelta(minutes=1))["courses"] == ["SYN-24001 PSYCH-UA 25"]
+    assert sent[-1].startswith("Reminder: syllabus needed for transfer credit: PSYCH-UA 25")
+    assert remind(t0 + 2 * DAY + dt.timedelta(minutes=2))["courses"] == []    # same check again: nothing twice
+    # the next one is due two days after the reminder, not after the first request
+    assert remind(t0 + 4 * DAY)["courses"] == []
+    assert remind(t0 + 4 * DAY + dt.timedelta(minutes=2))["courses"] == ["SYN-24001 PSYCH-UA 25"]
+
+
+def test_reminders_stop_at_the_maximum(requested, monkeypatch, client):
+    monkeypatch.setattr(rules, "SYLLABUS_REMINDER_MAX", 2)
+    far = dt.datetime.now(dt.timezone.utc) + 30 * DAY
+    assert remind(far)["courses"] and remind(far + 3 * DAY)["courses"]
+    assert remind(far + 30 * DAY)["courses"] == []
+    [req] = client.get("/api/courses/NYU%7CPSYCH-UA%2025/syllabus").json()["requests"]
+    assert (req["reminders"], req["next_reminder_at"]) == (2, None)
+
+
+def test_reminders_stop_when_the_syllabus_arrives(requested, fresh_store):
+    fresh_store.syllabi["NYU|PSYCH-UA 25"].uploaded_at = dt.datetime.now(dt.timezone.utc).isoformat()
+    assert remind(dt.datetime.now(dt.timezone.utc) + 10 * DAY)["courses"] == []
+
+
+def test_a_failed_reminder_is_retried_at_the_next_check(requested, monkeypatch):
+    def refuse(*a, **k):
+        raise notify.NotifyError("down")
+    later = dt.datetime.now(dt.timezone.utc) + 3 * DAY
+    monkeypatch.setattr(notify, "send", refuse)
+    assert remind(later)["courses"] == ["SYN-24001 PSYCH-UA 25"]               # attempted, recorded as failed
+    monkeypatch.setattr(notify, "send", lambda *a, **k: "sent")
+    assert remind(later + dt.timedelta(hours=1))["courses"] == ["SYN-24001 PSYCH-UA 25"]
+
+
+def test_courses_never_requested_get_no_reminders(client, fresh_store, monkeypatch):
+    # Seeded sample data: Maya's PSYCH-UA 25 needs a syllabus but was never requested through the app.
+    monkeypatch.setattr(notify, "configured", lambda: True)
+    res = remind(dt.datetime.now(dt.timezone.utc) + 60 * DAY)
+    assert res["courses"] == [] and "skipped" not in res
+
+
+def test_reminders_can_be_turned_off(requested, monkeypatch):
+    monkeypatch.setattr(rules, "SYLLABUS_REMINDER_DAYS", 0)
+    assert remind(dt.datetime.now(dt.timezone.utc) + 10 * DAY)["courses"] == []
+
+
+def test_the_workbench_sees_the_reminder_plan(requested, client):
+    [req] = client.get("/api/courses/NYU%7CPSYCH-UA%2025/syllabus").json()["requests"]
+    due = dt.datetime.fromisoformat(req["next_reminder_at"]) - dt.datetime.fromisoformat(req["last_sent_at"])
+    assert req["reminders"] == 0 and due == 2 * DAY
+
+
+def test_run_now_is_credit_staff_only(client):
+    assert client.post("/api/syllabus-reminders/run", headers=role("CreditStaff")).status_code == 200
+    assert client.post("/api/syllabus-reminders/run", headers=role("Evaluator")).status_code == 403
+
+
+def test_the_student_is_told_about_the_reminders(client):
+    lines = client.get("/api/students/SYN-24001/evaluation", headers=role("Student")).json()["lines"]
+    ts = next(o for o in lines if o["state"] == "maybe_ts")
+    assert ts["next_step"] == "Upload the course syllabus. We email a reminder every 2 days until it arrives."
+
+
+def test_without_a_mail_service_nothing_is_sent_or_recorded(requested, fresh_store, monkeypatch):
+    # A local instance sharing the database must not write undeliverable reminders that shift the real schedule.
+    monkeypatch.setattr(notify, "configured", lambda: False)
+    before = len(fresh_store.audit_log)
+    res = remind(dt.datetime.now(dt.timezone.utc) + 10 * DAY)
+    assert res["courses"] == [] and res["skipped"] == "no mail service configured" and len(fresh_store.audit_log) == before

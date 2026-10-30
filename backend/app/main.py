@@ -32,6 +32,7 @@ from .evaluation import evaluate_holdout
 from .guard import MAX_UPLOAD_BYTES, RoleGuardMiddleware, auth_mode
 from .ingest import UploadError, check_pdf_bytes, check_syllabus, parse_transcript, pdf_text
 from .matcher import detect_injection, engine_name, recommend, recommend_many
+from . import rules
 from .rules import evaluate_student, tier_label, totals
 from .store import Decision, ExtCourse, SyllabusRecord, TranscriptLine, TranscriptRecord
 
@@ -59,11 +60,14 @@ def _prewarm() -> None:
 async def lifespan(_app: FastAPI):
     if engine_name() == "azure-openai" and os.environ.get("TRANSFERIQ_PREWARM", "1") != "0":
         threading.Thread(target=_prewarm, name="prewarm", daemon=True).start()
+    reminders = asyncio.create_task(_reminder_loop()) if rules.SYLLABUS_REMINDER_DAYS > 0 else None
     yield
+    if reminders:
+        reminders.cancel()
 
 
 _entra = auth_mode() == "entra"
-app = FastAPI(title="TransferIQ API", version="0.6.0",
+app = FastAPI(title="TransferIQ API", version="0.7.0",
               description="AI recommends, the rules engine computes, evaluators decide.", lifespan=lifespan,
               docs_url=None if _entra else "/docs", redoc_url=None, openapi_url=None if _entra else "/openapi.json")
 
@@ -156,9 +160,9 @@ def _persist(fn, *args) -> None:
         raise HTTPException(503, str(e))
 
 
-def _audit(role: str, action: str, ext_id: str, before, after):
+def _audit(role: str, action: str, ext_id: str, before, after, at: Optional[dt.datetime] = None):
     entry = dict(actor_role=role, action=action, ext_id=ext_id, before=before, after=after,
-                 at=dt.datetime.now(dt.timezone.utc).isoformat())
+                 at=(at or dt.datetime.now(dt.timezone.utc)).isoformat())
     S().audit_log.append(entry)
     if db.enabled():
         db.save_audit(entry)   # best-effort, logged on failure
@@ -512,11 +516,13 @@ def syllabus_requests(student_id: Optional[str] = None, ext_id: Optional[str] = 
         if student_id and a.get("student_id") != student_id:
             continue
         out.append(dict(student_id=a.get("student_id"), ext_id=e.get("ext_id"), requested_at=e.get("at"),
-                        status=a.get("status"), automatic=bool(a.get("automatic")), emailed_student=bool(a.get("emailed_student"))))
+                        status=a.get("status"), automatic=bool(a.get("automatic")), reminder=bool(a.get("reminder")),
+                        emailed_student=bool(a.get("emailed_student"))))
     return out
 
 
-async def _send_syllabus_request(student_id: str, lines: list[dict], actor_role: str, by: str, automatic: bool) -> dict:
+async def _send_syllabus_request(student_id: str, lines: list[dict], actor_role: str, by: str, automatic: bool,
+                                 reminder: bool = False, at: Optional[dt.datetime] = None) -> dict:
     """One email for one student listing every course that needs a syllabus (TS) or a complete one (TM). A registered
     student receives it at their own address with the notification list copied; sample students are never emailed
     (app/notify.py). A failed send is recorded, never raised: the transcript upload that triggered it still succeeds."""
@@ -533,7 +539,7 @@ async def _send_syllabus_request(student_id: str, lines: list[dict], actor_role:
         need = "a complete syllabus (learning outcomes and weekly schedule)" if o["state"] == "maybe_tm" else "the syllabus"
         rows.append((o, need))
     codes = ", ".join(o["course_code"] for o, _ in rows)
-    subject = f"Syllabus needed for transfer credit: {codes} ({st.name}, {student_id})"
+    subject = f"{'Reminder: s' if reminder else 'S'}yllabus needed for transfer credit: {codes} ({st.name}, {student_id})"
     text_rows = "\n".join(f"- {o['course_code']} \"{o['title']}\" ({schools.get(o['school_code'], o['school_code'])}, "
                           f"{o['term']}): {need}" for o, need in rows)
     text = (f"Hello {st.name},\n\nBoston University's Credit Evaluation Department is reviewing your transfer credit. "
@@ -557,8 +563,8 @@ async def _send_syllabus_request(student_id: str, lines: list[dict], actor_role:
         status, error = "failed", str(err)     # recorded; the evaluator sees "failed", and the next upload retries
     for o, need in rows:
         _audit(actor_role, "syllabus_request", o["ext_id"], None,
-               dict(student_id=student_id, status=status, to=to, cc=cc, automatic=automatic,
-                    emailed_student=bool(own), need="complete" if o["state"] == "maybe_tm" else "syllabus"))
+               dict(student_id=student_id, status=status, to=to, cc=cc, automatic=automatic, reminder=reminder,
+                    emailed_student=bool(own), need="complete" if o["state"] == "maybe_tm" else "syllabus"), at=at)
     return dict(status=status, courses=[o["course_code"] for o, _ in rows], to=to, cc=cc, emailed_student=bool(own),
                 **({"error": error} if error else {}))
 
@@ -577,6 +583,72 @@ async def auto_request_syllabi(student_id: str) -> dict:
         return dict(status="none", courses=[])
     return await _send_syllabus_request(student_id, todo, "System", "the Credit Evaluation Department (automatic)",
                                         automatic=True)
+
+
+def _reminder_plan(student_id: str, ext_id: str) -> dict:
+    """First request, last successful send, reminders sent and when the next one is due (None: none planned)."""
+    sent = [r for r in syllabus_requests(student_id, ext_id) if r["status"] != "failed"]      # newest first
+    if not sent:
+        return dict(requested_at=None, last_sent_at=None, reminders=0, next_reminder_at=None)
+    reminders = sum(1 for r in sent if r["reminder"])
+    last = dt.datetime.fromisoformat(sent[0]["requested_at"])
+    due = None
+    if rules.SYLLABUS_REMINDER_DAYS > 0 and reminders < rules.SYLLABUS_REMINDER_MAX:
+        due = last + dt.timedelta(days=rules.SYLLABUS_REMINDER_DAYS)
+    return dict(requested_at=sent[-1]["requested_at"], last_sent_at=sent[0]["requested_at"], reminders=reminders,
+                next_reminder_at=due.isoformat() if due else None)
+
+
+async def send_due_reminders(now: Optional[dt.datetime] = None) -> dict:
+    """Re-request every syllabus that was requested, is still missing or incomplete and whose last (successful) request
+    is TRANSFERIQ_SYLLABUS_REMINDER_DAYS old (default 2), at most TRANSFERIQ_SYLLABUS_REMINDER_MAX times (default 7).
+    One email per student, and only where a mail service is configured. Stops by itself when the syllabus is uploaded
+    or the course is decided (no longer maybe).
+    Never starts a request: courses never requested (seeded sample data) get no reminders. A failed send does not
+    count, so it is retried at the next check. Idempotent: the times come from the audit log (PostgreSQL)."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    if rules.SYLLABUS_REMINDER_DAYS <= 0:
+        return dict(students=0, courses=[], skipped="reminders are off (TRANSFERIQ_SYLLABUS_REMINDER_DAYS=0)")
+    if not notify.configured():
+        # Nothing can be delivered: record nothing either. A local or test instance sharing the database with the
+        # deployed API must not write undeliverable reminders that would shift the real schedule.
+        return dict(students=0, courses=[], skipped="no mail service configured")
+    due: dict[str, list[dict]] = {}
+    for sid, st in list(S().students.items()):
+        for o in evaluate_student(S(), st):
+            if o["state"] not in NEEDS_SYLLABUS or _syllabus_uploaded(o["ext_id"]):
+                continue
+            plan = _reminder_plan(sid, o["ext_id"])
+            if plan["next_reminder_at"] and dt.datetime.fromisoformat(plan["next_reminder_at"]) <= now:
+                due.setdefault(sid, []).append(o)
+    courses = []
+    for sid, lines in due.items():
+        res = await _send_syllabus_request(sid, lines, "System", "the Credit Evaluation Department (automatic reminder)",
+                                           automatic=True, reminder=True, at=now)
+        courses += [f"{sid} {c}" for c in res["courses"]]
+    if courses:
+        _log.info("syllabus reminders sent for %d course(s)", len(courses))
+    return dict(students=len(due), courses=courses)
+
+
+REMINDER_CHECK_MINUTES = float(os.environ.get("TRANSFERIQ_SYLLABUS_REMINDER_CHECK_MINUTES", "60") or 60)
+
+
+async def _reminder_loop() -> None:
+    """Check for due reminders every REMINDER_CHECK_MINUTES (first check after one interval, not at start-up)."""
+    while True:
+        await asyncio.sleep(REMINDER_CHECK_MINUTES * 60)
+        try:
+            await send_due_reminders()
+        except Exception:
+            log.warning("syllabus reminder check failed", exc_info=True)
+
+
+@api.post("/syllabus-reminders/run")
+async def run_syllabus_reminders():
+    """Send the reminders that are due now (the API also checks every hour on its own). For demos and external
+    schedulers."""
+    return await send_due_reminders()
 
 
 @api.post("/students/{student_id}/courses/{ext_id}/syllabus-request", status_code=201)
@@ -626,8 +698,20 @@ def course_syllabus(request: Request, ext_id: str = ExtIdPath):
                 injection_detected=bool(rec and rec.injection_detected),
                 text=(rec.text[:SYLLABUS_TEXT_MAX] if rec and rec.text else None),
                 truncated=bool(rec and len(rec.text or "") > SYLLABUS_TEXT_MAX),
-                requests=[dict(r, student_name=names.get(r["student_id"], r["student_id"]))
-                          for r in syllabus_requests(ext_id=ext_id) if r["student_id"] in waiting])
+                requests=[_request_summary(sid, ext_id, names) for sid in waiting
+                          if syllabus_requests(sid, ext_id)])
+
+
+def _request_summary(student_id: str, ext_id: str, names: dict) -> dict:
+    """One line per student: the first request, the latest attempt and the reminder plan."""
+    reqs = syllabus_requests(student_id, ext_id)                           # newest first, failed ones included
+    latest = reqs[0]
+    plan = _reminder_plan(student_id, ext_id)
+    open_ = S().syllabus_state(ext_id) != "complete" and not _syllabus_uploaded(ext_id)
+    return dict(student_id=student_id, student_name=names.get(student_id, student_id),
+                requested_at=plan["requested_at"] or reqs[-1]["requested_at"], last_sent_at=plan["last_sent_at"],
+                reminders=plan["reminders"], next_reminder_at=plan["next_reminder_at"] if open_ else None,
+                status=latest["status"], automatic=latest["automatic"], emailed_student=latest["emailed_student"])
 
 
 SYLLABUS_TEXT_MAX = 30_000

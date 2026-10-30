@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: TransferIQ API
-  version: 0.6.0
+  version: 0.7.0
   description: |
     Transfer credit evaluation co-pilot (EvoHack 2026, BU problem statement).
     AI recommends, the rules engine computes, evaluators decide.
@@ -102,7 +102,7 @@ paths:
       summary: "The syllabus on file and the requests sent, for the department evaluator next to the AI comparison"
       description: |
         Text as extracted from the PDF (plain text; clients must not render it as HTML), at most 30,000 characters.
-        Requests are the ones sent to students who have this course on their transcript, newest first. A Department
+        Requests: one entry per student who has this course on their transcript and was asked, with the reminder plan. A Department
         account only sees its own department's courses (403).
       x-roles: [CreditStaff, Evaluator, Department]
       parameters: [ { $ref: "#/components/parameters/ExtId" } ]
@@ -141,6 +141,23 @@ paths:
         "404": { description: Unknown student, or the course is not on this student's transcript }
         "502": { description: The mail service rejected the email }
         "409": { description: A syllabus was already uploaded for this course; nothing to request }
+  /syllabus-reminders/run:
+    post:
+      summary: Send the syllabus reminders that are due now
+      description: |
+        The API checks on its own every TRANSFERIQ_SYLLABUS_REMINDER_CHECK_MINUTES (default 60). A syllabus that was requested
+        and is still missing or incomplete is requested again every TRANSFERIQ_SYLLABUS_REMINDER_DAYS (default 2; 0 = off) after
+        the last successful request, at most TRANSFERIQ_SYLLABUS_REMINDER_MAX times (default 7), one email per student.
+        Reminders stop when the syllabus is uploaded or the course is decided. Courses never requested get none. Without a mail
+        service nothing is sent or recorded (skipped), so an instance that cannot deliver never shifts the schedule. This route
+        runs the same check now (demos, external schedulers); running it twice sends nothing twice.
+      x-roles: [CreditStaff]
+      responses:
+        "200":
+          description: What was sent
+          content:
+            application/json:
+              schema: { type: object, properties: { students: { type: integer }, courses: { type: array, items: { type: string }, example: ["SYN-24005 PSYCH-UA 25"] }, skipped: { type: string, description: "Why nothing was checked: reminders off, or no mail service configured" } } }
   /courses/{ext_id}/recommendation:
     get:
       summary: AI recommendation for an external course (top-3 BU candidates with evidence)
@@ -422,8 +439,11 @@ components:
             properties:
               student_id: { type: string }
               student_name: { type: string }
-              requested_at: { type: string, format: date-time }
-              status: { type: string, enum: [sent, not_sent, failed] }
+              requested_at: { type: string, format: date-time, description: "First request" }
+              last_sent_at: { type: string, format: date-time, nullable: true, description: "Latest successful request or reminder" }
+              reminders: { type: integer, description: "Reminders sent so far" }
+              next_reminder_at: { type: string, format: date-time, nullable: true, description: "null: no more reminders (syllabus arrived, the maximum was reached, or reminders are off)" }
+              status: { type: string, enum: [sent, not_sent, failed], description: "Of the latest attempt" }
               automatic: { type: boolean }
               emailed_student: { type: boolean }
     Candidate:

@@ -165,7 +165,10 @@
                     Requested from <strong>{{ q.student_name }}</strong>
                     {{ q.automatic ? 'automatically' : '' }} on {{ q.requested_at | date: 'd MMM y, HH:mm' }} ·
                     {{ q.status === 'sent' ? (q.emailed_student ? 'emailed to the student' : 'emailed to the credit office') :
-                       q.status === 'failed' ? 'email failed, retried on the next upload' : 'recorded (email not set up)' }}
+                       q.status === 'failed' ? 'last email failed, retried at the next check' : 'recorded (email not set up)' }}
+                    @if (q.reminders) { · reminded {{ q.reminders }}× (last {{ q.last_sent_at | date: 'd MMM' }}) }
+                    @if (q.next_reminder_at) { · next reminder {{ q.next_reminder_at | date: 'd MMM, HH:mm' }} }
+                    @else { · no more reminders planned }
                   </span>
                 } @empty {
                   <span class="req-line">No request on record yet: the student is asked automatically when their transcript is uploaded.</span>

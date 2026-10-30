@@ -23,7 +23,7 @@ const maya: StudentEvaluation = {
     {
       ext_id: 'NYU|PSYCH-UA 25', school_code: 'NYU', term: 'Spring 2025', course_code: 'PSYCH-UA 25', title: 'Cognitive Neuroscience',
       credits: 4, calendar: 'Semester', grade: 'B+', state: 'maybe_ts', status: 'Maybe - syllabus requested', bu_status_code: 'TS',
-      bu_course: null, units: 0, units_if_approved: 4, reason_code: 'PD-TS', flags: [], next_step: 'Upload the course syllabus. Reminders are sent on days 7, 21 and 45.', ai_tier: null, ai_overlap_pct: null,
+      bu_course: null, units: 0, units_if_approved: 4, reason_code: 'PD-TS', flags: [], next_step: 'Upload the course syllabus. We email a reminder every 2 days until it arrives.', ai_tier: null, ai_overlap_pct: null,
     },
   ],
 };
@@ -49,7 +49,7 @@ describe('StudentStatusPage', () => {
     expect(chips).toEqual(['T', 'TP', 'TS']);
     expect(text).toContain('Approved – awaiting posting');
     expect(text).toContain('incl. 4 approved, awaiting posting');
-    expect(text).toContain('email sending not enabled in this prototype');
+    expect(text).toContain('We email a reminder every 2 days until it arrives.');
     expect(text).not.toContain('Reminders are sent');
     expect((fixture.nativeElement as HTMLElement).querySelector('input[aria-label="Upload syllabus for PSYCH-UA 25"]')).not.toBeNull();
   });

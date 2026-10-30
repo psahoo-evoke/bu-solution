@@ -10,6 +10,7 @@ hint (`ai_hint`). Hints never change units, status or codes - only advisory flag
 from __future__ import annotations
 
 import datetime as _dt
+import os
 from dataclasses import dataclass
 from typing import Callable, Optional
 
@@ -111,15 +112,20 @@ def lookup_public(store: Store, ext_id: str) -> tuple[Optional[Decision], str]:
 
 
 # ------------------------------------------------------------------ plain words (R23 / status view)
+# Syllabus reminders (app/main.py send_due_reminders): every N days after the request, at most M reminders.
+SYLLABUS_REMINDER_DAYS = float(os.environ.get("TRANSFERIQ_SYLLABUS_REMINDER_DAYS", "2") or 0)
+SYLLABUS_REMINDER_MAX = int(os.environ.get("TRANSFERIQ_SYLLABUS_REMINDER_MAX", "7") or 0)
+_EVERY = f"{SYLLABUS_REMINDER_DAYS:g} day{'' if SYLLABUS_REMINDER_DAYS == 1 else 's'}"
+_REMINDERS = f" We email a reminder every {_EVERY} until it arrives." if SYLLABUS_REMINDER_DAYS > 0 else ""
 STATE_TEXT = {
     "matched": ("Matched - existing BU equivalency", "Nothing to do: this credit will post."),
     "approved": ("Approved \u2013 awaiting posting", "Nothing to do: the Registrar will post this credit."),
     "posted": ("Posted \u2013 credit secured", "Nothing to do: this credit is on your BU record."),
     "posted_no_credit": ("Not transferable", "No action needed."),
     "maybe_review": ("Under review - syllabus on file", "An evaluator is comparing your syllabus with BU courses."),
-    "maybe_ts": ("Syllabus needed", "Upload the course syllabus. Reminders scheduled for days 7, 21 and 45 (email sending not enabled in this prototype)."),
+    "maybe_ts": ("Syllabus needed", "Upload the course syllabus." + _REMINDERS),
     "maybe_tm": ("More materials needed",
-                 "Upload a syllabus that includes learning outcomes and a weekly schedule. Reminders on days 7, 21 and 45."),
+                 "Upload a syllabus that includes learning outcomes and a weekly schedule." + _REMINDERS),
     "pending_age": ("Under review - course is 5+ years old", "An evaluator will review this older course before any credit."),
 }
 # Approved-but-not-posted shows TP to the student until the Registrar posts it (sponsor process; contract v0.3.0).
