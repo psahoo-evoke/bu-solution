@@ -4,10 +4,14 @@
     <p class="muted">Maybe courses with the comparison already done.</p>
   </div>
   @if (signedInName(); as name) {
-    <p class="field evaluator-fixed">
-      <span class="field__label">Deciding as</span>
-      <strong>{{ name }}</strong>
-    </p>
+    <div class="identity evaluator-fixed">
+      <span class="identity__avatar" aria-hidden="true">{{ initials() }}</span>
+      <span class="identity__text">
+        <span class="identity__label">Deciding as</span>
+        <strong>{{ name }}</strong>
+        <span class="identity__role">{{ roleLine() }}</span>
+      </span>
+    </div>
   } @else {
     <div class="field">
       <label for="evaluator-name">Evaluator name</label>
@@ -57,6 +61,7 @@
       }
     </div>
 
+    @if (batchItems().length) {
     <fieldset class="batch">
       <legend>Batch approve (confidence above 90%)</legend>
       @for (b of batchItems(); track b.ext_id) {
@@ -64,8 +69,6 @@
           <input type="checkbox" [disabled]="!canBatch()" [checked]="batchSelection().has(b.ext_id)" (change)="toggleBatch(b.ext_id, $any($event.target).checked)" />
           {{ b.school_code }} {{ b.course_code }} → {{ b.top_candidate.bu_code }} ({{ b.confidence_pct }}%)
         </label>
-      } @empty {
-        <p class="muted small">No items above 90% right now.</p>
       }
       @if (batchItems().length) {
         <div class="row">
@@ -81,9 +84,15 @@
         </div>
       }
     </fieldset>
+    } @else {
+      <p class="batch-empty">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/></svg>
+        No course is above 90% confidence, so none can be batch-approved. Decide them one by one.
+      </p>
+    }
 
     @if (queueLoading()) {
-      <p class="muted" role="status">Loading queue…</p>
+      <p class="muted queue__loading" role="status"><span class="spinner" aria-hidden="true"></span> Loading queue…</p>
     }
     <ul class="queue__list" aria-label="Courses awaiting a decision">
       @for (item of queue(); track item.ext_id) {
@@ -96,24 +105,29 @@
             (click)="open(item)"
           >
             <span class="queue__title"><strong>{{ item.school_code }} {{ item.course_code }}</strong> {{ item.title }}</span>
-            <span class="muted small">
-              {{ item.department }} · {{ item.students.length }} {{ item.students.length === 1 ? 'student' : 'students' }} ·
-              syllabus {{ item.syllabus_state }}
+            <span class="queue__meta">
+              <span class="syl syl--{{ item.syllabus_state }}">Syllabus {{ item.syllabus_state }}</span>
+              <span>{{ item.students.length }} {{ item.students.length === 1 ? 'student' : 'students' }}</span>
+              @if (!ownDepartment()) { <span>{{ item.department }}</span> }
             </span>
-            <span class="small">
-              Top: {{ item.top_candidate.bu_code }} · {{ item.top_candidate.overlap_pct }}% overlap · {{ item.confidence_pct }}% confidence
+            <span class="queue__match">
+              <span>Top match <strong>{{ item.top_candidate.bu_code }}</strong> · {{ item.top_candidate.overlap_pct }}% overlap</span>
+              <span class="conf conf--{{ confidenceTone(item.confidence_pct) }}" [attr.aria-label]="item.confidence_pct + '% confidence'">
+                <span class="conf__bar" aria-hidden="true"><span [style.width.%]="item.confidence_pct"></span></span>
+                {{ item.confidence_pct }}% confidence
+              </span>
             </span>
           </button>
         </li>
       } @empty {
         @if (!queueLoading() && !error()) {
-          <li class="muted">Queue is empty. Nothing awaits a decision.</li>
+          <li class="queue__done">All caught up: nothing awaits a decision.</li>
         }
       }
     </ul>
   </section>
 
-  <section class="card detail" aria-labelledby="detail-h" aria-live="polite">
+  <section class="card detail" #detail aria-labelledby="detail-h" aria-live="polite">
     @if (selected(); as item) {
       <div class="detail__head">
         <div>
@@ -320,8 +334,21 @@
         </form>
       }
     } @else {
-      <h2 id="detail-h" class="visually-hidden">Course detail</h2>
-      <p class="muted empty">Select a course from the queue to see the AI comparison. A timer starts when you open it.</p>
+      <div class="detail-empty">
+        @if (queue().length) {
+          <h2 id="detail-h">{{ queue().length }} {{ queue().length === 1 ? 'course is' : 'courses are' }} waiting for a decision</h2>
+          <ul class="stats">
+            <li><strong>{{ stats().students }}</strong><span>{{ stats().students === 1 ? 'student' : 'students' }} waiting</span></li>
+            <li><strong>{{ stats().needSyllabus }}</strong><span>need a complete syllabus</span></li>
+            <li><strong>{{ stats().avgConfidence }}%</strong><span>average AI confidence</span></li>
+          </ul>
+          <p class="muted">Open a course to see the AI comparison with the BU courses. A timer starts when you open it; the target is {{ targetLabel }}.</p>
+          <button type="button" class="btn btn--primary" (click)="openFirst()">Open first course</button>
+        } @else {
+          <h2 id="detail-h">Nothing to review</h2>
+          <p class="muted">New courses appear here when students upload transcripts with courses that have no decision yet.</p>
+        }
+      </div>
     }
   </section>
 </div>

@@ -82,6 +82,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
 | 2026-10-29 | [security-04](2026-10-29/security-04.md) | Security review of the public credit check and chat (developer-26) | psahoo (POD) |
 | 2026-10-30 | [developer-31](2026-10-30/developer-31.md) | Workbench: the department and the evaluator name come from the signed-in account | psahoo (POD) |
+| 2026-10-30 | [developer-32](2026-10-30/developer-32.md) | Evaluator workbench UX | psahoo (POD) |
 <!-- INDEX:END -->
 
 Regenerate the index with `python scripts/build_log_index.py`.
