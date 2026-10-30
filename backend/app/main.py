@@ -21,14 +21,18 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, FastAPI, File, Header, HTTPException, Path, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, ConfigDict, Field
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from . import accounts, blob_store, credit_chat, credit_check, db, notify, ratelimit
+from . import accounts, blob_store, credit_chat, credit_check, db, notifications, notify, ratelimit
 from . import store as store_mod
 from .evaluation import evaluate_holdout
 from .guard import MAX_UPLOAD_BYTES, RoleGuardMiddleware, auth_mode
 from .ingest import UploadError, check_pdf_bytes, check_syllabus, parse_transcript, pdf_text
 from .matcher import detect_injection, engine_name, recommend, recommend_many
+from . import rules
 from .rules import evaluate_student, tier_label, totals
 from .store import Decision, ExtCourse, SyllabusRecord, TranscriptLine, TranscriptRecord
 
@@ -56,13 +60,24 @@ def _prewarm() -> None:
 async def lifespan(_app: FastAPI):
     if engine_name() == "azure-openai" and os.environ.get("TRANSFERIQ_PREWARM", "1") != "0":
         threading.Thread(target=_prewarm, name="prewarm", daemon=True).start()
+    reminders = asyncio.create_task(_reminder_loop()) if rules.SYLLABUS_REMINDER_DAYS > 0 else None
     yield
+    if reminders:
+        reminders.cancel()
 
 
 _entra = auth_mode() == "entra"
-app = FastAPI(title="TransferIQ API", version="0.4.0",
+app = FastAPI(title="TransferIQ API", version="0.8.0",
               description="AI recommends, the rules engine computes, evaluators decide.", lifespan=lifespan,
               docs_url=None if _entra else "/docs", redoc_url=None, openapi_url=None if _entra else "/openapi.json")
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(request: Request, exc: RequestValidationError):
+    """422 without echoing the submitted values: they can be private (passwords, transcript text) or not encodable
+    (a lone surrogate would otherwise turn the 422 into a 500)."""
+    errors = [{k: v for k, v in e.items() if k not in ("input", "ctx", "url")} for e in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
 
 
 def cors_origins() -> list[str]:
@@ -106,6 +121,23 @@ def _user(request: Request) -> Optional[dict]:
     return (request.scope.get("state") or {}).get("user")
 
 
+def _decided_by(request: Request, typed: str) -> str:
+    """Who made a decision (Decision.decided_by, shown as `evaluator`, and in the audit entry).
+    Portal and Entra: the verified sign-in, "Name <email>", never the name the browser sent. The email (or Entra
+    sign-in name) makes it unique: display names repeat ("Transfer Evaluator") and a self-registered account picks
+    its own. Without a verified identity outside demo mode the request is refused. Demo mode has no accounts:
+    the typed name (X-Demo-Role is self-asserted there anyway)."""
+    ident = (request.scope.get("state") or {}).get("identity")
+    if auth_mode() != "demo":
+        if not ident or not (ident.get("email") or ident.get("name")):
+            raise HTTPException(401, "Sign in required to record a decision")
+        name, email = ident.get("name", "").strip(), ident.get("email", "").strip()
+        return (f"{name} <{email}>" if name and email else name or email)[:160]
+    if not (typed or "").strip():
+        raise HTTPException(422, "Enter the evaluator name")
+    return typed.strip()
+
+
 def _own_department_only(request: Request, ext_ids: list[str]) -> None:
     """Portal mode: a Department account decides only its own department's courses."""
     u = _user(request)
@@ -128,9 +160,9 @@ def _persist(fn, *args) -> None:
         raise HTTPException(503, str(e))
 
 
-def _audit(role: str, action: str, ext_id: str, before, after):
+def _audit(role: str, action: str, ext_id: str, before, after, at: Optional[dt.datetime] = None):
     entry = dict(actor_role=role, action=action, ext_id=ext_id, before=before, after=after,
-                 at=dt.datetime.now(dt.timezone.utc).isoformat())
+                 at=(at or dt.datetime.now(dt.timezone.utc)).isoformat())
     S().audit_log.append(entry)
     if db.enabled():
         db.save_audit(entry)   # best-effort, logged on failure
@@ -242,7 +274,19 @@ def post_credit_check(inp: CreditCheckInput, request: Request):
 class ChatMessage(BaseModel):
     model_config = ConfigDict(extra="forbid")
     role: Literal["user", "assistant"]
-    content: str = Field(min_length=1, max_length=credit_chat.MAX_MESSAGE_CHARS)
+    # user turns: at most MAX_MESSAGE_CHARS (checked in credit_chat); assistant turns are earlier replies, up to 1500
+    content: str = Field(min_length=1, max_length=credit_chat.MAX_REPLY_CHARS)
+    signature: Optional[str] = Field(None, pattern=r"^[0-9a-f]{64}$")     # the server's HMAC of an earlier reply
+
+    @field_validator("content")
+    @classmethod
+    def _encodable(cls, v: str) -> str:
+        """Lone surrogates ("\\ud800") are valid JSON but not text; reject them (422) instead of failing later."""
+        try:
+            v.encode("utf-8")
+        except UnicodeEncodeError:
+            raise ValueError("Text contains invalid characters")
+        return v
 
 
 class CreditChatInput(BaseModel):
@@ -291,6 +335,30 @@ def list_students(request: Request):
 @api.get("/students/{student_id}/evaluation")
 def student_evaluation(student_id: str = StudentIdPath):
     return build_evaluation(student_id)
+
+
+@api.get("/students/{student_id}/notifications")
+def student_notifications(student_id: str = StudentIdPath):
+    """In-app notifications (app/notifications.py). Reading them does not mark them read: a staff member looking at
+    a student's record must not clear the student's unread count."""
+    if student_id not in S().students:
+        raise HTTPException(404, f"Unknown student {student_id}")
+    return notifications.for_student(S(), student_id)
+
+
+@api.post("/students/{student_id}/notifications/seen")
+def student_notifications_seen(student_id: str = StudentIdPath):
+    """The student opened their notifications: everything they were shown is read (Student role only; portal: own
+    id). Read up to the newest notification, not "now": an event in the same moment stays unread."""
+    if student_id not in S().students:
+        raise HTTPException(404, f"Unknown student {student_id}")
+    with S().lock:
+        shown = notifications.for_student(S(), student_id)["items"]
+        if shown:
+            seen = shown[0]["at"]
+            _persist(db.save_notification_seen, student_id, seen)
+            S().notification_seen[student_id] = seen
+    return notifications.for_student(S(), student_id)
 
 
 PDF_PARSE_TIMEOUT_S = float(os.environ.get("TRANSFERIQ_PDF_TIMEOUT_S", "15"))
@@ -407,6 +475,7 @@ async def upload_transcript(request: Request, student_id: str = StudentIdPath, f
         S().ext_courses.update(new_courses)
         S().lines = lines
         S().transcripts.append(record)
+    upload["syllabus_request"] = await auto_request_syllabi(student_id)        # step 5: ask once, automatically
     return dict(build_evaluation(student_id), upload=dict(upload, transcript_id=record.transcript_id))
 
 
@@ -456,15 +525,161 @@ async def upload_syllabus(request: Request, ext_id: str = ExtIdPath, file: Uploa
                 status_code="TP" if chk["complete"] else "TM", injection_detected=inj)
 
 
+# ------------------------------------------------------------------ syllabus requests (step 5 of the process)
 SYLLABUS_REQUEST_COOLDOWN = dt.timedelta(minutes=15)
-_syllabus_requests: dict[tuple[str, str], dt.datetime] = {}
+NEEDS_SYLLABUS = ("maybe_ts", "maybe_tm")     # TS: no syllabus on file, TM: incomplete (rules.STATUS_CODE)
+
+
+def syllabus_requests(student_id: Optional[str] = None, ext_id: Optional[str] = None) -> list[dict]:
+    """Requests on record, newest first, from the audit log (saved in PostgreSQL, so they survive restarts)."""
+    out = []
+    for e in reversed(S().audit_log):
+        a = e.get("after") or {}
+        if e.get("action") != "syllabus_request" or (ext_id and e.get("ext_id") != ext_id):
+            continue
+        if student_id and a.get("student_id") != student_id:
+            continue
+        out.append(dict(student_id=a.get("student_id"), ext_id=e.get("ext_id"), requested_at=e.get("at"),
+                        status=a.get("status"), automatic=bool(a.get("automatic")), reminder=bool(a.get("reminder")),
+                        emailed_student=bool(a.get("emailed_student"))))
+    return out
+
+
+async def _send_syllabus_request(student_id: str, lines: list[dict], actor_role: str, by: str, automatic: bool,
+                                 reminder: bool = False, at: Optional[dt.datetime] = None) -> dict:
+    """One email for one student listing every course that needs a syllabus (TS) or a complete one (TM). A registered
+    student receives it at their own address with the notification list copied; sample students are never emailed
+    (app/notify.py). A failed send is recorded, never raised: the transcript upload that triggered it still succeeds."""
+    st = S().students[student_id]
+    own = accounts.registered_student_email(student_id)
+    if own:
+        to, cc = [own], [a for a in notify.recipients()[0] + notify.recipients()[1] if a.lower() != own.lower()]
+    else:
+        to, cc = notify.recipients()
+    link = notify.app_link(f"/student/{student_id}")
+    schools = {s.school_code: s.name for s in S().schools.values()}
+    rows = []
+    for o in lines:
+        need = "a complete syllabus (learning outcomes and weekly schedule)" if o["state"] == "maybe_tm" else "the syllabus"
+        rows.append((o, need))
+    codes = ", ".join(o["course_code"] for o, _ in rows)
+    subject = f"{'Reminder: s' if reminder else 'S'}yllabus needed for transfer credit: {codes} ({st.name}, {student_id})"
+    text_rows = "\n".join(f"- {o['course_code']} \"{o['title']}\" ({schools.get(o['school_code'], o['school_code'])}, "
+                          f"{o['term']}): {need}" for o, need in rows)
+    text = (f"Hello {st.name},\n\nBoston University's Credit Evaluation Department is reviewing your transfer credit. "
+            f"These courses have no existing equivalency, so a department evaluator compares the course syllabus with BU "
+            f"courses. Please upload:\n{text_rows}\n\nUpload each as a PDF on your status page{': ' + link if link else ''}. "
+            f"Until it arrives the course stays pending.\n\nRequested by {by}.\nTransferIQ transfer credit evaluation")
+    e = html_escape
+    html_rows = "".join(f"<li><strong>{e(o['course_code'])}</strong> &ldquo;{e(o['title'])}&rdquo; "
+                        f"({e(schools.get(o['school_code'], o['school_code']))}, {e(o['term'])}): {e(need)}</li>"
+                        for o, need in rows)
+    link_html = f': <a href="{e(link)}">{e(link)}</a>' if link else ""
+    html = (f"<p>Hello {e(st.name)},</p><p>Boston University's Credit Evaluation Department is reviewing your transfer "
+            f"credit. These courses have no existing equivalency, so a department evaluator compares the course syllabus "
+            f"with BU courses. Please upload:</p><ul>{html_rows}</ul><p>Upload each as a PDF on your status "
+            f"page{link_html}. Until it arrives the course stays pending.</p>"
+            f'<p style="color:#5a6370">Requested by {e(by)}.<br>TransferIQ transfer credit evaluation</p>')
+    error = None
+    try:
+        status = await asyncio.to_thread(notify.send, subject, text, html, to, cc)
+    except notify.NotifyError as err:
+        status, error = "failed", str(err)     # recorded; the evaluator sees "failed", and the next upload retries
+    for o, need in rows:
+        _audit(actor_role, "syllabus_request", o["ext_id"], None,
+               dict(student_id=student_id, status=status, to=to, cc=cc, automatic=automatic, reminder=reminder,
+                    emailed_student=bool(own), need="complete" if o["state"] == "maybe_tm" else "syllabus"), at=at)
+    return dict(status=status, courses=[o["course_code"] for o, _ in rows], to=to, cc=cc, emailed_student=bool(own),
+                **({"error": error} if error else {}))
+
+
+async def auto_request_syllabi(student_id: str) -> dict:
+    """Step 5, automatic: after a transcript is processed, ask the student once for every "maybe" course without a
+    complete syllabus. Skips courses already requested for this student and courses whose syllabus was already
+    uploaded through the app (uploaded only once; a department reviews what is on file)."""
+    st = S().students.get(student_id)
+    if st is None:
+        return dict(status="none", courses=[])
+    asked = {r["ext_id"] for r in syllabus_requests(student_id) if r["status"] != "failed"}   # failed ones are retried
+    todo = [o for o in evaluate_student(S(), st)
+            if o["state"] in NEEDS_SYLLABUS and o["ext_id"] not in asked and not _syllabus_uploaded(o["ext_id"])]
+    if not todo:
+        return dict(status="none", courses=[])
+    return await _send_syllabus_request(student_id, todo, "System", "the Credit Evaluation Department (automatic)",
+                                        automatic=True)
+
+
+def _reminder_plan(student_id: str, ext_id: str) -> dict:
+    """First request, last successful send, reminders sent and when the next one is due (None: none planned)."""
+    sent = [r for r in syllabus_requests(student_id, ext_id) if r["status"] != "failed"]      # newest first
+    if not sent:
+        return dict(requested_at=None, last_sent_at=None, reminders=0, next_reminder_at=None)
+    reminders = sum(1 for r in sent if r["reminder"])
+    last = dt.datetime.fromisoformat(sent[0]["requested_at"])
+    due = None
+    if rules.SYLLABUS_REMINDER_DAYS > 0 and reminders < rules.SYLLABUS_REMINDER_MAX:
+        due = last + dt.timedelta(days=rules.SYLLABUS_REMINDER_DAYS)
+    return dict(requested_at=sent[-1]["requested_at"], last_sent_at=sent[0]["requested_at"], reminders=reminders,
+                next_reminder_at=due.isoformat() if due else None)
+
+
+async def send_due_reminders(now: Optional[dt.datetime] = None) -> dict:
+    """Re-request every syllabus that was requested, is still missing or incomplete and whose last (successful) request
+    is TRANSFERIQ_SYLLABUS_REMINDER_DAYS old (default 2), at most TRANSFERIQ_SYLLABUS_REMINDER_MAX times (default 7).
+    One email per student, and only where a mail service is configured. Stops by itself when the syllabus is uploaded
+    or the course is decided (no longer maybe).
+    Never starts a request: courses never requested (seeded sample data) get no reminders. A failed send does not
+    count, so it is retried at the next check. Idempotent: the times come from the audit log (PostgreSQL)."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    if rules.SYLLABUS_REMINDER_DAYS <= 0:
+        return dict(students=0, courses=[], skipped="reminders are off (TRANSFERIQ_SYLLABUS_REMINDER_DAYS=0)")
+    if not notify.configured():
+        # Nothing can be delivered: record nothing either. A local or test instance sharing the database with the
+        # deployed API must not write undeliverable reminders that would shift the real schedule.
+        return dict(students=0, courses=[], skipped="no mail service configured")
+    due: dict[str, list[dict]] = {}
+    for sid, st in list(S().students.items()):
+        for o in evaluate_student(S(), st):
+            if o["state"] not in NEEDS_SYLLABUS or _syllabus_uploaded(o["ext_id"]):
+                continue
+            plan = _reminder_plan(sid, o["ext_id"])
+            if plan["next_reminder_at"] and dt.datetime.fromisoformat(plan["next_reminder_at"]) <= now:
+                due.setdefault(sid, []).append(o)
+    courses = []
+    for sid, lines in due.items():
+        res = await _send_syllabus_request(sid, lines, "System", "the Credit Evaluation Department (automatic reminder)",
+                                           automatic=True, reminder=True, at=now)
+        courses += [f"{sid} {c}" for c in res["courses"]]
+    if courses:
+        _log.info("syllabus reminders sent for %d course(s)", len(courses))
+    return dict(students=len(due), courses=courses)
+
+
+REMINDER_CHECK_MINUTES = float(os.environ.get("TRANSFERIQ_SYLLABUS_REMINDER_CHECK_MINUTES", "60") or 60)
+
+
+async def _reminder_loop() -> None:
+    """Check for due reminders every REMINDER_CHECK_MINUTES (first check after one interval, not at start-up)."""
+    while True:
+        await asyncio.sleep(REMINDER_CHECK_MINUTES * 60)
+        try:
+            await send_due_reminders()
+        except Exception:
+            log.warning("syllabus reminder check failed", exc_info=True)
+
+
+@api.post("/syllabus-reminders/run")
+async def run_syllabus_reminders():
+    """Send the reminders that are due now (the API also checks every hour on its own). For demos and external
+    schedulers."""
+    return await send_due_reminders()
 
 
 @api.post("/students/{student_id}/courses/{ext_id}/syllabus-request", status_code=201)
 async def request_syllabus(request: Request, student_id: str = StudentIdPath, ext_id: str = ExtIdPath,
                            x_demo_role: str = Header(...)):
-    """Email "syllabus needed, please upload" to the notification list (app/notify.py). Triggered from the
-    Upload syllabus button. Never emails the student's own address in this build."""
+    """Send the request for one course again (staff). The normal request is automatic after a transcript upload
+    (auto_request_syllabi). Repeats within 15 minutes are skipped."""
     st = S().students.get(student_id)
     if st is None:
         raise HTTPException(404, f"Unknown student {student_id}")
@@ -472,40 +687,62 @@ async def request_syllabus(request: Request, student_id: str = StudentIdPath, ex
     if line is None:
         raise HTTPException(404, f"Course {ext_id} is not on {student_id}'s transcript")
     _syllabus_not_uploaded_yet(ext_id)       # nothing to ask for once it is uploaded (409)
-    to, cc = notify.recipients()
+    last = next((r for r in syllabus_requests(student_id, ext_id) if r["status"] != "failed"), None)
     now = dt.datetime.now(dt.timezone.utc)
-    key = (student_id, ext_id)
-    last = _syllabus_requests.get(key)
-    if last and now - last < SYLLABUS_REQUEST_COOLDOWN:
+    if last and now - dt.datetime.fromisoformat(last["requested_at"]) < SYLLABUS_REQUEST_COOLDOWN:
+        to, cc = notify.recipients()
         return dict(student_id=student_id, ext_id=ext_id, status="already_requested", to=to, cc=cc,
-                    requested_at=last.isoformat())
-
-    school = next((s.name for s in S().schools.values() if s.school_code == line.school_code), line.school_code)
-    state = S().syllabus_state(ext_id)
-    need = "an updated, complete syllabus" if state == "incomplete" else "the syllabus"
+                    requested_at=last["requested_at"])
+    state = "maybe_tm" if S().syllabus_state(ext_id) == "incomplete" else "maybe_ts"
     u = _user(request)
     by = f"{u['name']} ({u['role']})" if u else x_demo_role
-    link = notify.app_link(f"/student/{student_id}")
-    subject = f"Syllabus needed: {line.course_code} for {st.name} ({student_id})"
-    text = (f"Hello,\n\nTransferIQ needs {need} for {line.course_code} \"{line.title}\" ({school}, {line.term}) "
-            f"on the transcript of {st.name} ({student_id}).\n\nPlease upload it as a PDF on the student's status page"
-            f"{': ' + link if link else ''}.\nUntil it arrives this course stays pending.\n\nRequested by {by}.\n"
-            f"TransferIQ transfer credit evaluation")
-    e = html_escape
-    link_html = f': <a href="{e(link)}">{e(link)}</a>' if link else ""
-    html = (f"<p>Hello,</p><p>TransferIQ needs <strong>{e(need)}</strong> for <strong>{e(line.course_code)} "
-            f"&ldquo;{e(line.title)}&rdquo;</strong> ({e(school)}, {e(line.term)}) on the transcript of "
-            f"<strong>{e(st.name)}</strong> ({e(student_id)}).</p>"
-            f"<p>Please upload it as a PDF on the student's status page{link_html}. "
-            f"Until it arrives this course stays pending.</p>"
-            f'<p style="color:#5a6370">Requested by {e(by)}.<br>TransferIQ transfer credit evaluation</p>')
-    try:
-        status = await asyncio.to_thread(notify.send, subject, text, html)
-    except notify.NotifyError as err:
-        raise HTTPException(502, str(err))
-    _syllabus_requests[key] = now
-    _audit(x_demo_role, "syllabus_request", ext_id, None, dict(student_id=student_id, status=status, to=to, cc=cc))
-    return dict(student_id=student_id, ext_id=ext_id, status=status, to=to, cc=cc, requested_at=now.isoformat())
+    res = await _send_syllabus_request(student_id, [dict(ext_id=ext_id, course_code=line.course_code, title=line.title,
+                                                         school_code=line.school_code, term=line.term, state=state)],
+                                       x_demo_role, by, automatic=False)
+    if res["status"] == "failed":
+        raise HTTPException(502, res.get("error") or "The email could not be sent")
+    return dict(student_id=student_id, ext_id=ext_id, status=res["status"], to=res["to"], cc=res["cc"],
+                requested_at=now.isoformat())
+
+
+@api.get("/courses/{ext_id}/syllabus")
+def course_syllabus(request: Request, ext_id: str = ExtIdPath):
+    """What the department evaluator reads next to the AI comparison: the syllabus text on file (as extracted from
+    the PDF; shown as plain text, never as HTML) and the requests sent to the students waiting on this course.
+    Staff only (x-roles); a department sees only its own courses."""
+    if ext_id not in S().ext_courses:
+        raise HTTPException(404, f"Unknown course {ext_id}")
+    _own_department_only(request, [ext_id])
+    rec = S().syllabi.get(ext_id)
+    names = {sid: st.name for sid, st in S().students.items()}
+    waiting = sorted({ln.student_id for ln in S().lines if ln.ext_id == ext_id})
+    return dict(ext_id=ext_id, state=S().syllabus_state(ext_id),
+                source=("upload" if rec and rec.uploaded_at else "on file") if rec and rec.text else None,
+                uploaded_at=(rec.uploaded_at or None) if rec else None,
+                injection_detected=bool(rec and rec.injection_detected),
+                text=(rec.text[:SYLLABUS_TEXT_MAX] if rec and rec.text else None),
+                truncated=bool(rec and len(rec.text or "") > SYLLABUS_TEXT_MAX),
+                requests=[_request_summary(sid, ext_id, names) for sid in waiting
+                          if syllabus_requests(sid, ext_id)])
+
+
+def _request_summary(student_id: str, ext_id: str, names: dict) -> dict:
+    """One line per student: the first request, the latest attempt and the reminder plan."""
+    reqs = syllabus_requests(student_id, ext_id)                           # newest first, failed ones included
+    latest = reqs[0]
+    plan = _reminder_plan(student_id, ext_id)
+    st = S().students.get(student_id)
+    # The same rule as send_due_reminders: only a course still waiting for its syllabus (TS/TM) gets reminders. An old
+    # request on a course that is now, for example, under age review (RV-AGE) shows no next reminder.
+    open_ = bool(st) and not _syllabus_uploaded(ext_id) and any(
+        o["ext_id"] == ext_id and o["state"] in NEEDS_SYLLABUS for o in evaluate_student(S(), st))
+    return dict(student_id=student_id, student_name=names.get(student_id, student_id),
+                requested_at=plan["requested_at"] or reqs[-1]["requested_at"], last_sent_at=plan["last_sent_at"],
+                reminders=plan["reminders"], next_reminder_at=plan["next_reminder_at"] if open_ else None,
+                status=latest["status"], automatic=latest["automatic"], emailed_student=latest["emailed_student"])
+
+
+SYLLABUS_TEXT_MAX = 30_000
 
 
 @api.get("/courses/{ext_id}/recommendation")
@@ -553,7 +790,7 @@ class DecisionInput(BaseModel):
     bu_course: str = Field(pattern=BU_COURSE_RE)
     reason_code: str
     reusable: bool = True
-    evaluator: str = Field(min_length=1, max_length=80)
+    evaluator: str = Field("", max_length=80)          # demo mode only; signed in, the verified identity is used
     catalog_year: str = Field(DEFAULT_CATALOG_YEAR, pattern=r"^\d{4}-\d{2}$")
     note: str = Field("", max_length=1000)
 
@@ -603,13 +840,14 @@ def _save_decision(inp: DecisionInput, role: str, rec: Optional[dict]) -> Decisi
 def post_decision(inp: DecisionInput, request: Request, x_demo_role: str = Header(...)):
     role = x_demo_role               # already authorised by RoleGuardMiddleware (ADR 0005)
     _own_department_only(request, [inp.ext_id])
+    inp = inp.model_copy(update=dict(evaluator=_decided_by(request, inp.evaluator)))
     rec = _rec(inp.ext_id) if inp.ext_id in S().ext_courses else None
     return _save_decision(inp, role, rec).to_api()
 
 
 class BatchInput(BaseModel):
     ext_ids: list[str] = Field(min_length=1, max_length=200)
-    evaluator: str = Field(min_length=1, max_length=80)
+    evaluator: str = Field("", max_length=80)          # demo mode only (see _decided_by)
 
 
 def _batch_problem(rec: dict) -> Optional[str]:
@@ -627,6 +865,7 @@ def _batch_problem(rec: dict) -> Optional[str]:
 @api.post("/decisions/batch", status_code=201)
 def post_batch(inp: BatchInput, request: Request, x_demo_role: str = Header(...)):
     role = x_demo_role               # Evaluator or Department, enforced by RoleGuardMiddleware
+    inp = inp.model_copy(update=dict(evaluator=_decided_by(request, inp.evaluator)))
     recs, problems = {}, []
     bad = [e for e in inp.ext_ids if not re.match(EXT_ID_RE, e)]
     if bad:

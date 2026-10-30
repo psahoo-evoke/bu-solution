@@ -351,3 +351,11 @@ def test_demo_reset_allows_uploading_again(client):
     assert _upload_25(client).status_code == 201
     assert client.post("/api/demo/reset", headers=role("Registrar")).status_code == 204
     assert _upload_25(client).status_code == 201
+
+
+def test_demo_mode_needs_a_typed_evaluator_name(client):
+    dec = dict(ext_id="NYU|PSYCH-UA 10", decision="Equivalent", bu_course="CAS PS 211", reason_code="EQ-EVALUATOR")
+    r = client.post("/api/decisions", json=dec)
+    assert r.status_code == 422 and "evaluator name" in r.json()["detail"]
+    r = client.post("/api/decisions", json=dict(dec, evaluator="  Dana  "))
+    assert r.status_code == 201 and r.json()["evaluator"] == "Dana"

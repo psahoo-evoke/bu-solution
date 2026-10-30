@@ -93,6 +93,56 @@ export interface TranscriptUpload {
   added: string[];
   removed: string[];
   updated: string[];
+  /** Step 5, automatic: the syllabus request sent after this upload (openapi TranscriptUploadResult). */
+  syllabus_request?: {
+    status: 'none' | 'sent' | 'not_sent' | 'failed';
+    courses: string[];
+    to?: string[];
+    cc?: string[];
+    emailed_student?: boolean;
+  };
+}
+
+/** openapi: components.schemas.StudentNotifications (GET /students/{id}/notifications). */
+export interface StudentNotification {
+  id: string;
+  kind: 'transcript' | 'syllabus_request' | 'syllabus_reminder' | 'syllabus_received' | 'decision' | 'posted';
+  title: string;
+  body: string;
+  at: string;
+  ext_id: string | null;
+  unread: boolean;
+}
+
+export interface StudentNotifications {
+  items: StudentNotification[];
+  unread: number;
+  seen_at: string | null;
+}
+
+/** openapi: components.schemas.CourseSyllabus (GET /courses/{ext_id}/syllabus, staff only). */
+export interface CourseSyllabus {
+  ext_id: string;
+  state: 'complete' | 'incomplete' | 'missing';
+  source: 'upload' | 'on file' | null;
+  uploaded_at: string | null;
+  injection_detected: boolean;
+  /** Plain text from the PDF: always interpolated, never bound as HTML. */
+  text: string | null;
+  truncated: boolean;
+  requests: {
+    student_id: string;
+    student_name: string;
+    /** First request. */
+    requested_at: string;
+    last_sent_at: string | null;
+    reminders: number;
+    /** null: no more reminders (syllabus arrived, maximum reached, or reminders off). */
+    next_reminder_at: string | null;
+    status: 'sent' | 'not_sent' | 'failed';
+    automatic: boolean;
+    emailed_student: boolean;
+  }[];
 }
 
 export type CandidateTier = 'equivalent' | 'evaluator_decides' | 'elective';
@@ -266,15 +316,22 @@ export interface CreditCheckResult {
     injection_detected: boolean;
   } | null;
   caveats: string[];
+  /** Partial or unknown course code: matching catalog courses to pick from. */
+  suggestions?: CreditCourse[];
+  /** unknown_school: the schools the input could mean. */
+  school_suggestions?: { school_code: string; name: string }[];
 }
 
 export interface ChatTurn {
   role: 'user' | 'assistant';
   content: string;
+  /** Assistant turns: the server's signature of that reply, sent back so the model keeps its context. */
+  signature?: string;
 }
 
 export interface CreditChatReply {
   reply: string;
   results: CreditCheckResult[];
   grounded: boolean;
+  signature: string;
 }

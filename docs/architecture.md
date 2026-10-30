@@ -37,6 +37,6 @@ flowchart TB
 | Status | Plain-words status, next step, secured vs pending, reminders day 7/21/45, MyBU CSV | Status wording only |
 | Public credit check (ADR 0006) | No login: "will this course transfer?" form and chat. Per-course rules and reusable decisions only; preliminary estimate otherwise; rate limits and AI budgets; nothing stored | Chat explains tool results only; the result cards come from the rules engine |
 
-Data flow for one course: extract line -> rules (R01–R07) -> equivalency lookup (R10–R12) -> if none: syllabus state -> matcher -> evaluator -> decision saved (reusable) -> Department -> Registrar -> CSV.
+Data flow for one course: extract line -> rules (R01–R07) -> equivalency lookup (R10–R12) -> if none: syllabus state -> (no complete syllabus: the Credit Evaluation Department's automatic request to the student, one email per transcript upload; the student uploads it on their status page) -> matcher -> evaluator reads the syllabus next to the AI comparison -> decision saved (reusable) -> Department -> Registrar -> CSV.
 
 See ADRs in `docs/adr/` and the contract in `docs/api/openapi.yaml`.

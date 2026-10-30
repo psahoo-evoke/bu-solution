@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: TransferIQ API
-  version: 0.4.0
+  version: 0.8.0
   description: |
     Transfer credit evaluation co-pilot (EvoHack 2026, BU problem statement).
     AI recommends, the rules engine computes, evaluators decide.
@@ -83,6 +83,28 @@ paths:
       responses:
         "200": { description: Evaluation, content: { application/json: { schema: { $ref: "#/components/schemas/StudentEvaluation" } } } }
         "404": { description: Unknown student }
+  /students/{student_id}/notifications:
+    get:
+      summary: "In-app notifications for a student, newest first (at most 50)"
+      description: |
+        Transcript received, syllabus needed (and each reminder), syllabus received, a decision on one of the student's courses
+        (only when it applies to them) and credit posted. Built from what the app already records; shown even when an email
+        failed or no mail service is configured. Never includes staff email lists, evaluator names or notes. Reading does not
+        mark anything read (staff may look at a student's record). Portal: a student only reaches their own id.
+      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor]
+      parameters: [ { $ref: "#/components/parameters/StudentId" } ]
+      responses:
+        "200": { description: Notifications, content: { application/json: { schema: { $ref: "#/components/schemas/StudentNotifications" } } } }
+        "404": { description: Unknown student }
+  /students/{student_id}/notifications/seen:
+    post:
+      summary: "The student opened their notifications: everything up to now is read"
+      x-roles: [Student]
+      parameters: [ { $ref: "#/components/parameters/StudentId" } ]
+      responses:
+        "200": { description: Notifications after marking them read, content: { application/json: { schema: { $ref: "#/components/schemas/StudentNotifications" } } } }
+        "404": { description: Unknown student }
+        "503": { description: The read state could not be saved }
   /students/{student_id}/transcripts:
     post:
       summary: Upload a transcript PDF; lines are extracted and evaluated
@@ -98,6 +120,17 @@ paths:
         "415": { description: Not a PDF (checked by the file's first bytes) }
         "422": { description: "Unreadable or over 30 pages, no readable text, not a transcript (no Institution line), unknown institution, no course lines or more than 60, a course title with instructions aimed at automated systems, or a different Student ID than this student's earlier transcript from the same school (the printed id is never compared with portal ids)" }
   /courses/{ext_id}/syllabus:
+    get:
+      summary: "The syllabus on file and the requests sent, for the department evaluator next to the AI comparison"
+      description: |
+        Text as extracted from the PDF (plain text; clients must not render it as HTML), at most 30,000 characters.
+        Requests: one entry per student who has this course on their transcript and was asked, with the reminder plan. A Department
+        account only sees its own department's courses (403).
+      x-roles: [CreditStaff, Evaluator, Department]
+      parameters: [ { $ref: "#/components/parameters/ExtId" } ]
+      responses:
+        "200": { description: Syllabus and requests, content: { application/json: { schema: { $ref: "#/components/schemas/CourseSyllabus" } } } }
+        "404": { description: Unknown course }
     post:
       summary: Upload a syllabus for an external course; checked for completeness (outcomes, schedule)
       x-roles: [Student, CreditStaff, Evaluator, Department]
@@ -114,12 +147,15 @@ paths:
         "409": { description: "A syllabus was already uploaded for this course through the app; it can be uploaded only once (seed syllabi do not count; a demo reset clears uploads)" }
   /students/{student_id}/courses/{ext_id}/syllabus-request:
     post:
-      summary: Ask for a missing or incomplete syllabus by email (sent when someone clicks Upload syllabus)
+      summary: Send a syllabus request for one course again (staff). The normal request is automatic after a transcript upload
       description: |
-        Emails the configured notification list (SYLLABUS_REQUEST_TO / SYLLABUS_REQUEST_CC) naming the student and course,
-        with a link to the student's status page. Never emails the student's own address in this hackathon build.
-        Repeated clicks for the same student and course within 15 minutes are not re-sent (status already_requested).
-        Without a mail service configured the request is recorded and status is not_sent.
+        Step 5 of the process is automatic: after a transcript upload, the student is asked once, in one email, for every
+        "maybe" course without a complete syllabus (TranscriptUploadResult.upload.syllabus_request). This route re-sends it
+        for one course. A student who registered themselves receives the email at their own address with the
+        notification list (SYLLABUS_REQUEST_TO / SYLLABUS_REQUEST_CC) copied; seeded sample students (made-up addresses)
+        are never emailed, and the request goes to the notification list. Repeats for the same student and course within
+        15 minutes are not re-sent (status already_requested). Without a mail service the request is recorded and the
+        status is not_sent.
       x-roles: [Student, CreditStaff, Evaluator, Department]
       parameters: [ { $ref: "#/components/parameters/StudentId" }, { $ref: "#/components/parameters/ExtId" } ]
       responses:
@@ -127,6 +163,23 @@ paths:
         "404": { description: Unknown student, or the course is not on this student's transcript }
         "502": { description: The mail service rejected the email }
         "409": { description: A syllabus was already uploaded for this course; nothing to request }
+  /syllabus-reminders/run:
+    post:
+      summary: Send the syllabus reminders that are due now
+      description: |
+        The API checks on its own every TRANSFERIQ_SYLLABUS_REMINDER_CHECK_MINUTES (default 60). A syllabus that was requested
+        and is still missing or incomplete is requested again every TRANSFERIQ_SYLLABUS_REMINDER_DAYS (default 2; 0 = off) after
+        the last successful request, at most TRANSFERIQ_SYLLABUS_REMINDER_MAX times (default 7), one email per student.
+        Reminders stop when the syllabus is uploaded or the course is decided. Courses never requested get none. Without a mail
+        service nothing is sent or recorded (skipped), so an instance that cannot deliver never shifts the schedule. This route
+        runs the same check now (demos, external schedulers); running it twice sends nothing twice.
+      x-roles: [CreditStaff]
+      responses:
+        "200":
+          description: What was sent
+          content:
+            application/json:
+              schema: { type: object, properties: { students: { type: integer }, courses: { type: array, items: { type: string }, example: ["SYN-24005 PSYCH-UA 25"] }, skipped: { type: string, description: "Why nothing was checked: reminders off, or no mail service configured" } } }
   /courses/{ext_id}/recommendation:
     get:
       summary: AI recommendation for an external course (top-3 BU candidates with evidence)
@@ -160,7 +213,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { type: object, required: [ext_ids, evaluator], properties: { ext_ids: { type: array, items: { type: string } }, evaluator: { type: string } } }
+            schema: { type: object, required: [ext_ids], properties: { ext_ids: { type: array, items: { type: string } }, evaluator: { type: string, maxLength: 80, description: "Demo mode only (required there). Portal and Entra: ignored; the verified sign-in is recorded as \"Name <email>\"" } } }
       responses:
         "201": { description: Saved, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Decision" } } } } }
         "422": { description: An item is at or below the 90% threshold }
@@ -307,7 +360,7 @@ components:
       additionalProperties: false
       properties:
         school: { type: string, minLength: 1, maxLength: 80, description: "School code or name, e.g. NYU" }
-        course_code: { type: string, maxLength: 20, pattern: "^([A-Za-z]{2,8}(-[A-Za-z]{2})?\\s*\\d{1,4}[A-Za-z]?)?$", example: "PSYCH-UA 10" }
+        course_code: { type: string, maxLength: 20, pattern: "^(([A-Za-z]{2,8}(-[A-Za-z]{2})?\\s*\\d{1,4}[A-Za-z]?)|[A-Za-z]{2,8}(-[A-Za-z]{2})?|\\d{1,4})?$", example: "PSYCH-UA 10", description: "A full code, or just the department ('CS') or number ('3000') to get suggestions" }
         title: { type: string, maxLength: 120 }
         description: { type: string, maxLength: 2000, description: "Untrusted; injected sentences are removed" }
         grade: { type: string, maxLength: 3, description: "Letter grade (A..F with +/-) or P/NP/S/U. Empty = unknown: a decided result then assumes C or better." }
@@ -318,7 +371,7 @@ components:
       type: object
       required: [kind, message, bu_course, units, reason_code, estimate, caveats]
       properties:
-        kind: { type: string, enum: [decided_equivalent, decided_elective, not_transferable, pending_review, needs_evaluation, unknown_school, unknown_course] }
+        kind: { type: string, enum: [decided_equivalent, decided_elective, not_transferable, pending_review, needs_evaluation, unknown_school, unknown_course], description: "Only an exact school code or name is used. A partial school (\"NE\", \"northeastern\") is never auto-picked: unknown_school with school_suggestions for the student to confirm" }
         message: { type: string }
         school_code: { type: string, description: "Absent for unknown_school" }
         school_name: { type: string }
@@ -340,13 +393,16 @@ components:
             engine: { type: string, enum: [azure-openai, offline-fallback] }
             injection_detected: { type: boolean }
         caveats: { type: array, items: { type: string }, description: "Record-wide rules not applied; an R11 same-year conflict adds a first caveat" }
+        suggestions: { type: array, maxItems: 6, items: { $ref: "#/components/schemas/CreditCourse" }, description: "Catalog courses (never courses known only from uploads) when the code is a department alone (\"CS\": exactly that department), a number alone (\"3000\"), the start of a code (\"CS 30\"), a full code not in the catalog (courses starting with it), or no code but a title (title match). Their credits are the other school's, not BU units" }
+        school_suggestions: { type: array, items: { type: object, required: [school_code, name], properties: { school_code: { type: string }, name: { type: string } } }, description: "unknown_school only: the schools the input could mean (even a single one, to confirm), or all catalog schools" }
     ChatTurn:
       type: object
       required: [role, content]
       additionalProperties: false
       properties:
-        role: { type: string, enum: [user, assistant], description: "assistant turns are accepted for the page's convenience but never sent to the model" }
-        content: { type: string, minLength: 1, maxLength: 600 }
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string, minLength: 1, maxLength: 1500, description: "user turns at most 600 characters, all turns together at most 9000 (422 otherwise); assistant turns are earlier replies" }
+        signature: { type: string, pattern: "^[0-9a-f]{64}$", description: "assistant turns: the signature returned with that reply. It is bound to the user turn just before it; only correctly signed assistant turns reach the model (sanitised), otherwise all assistant turns are dropped" }
     CreditChatInput:
       type: object
       required: [messages]
@@ -355,9 +411,10 @@ components:
         messages: { type: array, minItems: 1, maxItems: 12, items: { $ref: "#/components/schemas/ChatTurn" }, description: "The last turn must be the user's" }
     CreditChatReply:
       type: object
-      required: [reply, results, grounded]
+      required: [reply, results, grounded, signature]
       properties:
         reply: { type: string, maxLength: 1500 }
+        signature: { type: string, description: "HMAC of reply; send it back with this assistant turn" }
         results: { type: array, items: { $ref: "#/components/schemas/CreditCheckResult" }, description: "The facts behind the reply; the page shows these as the source of truth" }
         grounded: { type: boolean, description: "false = the model's text was replaced by a summary of the results" }
     TranscriptUploadResult:
@@ -377,6 +434,60 @@ components:
                 added: { type: array, items: { type: string }, example: ["PSYCH-UA 30 (Fall 2025)"] }
                 removed: { type: array, items: { type: string } }
                 updated: { type: array, items: { type: string }, description: "Same course and term, new grade or credits" }
+                syllabus_request:
+                  type: object
+                  description: "Step 5, automatic: one email asking for the syllabus of every maybe course without a complete one (not repeated for courses already requested)"
+                  properties:
+                    status: { type: string, enum: [none, sent, not_sent, failed], description: "none: nothing to ask for; not_sent: no mail service, recorded only; failed: recorded, the mail service refused" }
+                    courses: { type: array, items: { type: string } }
+                    to: { type: array, items: { type: string } }
+                    cc: { type: array, items: { type: string } }
+                    emailed_student: { type: boolean, description: "false for seeded sample students: the notification list receives it" }
+    StudentNotifications:
+      type: object
+      required: [items, unread]
+      properties:
+        unread: { type: integer }
+        seen_at: { type: string, format: date-time, nullable: true, description: "Read up to this time (null: never opened)" }
+        items:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [id, kind, title, body, at, unread]
+            properties:
+              id: { type: string }
+              kind: { type: string, enum: [transcript, syllabus_request, syllabus_reminder, syllabus_received, decision, posted] }
+              title: { type: string, example: "Syllabus needed for NYU PSYCH-UA 25" }
+              body: { type: string }
+              at: { type: string, format: date-time }
+              ext_id: { type: string, nullable: true }
+              unread: { type: boolean }
+    CourseSyllabus:
+      type: object
+      required: [ext_id, state, requests]
+      properties:
+        ext_id: { type: string }
+        state: { type: string, enum: [complete, incomplete, missing] }
+        source: { type: string, nullable: true, enum: [upload, on file], description: "upload: uploaded through the app; on file: received earlier (sample data)" }
+        uploaded_at: { type: string, format: date-time, nullable: true }
+        injection_detected: { type: boolean }
+        text: { type: string, nullable: true, description: "Plain text extracted from the PDF; never render as HTML" }
+        truncated: { type: boolean }
+        requests:
+          type: array
+          items:
+            type: object
+            properties:
+              student_id: { type: string }
+              student_name: { type: string }
+              requested_at: { type: string, format: date-time, description: "First request" }
+              last_sent_at: { type: string, format: date-time, nullable: true, description: "Latest successful request or reminder" }
+              reminders: { type: integer, description: "Reminders sent so far" }
+              next_reminder_at: { type: string, format: date-time, nullable: true, description: "null: no more reminders (syllabus arrived, the maximum was reached, or reminders are off)" }
+              status: { type: string, enum: [sent, not_sent, failed], description: "Of the latest attempt" }
+              automatic: { type: boolean }
+              emailed_student: { type: boolean }
     Candidate:
       type: object
       properties:
@@ -413,14 +524,14 @@ components:
         batch_eligible: { type: boolean }
     DecisionInput:
       type: object
-      required: [ext_id, decision, bu_course, reason_code, evaluator]
+      required: [ext_id, decision, bu_course, reason_code]
       properties:
         ext_id: { type: string }
         decision: { type: string, enum: [Equivalent, Elective, No credit] }
         bu_course: { type: string, pattern: "^(CAS [A-Z]{2} [0-9]{3}|CAS [A-Z]{2} [12]TR|TFRGEN 1TR|TFRGEN NOCRDT)$", description: "Must be a known BU course, a TR elective code, or TFRGEN NOCRDT; must agree with decision" }
         reason_code: { type: string, description: "Must exist in /reason-codes and match the decision" }
         reusable: { type: boolean, default: true }
-        evaluator: { type: string }
+        evaluator: { type: string, maxLength: 80, description: "Who decided. Input: demo mode only (422 when empty there). Portal and Entra: ignored; the verified sign-in is recorded as \"Name <email>\" (email, or the Entra sign-in name, makes it unique)" }
         catalog_year: { type: string, example: 2025-26 }
         note: { type: string }
     Decision:

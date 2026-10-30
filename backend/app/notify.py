@@ -7,8 +7,9 @@ Two ways to send, first configured wins (infra/README.md):
    App sends through an Office 365 Outlook connection authorized once in the portal (scripts/setup_email_logicapp.sh).
 Recipients: SYLLABUS_REQUEST_TO / SYLLABUS_REQUEST_CC (comma-separated); APP_BASE_URL for the link in the mail.
 
-Hackathon rule: the student's own address is never emailed. The sample students' addresses are made up on the real
-bu.edu domain, so a request goes to the notification list and names the student and course inside the mail.
+Who receives a syllabus request: a student who registered themselves gets it at the address they gave, with the
+notification list copied. The seeded sample students' addresses are made up (some on the real bu.edu domain), so they
+are never emailed: their requests go to the notification list only, naming the student and course inside the mail.
 
 Without a mail service (tests, local, or until ACS exists) send() returns "not_sent" and the request is still recorded.
 """
@@ -64,10 +65,13 @@ def _client():
     return _CLIENT
 
 
-def send(subject: str, text: str, html: str) -> str:
-    """Send to the notification list. Returns "sent" or "not_sent" (no mail service configured).
-    Raises NotifyError when the service rejects the mail. Blocking; call from a worker thread in async routes."""
-    to, cc = recipients()
+def send(subject: str, text: str, html: str, to: Optional[list[str]] = None, cc: Optional[list[str]] = None) -> str:
+    """Send to `to`/`cc`, or to the notification list when `to` is not given. Returns "sent" or "not_sent" (no mail
+    service configured). Raises NotifyError when the service rejects the mail. Blocking; call from a worker thread
+    in async routes."""
+    if to is None:
+        to, cc = recipients()
+    cc = cc or []
     if not configured():
         log.info("email not sent (no mail service configured): %s", subject)
         return "not_sent"

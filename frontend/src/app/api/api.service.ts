@@ -22,6 +22,8 @@ import {
   CreditCheckResult,
   CreditCourse,
   CreditSchool,
+  CourseSyllabus,
+  StudentNotifications,
 } from './models';
 
 export const API_BASE = '/api';
@@ -84,6 +86,21 @@ export class ApiService {
   }
 
   /** Email "syllabus needed, please upload" to the notification list (sent when Upload syllabus is clicked). */
+  /** A student's in-app notifications, newest first. Reading does not mark them read. */
+  getNotifications(studentId: string): Observable<StudentNotifications> {
+    return this.http.get<StudentNotifications>(`${API_BASE}/students/${encodeURIComponent(studentId)}/notifications`);
+  }
+
+  /** The student opened their notifications: mark everything shown as read (Student role only). */
+  markNotificationsSeen(studentId: string): Observable<StudentNotifications> {
+    return this.http.post<StudentNotifications>(`${API_BASE}/students/${encodeURIComponent(studentId)}/notifications/seen`, {});
+  }
+
+  /** Staff: the syllabus text on file and the requests sent (the evaluator reads it next to the AI comparison). */
+  getSyllabus(extId: string): Observable<CourseSyllabus> {
+    return this.http.get<CourseSyllabus>(`${API_BASE}/courses/${encodeExtId(extId)}/syllabus`);
+  }
+
   requestSyllabus(studentId: string, extId: string): Observable<SyllabusRequest> {
     return this.http.post<SyllabusRequest>(
       `${API_BASE}/students/${encodeURIComponent(studentId)}/courses/${encodeExtId(extId)}/syllabus-request`,

@@ -31,12 +31,10 @@ class FakeClient:
 
 @pytest.fixture(autouse=True)
 def clean(monkeypatch):
-    main._syllabus_requests.clear()
     monkeypatch.setenv("SYLLABUS_REQUEST_TO", TO)
     monkeypatch.setenv("SYLLABUS_REQUEST_CC", CC)
     monkeypatch.setenv("APP_BASE_URL", "https://app.example")
     yield
-    main._syllabus_requests.clear()
 
 
 @pytest.fixture
@@ -63,9 +61,10 @@ def test_email_goes_to_the_notification_list_only(client, acs):
     assert msg["recipients"] == {"to": [{"address": TO}], "cc": [{"address": CC}]}   # never the student's bu.edu address
     assert msg["senderAddress"] == "DoNotReply@example.azurecomm.net"
     subject, text, html = msg["content"]["subject"], msg["content"]["plainText"], msg["content"]["html"]
-    assert subject == "Syllabus needed: PSYCH-UA 25 for Maya R. Delgado (SYN-24001)"
+    assert subject == "Syllabus needed for transfer credit: PSYCH-UA 25 (Maya R. Delgado, SYN-24001)"
     assert "https://app.example/student/SYN-24001" in text and "Requested by Department" in text
-    assert "<strong>Maya R. Delgado</strong>" in html and "maya.delgado@bu.edu" not in text + html
+    assert "Hello Maya R. Delgado" in html and "<strong>PSYCH-UA 25</strong>" in html
+    assert "maya.delgado@bu.edu" not in text + html                             # sample student: never emailed
 
 
 def test_repeat_clicks_within_15_minutes_send_once(client, acs):
@@ -144,7 +143,7 @@ def test_webhook_sends_to_and_cc(client, webhook):
     assert r.status_code == 201 and r.json()["status"] == "sent"
     [body] = webhook["bodies"]
     assert (body["to"], body["cc"]) == (TO, CC)
-    assert body["subject"] == "Syllabus needed: PSYCH-UA 25 for Maya R. Delgado (SYN-24001)" and "<strong>" in body["html"]
+    assert body["subject"] == "Syllabus needed for transfer credit: PSYCH-UA 25 (Maya R. Delgado, SYN-24001)" and "<strong>" in body["html"]
 
 
 def test_webhook_failure_is_502_and_hides_the_url(client, webhook, caplog):

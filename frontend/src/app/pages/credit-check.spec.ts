@@ -43,6 +43,40 @@ describe('CreditCheckPage', () => {
     expect(card).toContain('CAS PS 101');
   });
 
+  it('New chat clears the conversation and brings the examples back', async () => {
+    const { fixture, http, el } = setup();
+    (el.querySelector('.cc-suggest button') as HTMLButtonElement).click();
+    http.expectOne('/api/credit-chat').flush({ reply: 'Already decided: CAS PS 101.', results: [decided], grounded: true });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.querySelector('.cc-suggest')).toBeNull();
+    const newChat = [...el.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'New chat') as HTMLButtonElement;
+    newChat.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.querySelectorAll('.cc-row--user').length).toBe(0);
+    expect(el.querySelectorAll('.cc-suggest button').length).toBe(4);
+  });
+
+  it('sends the signed reply back and asks about a suggested course in one click', async () => {
+    const { fixture, http, el } = setup();
+    const partial: CreditCheckResult = {
+      kind: 'unknown_course', message: 'Did you mean CS 3000 (Algorithms and Data)?', school_code: 'NEU', course_code: 'CS 30',
+      bu_course: null, units: null, reason_code: null, estimate: null, caveats: [],
+      suggestions: [{ course_code: 'CS 3000', title: 'Algorithms and Data', credits: 4 }],
+    };
+    (el.querySelector('.cc-suggest button') as HTMLButtonElement).click();
+    http.expectOne('/api/credit-chat').flush({ reply: 'Did you mean CS 3000?', results: [partial], grounded: true, signature: 'sig-1' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    (el.querySelector('.cc-pick .cc-chip') as HTMLButtonElement).click();
+    const req = http.expectOne('/api/credit-chat');
+    expect(req.request.body.messages.slice(1)).toEqual([
+      { role: 'assistant', content: 'Did you mean CS 3000?', signature: 'sig-1' },
+      { role: 'user', content: 'NEU CS 3000', signature: undefined },
+    ]);
+  });
+
   it('labels estimates as preliminary, never as credit', async () => {
     const { fixture, http, el } = setup();
     (el.querySelectorAll('.cc-suggest button')[2] as HTMLButtonElement).click();

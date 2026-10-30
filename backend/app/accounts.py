@@ -230,6 +230,14 @@ def restore_registered_students() -> None:
             store_mod.STORE.students.setdefault(st.student_id, st)
 
 
+def registered_student_email(student_id: str) -> Optional[str]:
+    """The address a student registered with, or None. Seeded sample students (made-up addresses) never have one,
+    so they are never emailed (app/notify.py)."""
+    with REGISTRY.lock:
+        return next((a.email for a in REGISTRY.accounts.values()
+                     if a.registered and a.role == "Student" and a.student_id == student_id), None)
+
+
 def departments() -> list[str]:
     return list(ACADEMIC_DEPARTMENTS)
 

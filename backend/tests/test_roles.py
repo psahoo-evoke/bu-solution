@@ -1,4 +1,4 @@
-"""ADR 0005 default-deny role matrix, generated from `x-roles` in docs/api/openapi.yaml (v0.4.0).
+"""ADR 0005 default-deny role matrix, generated from `x-roles` in docs/api/openapi.yaml (v0.8.0).
 
 Every route except the public allowlist (guard.PUBLIC, ADR 0006): missing/unknown X-Demo-Role -> 401, role not in x-roles -> 403, allowed role -> neither.
 Refusals happen before any side effect.

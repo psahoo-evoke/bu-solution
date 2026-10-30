@@ -166,7 +166,6 @@
                         class="visually-hidden"
                         accept="application/pdf,.pdf"
                         [attr.aria-label]="'Upload syllabus for ' + line.course_code"
-                        (click)="onSyllabusClick(line)"
                         (change)="onSyllabus(line, $event)"
                         [disabled]="busyExtId() === line.ext_id"
                       />

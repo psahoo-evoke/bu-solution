@@ -1,8 +1,10 @@
-import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, ElementRef, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../api/api.service';
+import { AuthService } from '../api/auth.service';
 import { describeError } from '../api/errors';
-import { Candidate, DecisionKind, ReasonCode, Recommendation, ReviewItem } from '../api/models';
+import { Candidate, CourseSyllabus, DecisionKind, ReasonCode, Recommendation, ReviewItem } from '../api/models';
 import { Operation, can, suggestedRole, switchRoleMessage } from '../api/permissions';
 import { RoleService } from '../api/role.service';
 import { ErrorBanner } from '../shared/error-banner';
@@ -24,16 +26,20 @@ export function formatElapsed(totalSeconds: number): string {
 
 @Component({
   selector: 'app-review',
-  imports: [FormsModule, ErrorBanner],
+  imports: [DatePipe, FormsModule, ErrorBanner],
   templateUrl: './review.html',
 })
 export class ReviewPage {
   private readonly api = inject(ApiService);
   protected readonly roles = inject(RoleService);
+  private readonly auth = inject(AuthService);
+  private readonly detail = viewChild<ElementRef<HTMLElement>>('detail');
 
   protected readonly queue = signal<ReviewItem[]>([]);
   protected readonly departments = signal<string[]>([]);
   protected readonly department = signal('');
+  /** A signed-in department account only ever sees its own department (the API enforces it): fixed, not a choice. */
+  protected readonly ownDepartment = computed(() => (this.roles.role() === 'Department' ? this.auth.department() : null));
   protected readonly queueLoading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly success = signal<string | null>(null);
@@ -46,9 +52,29 @@ export class ReviewPage {
   protected readonly rec = signal<Recommendation | null>(null);
   protected readonly recLoading = signal(false);
   protected readonly recError = signal<string | null>(null);
+  /** The syllabus on file and the requests sent (step 5): the evaluator reads it next to the AI comparison. */
+  protected readonly syllabus = signal<CourseSyllabus | null>(null);
+  protected readonly syllabusError = signal<string | null>(null);
 
   // Decision form
-  protected readonly evaluator = signal('Demo Evaluator');
+  protected readonly typedEvaluator = signal('Demo Evaluator');
+  /** Signed in: the account's name (the API records it from the session anyway). Demo mode: the typed name. */
+  protected readonly signedInName = computed(() => this.auth.userName() || null);
+  /** Up to two initials for the identity badge ("bu.computer1" -> "BC", "Transfer Evaluator" -> "TE"). */
+  protected readonly initials = computed(() =>
+    (this.signedInName() ?? '').split(/[\s._@-]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join(''),
+  );
+  protected readonly roleLine = computed(() => [this.roles.role(), this.ownDepartment()].filter(Boolean).join(' · '));
+  /** Summary for the empty detail panel. */
+  protected readonly stats = computed(() => {
+    const q = this.queue();
+    return {
+      students: new Set(q.flatMap((i) => i.students)).size,
+      needSyllabus: q.filter((i) => i.syllabus_state !== 'complete').length,
+      avgConfidence: q.length ? Math.round(q.reduce((n, i) => n + i.confidence_pct, 0) / q.length) : 0,
+    };
+  });
+  protected readonly evaluator = computed(() => this.signedInName() ?? this.typedEvaluator());
   protected readonly decision = signal<DecisionKind>('Equivalent');
   protected readonly candidateCode = signal('');
   protected readonly electiveCode = signal('');
@@ -149,6 +175,8 @@ export class ReviewPage {
     if (!this.canQueue()) return;
     this.queueLoading.set(true);
     this.error.set(null);
+    const own = this.ownDepartment();
+    if (own) this.department.set(own);
     const dept = this.department();
     this.api.getReviewQueue(dept || undefined).subscribe({
       next: (items) => {
@@ -166,6 +194,16 @@ export class ReviewPage {
         this.queueLoading.set(false);
       },
     });
+  }
+
+  /** high / mid / low confidence, for the colour of the queue card's meter (the number is always shown too). */
+  protected confidenceTone(pct: number): 'high' | 'mid' | 'low' {
+    return pct > BATCH_THRESHOLD ? 'high' : pct >= 60 ? 'mid' : 'low';
+  }
+
+  protected openFirst(): void {
+    const first = this.queue()[0];
+    if (first) this.open(first);
   }
 
   onDepartment(value: string): void {
@@ -215,6 +253,18 @@ export class ReviewPage {
     this.recLoading.set(true);
     this.note.set('');
     this.reusable.set(true);
+    // Narrow screens stack the queue above the detail: bring the opened course into view.
+    if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 900px)').matches) {
+      setTimeout(() => this.detail()?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    }
+    this.syllabus.set(null);
+    this.syllabusError.set(null);
+    this.api.getSyllabus(item.ext_id).subscribe({
+      next: (s) => {
+        if (this.selected()?.ext_id === item.ext_id) this.syllabus.set(s);   // ignore a late answer for another course
+      },
+      error: () => this.syllabusError.set('The syllabus could not be loaded.'),
+    });
     this.api.getRecommendation(item.ext_id).subscribe({
       next: (rec) => {
         this.rec.set(rec);
@@ -231,6 +281,7 @@ export class ReviewPage {
   close(): void {
     this.selected.set(null);
     this.rec.set(null);
+    this.syllabus.set(null);
     this.openedAt.set(null);
   }
 

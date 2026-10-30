@@ -77,10 +77,20 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-29 | [developer-26](2026-10-29/developer-26.md) | Public "Will my course transfer?" check and chat (no login) | psahoo (POD) |
 | 2026-10-29 | [developer-27](2026-10-29/developer-27.md) | Fix the architect-05 and security-04 findings on the public credit check and chat | psahoo (POD) |
 | 2026-10-29 | [developer-28](2026-10-29/developer-28.md) | Quick check: a course picker for the chosen school | psahoo (POD) |
+| 2026-10-29 | [developer-29](2026-10-29/developer-29.md) | Chat UX polish on the public "Will my course transfer?" page | psahoo (POD) |
+| 2026-10-29 | [developer-30](2026-10-29/developer-30.md) | Chat keeps its context; partial school and course codes get matches | psahoo (POD) |
 | 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
 | 2026-10-29 | [security-04](2026-10-29/security-04.md) | Security review of the public credit check and chat (developer-26) | psahoo (POD) |
+| 2026-10-30 | [architect-06](2026-10-30/architect-06.md) | Review of the course picker, chat context, partial matching and workbench identity | psahoo (POD) |
 | 2026-10-30 | [developer-01](2026-10-30/developer-01.md) | One-click Approve on the selected BU candidate for Department approvers | Sagar (spathur) |
 | 2026-10-30 | [developer-02](2026-10-30/developer-02.md) | Green candidate Approve button | Sagar (spathur) |
+| 2026-10-30 | [developer-31](2026-10-30/developer-31.md) | Workbench: the department and the evaluator name come from the signed-in account | psahoo (POD) |
+| 2026-10-30 | [developer-32](2026-10-30/developer-32.md) | Evaluator workbench UX | psahoo (POD) |
+| 2026-10-30 | [developer-33](2026-10-30/developer-33.md) | Review fixes, and why each design decision was taken | psahoo (POD) |
+| 2026-10-30 | [developer-34](2026-10-30/developer-34.md) | Step 5: automatic syllabus request, and the syllabus next to the AI comparison | psahoo (POD) |
+| 2026-10-30 | [developer-35](2026-10-30/developer-35.md) | Syllabus reminders every 2 days | psahoo (POD) |
+| 2026-10-30 | [developer-36](2026-10-30/developer-36.md) | In-app notifications for students | psahoo (POD) |
+| 2026-10-30 | [security-05](2026-10-30/security-05.md) | Security review of the course picker, chat context, partial matching and workbench identity | psahoo (POD) |
 <!-- INDEX:END -->
 
 Regenerate the index with `python scripts/build_log_index.py`.
