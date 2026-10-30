@@ -1,4 +1,5 @@
 import { DecimalPipe } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../api/api.service';
@@ -31,6 +32,8 @@ export class StudentStatusPage {
   protected readonly evaluation = signal<StudentEvaluation | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
+  /** Retry reloads the page data, so it is offered only when loading failed: a refused upload needs another file. */
+  protected readonly errorRetryable = signal(true);
   protected readonly notice = signal<string | null>(null);
   protected readonly busyExtId = signal<string | null>(null);
   protected readonly uploadingTranscript = signal(false);
@@ -63,6 +66,7 @@ export class StudentStatusPage {
   load(id = this.id()): void {
     this.loading.set(true);
     this.error.set(null);
+    this.errorRetryable.set(true);
     this.api.getStudentEvaluation(id).subscribe({
       next: (ev) => {
         this.evaluation.set(ev);
@@ -96,7 +100,7 @@ export class StudentStatusPage {
     if (!file) return;
     const problem = uploadProblem(file);
     if (problem) {
-      this.error.set(problem);
+      this.uploadFailed(problem);
       return;
     }
     this.uploadingTranscript.set(true);
@@ -110,7 +114,7 @@ export class StudentStatusPage {
       },
       error: (err) => {
         this.uploadingTranscript.set(false);
-        this.error.set(describeError(err, this.roles.role(), 'uploadTranscript'));
+        this.uploadFailed(uploadErrorMessage(err, 'transcript', this.roles.role()));
       },
     });
   }
@@ -120,7 +124,7 @@ export class StudentStatusPage {
     if (!file) return;
     const problem = uploadProblem(file);
     if (problem) {
-      this.error.set(problem);
+      this.uploadFailed(problem);
       return;
     }
     this.busyExtId.set(line.ext_id);
@@ -133,10 +137,33 @@ export class StudentStatusPage {
       },
       error: (err) => {
         this.busyExtId.set(null);
-        this.error.set(describeError(err, this.roles.role(), 'uploadSyllabus'));
+        this.uploadFailed(uploadErrorMessage(err, 'syllabus', this.roles.role()));
       },
     });
   }
+
+  private uploadFailed(message: string): void {
+    this.error.set(message);
+    this.errorRetryable.set(false);
+  }
+}
+
+/**
+ * Why an upload was not accepted, in plain words, and what to do. Not "Retry": the browser does not keep the file,
+ * and a file the API refused (not a transcript, not a PDF, too large, already uploaded) needs another file anyway.
+ */
+export function uploadErrorMessage(err: unknown, kind: 'transcript' | 'syllabus', role?: string): string {
+  const what = kind === 'transcript' ? 'the official transcript PDF from your previous school' : 'the course syllabus as a PDF';
+  if (err instanceof HttpErrorResponse && [409, 413, 415, 422].includes(err.status)) {
+    const detail = typeof err.error?.detail === 'string' ? err.error.detail.trim() : '';
+    if (err.status === 409) return detail || 'This file was already uploaded.';
+    const reason = detail ? ` ${detail.endsWith('.') ? detail : detail + '.'}` : '';
+    return `This file was not accepted.${reason} Choose ${what} and upload it again.`;
+  }
+  if (err instanceof HttpErrorResponse && (err.status === 0 || err.status >= 500)) {
+    return `The upload did not go through because the service did not answer. Please upload the file again in a moment.`;
+  }
+  return describeError(err, role, kind === 'transcript' ? 'uploadTranscript' : 'uploadSyllabus');
 }
 
 /** Same limit as the API (backend/app/guard.py MAX_UPLOAD_BYTES); the API re-checks everything. */

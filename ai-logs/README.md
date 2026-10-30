@@ -88,6 +88,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-30 | [developer-34](2026-10-30/developer-34.md) | Step 5: automatic syllabus request, and the syllabus next to the AI comparison | psahoo (POD) |
 | 2026-10-30 | [developer-35](2026-10-30/developer-35.md) | Syllabus reminders every 2 days | psahoo (POD) |
 | 2026-10-30 | [developer-36](2026-10-30/developer-36.md) | In-app notifications for students | psahoo (POD) |
+| 2026-10-30 | [developer-37](2026-10-30/developer-37.md) | No misleading Retry after a refused upload | psahoo (POD) |
 | 2026-10-30 | [security-05](2026-10-30/security-05.md) | Security review of the course picker, chat context, partial matching and workbench identity | psahoo (POD) |
 <!-- INDEX:END -->
 
