@@ -142,6 +142,87 @@ def catalog_rows(store: Store, school_code: str) -> list[ExtCourse]:
                   key=lambda c: c.course_code)
 
 
+# Keyword / subject search over the catalog (credit chat). Only catalog fields: code, title, subject, topics.
+MAX_MATCHES = 8
+_SEARCH_STOP = {
+    "a", "an", "the", "and", "or", "of", "in", "at", "on", "for", "to", "from", "with", "my", "i", "me", "do", "does",
+    "did", "is", "are", "can", "will", "would", "which", "what", "any", "all", "show", "list", "find", "search", "about",
+    "course", "courses", "class", "classes", "subject", "subjects", "program", "programs", "transfer", "transfers",
+    "credit", "credits", "bu", "boston", "university", "took", "take", "taken", "there", "that", "this", "please", "some",
+}
+_SCHOOL_GENERIC = {"university", "college", "state", "institute", "online", "school", "community"}
+_SEARCH_ALIASES = {
+    "cs": "computer", "comp": "computer", "programming": "computer", "coding": "computer", "code": "computer",
+    "math": "mathematics", "maths": "mathematics", "calc": "calculus", "stats": "statistics", "stat": "statistics",
+    "psych": "psychology", "econ": "economics", "bio": "biology", "gen": "general", "ed": "education",
+}
+
+
+def _words(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", (text or "").lower())
+
+
+def _code_in(code: str, text: str) -> bool:
+    """`code` written anywhere in `text` as a whole code, spaces and dashes optional: "psych-ua10" has PSYCH-UA 10
+    but not PSYCH-UA 1."""
+    parts = map(re.escape, re.split(r"[\s-]+", code.upper()))
+    return re.search(r"(?<![A-Z0-9])" + r"[\s-]*".join(parts) + r"(?![A-Z0-9])", text) is not None
+
+
+def search_courses(store: Store, query: str, school: str = "") -> dict:
+    """Catalog courses for a keyword, subject or code ("psychology", "NYU math", "calc", "PSYCH-UA 10"), across all
+    schools or one. A school named in the query narrows the search. Without any search word (just "course" or
+    "subject"), the subjects per school. Never upload-only courses or ground truth (ADR 0006)."""
+    sc = find_school(store, school) if school else None
+    words = _words(query)
+    codes = {s.school_code.lower(): s for s in store.schools.values()}
+    if sc is None:                                    # "NYU math" / "northeastern biology": the school in the query
+        named = {codes[w].school_code: codes[w] for w in words if w in codes}
+        for s in store.schools.values():              # a distinctive word of the name: "northeastern", "pinecrest"
+            if any(w in words for w in _words(s.name) if len(w) >= 4 and w not in _SCHOOL_GENERIC):
+                named[s.school_code] = s
+        sc = next(iter(named.values())) if len(named) == 1 else None
+    if sc is not None:
+        drop = {sc.school_code.lower(), *_words(sc.name)}
+        words = [w for w in words if w not in drop]
+    rows = [c for s in ([sc] if sc else list(store.schools.values())) for c in catalog_rows(store, s.school_code)]
+    names = {s.school_code: s.name for s in store.schools.values()}
+    q_upper = (query or "").upper()
+    q_lower = (query or "").lower()
+    exact = [c for c in rows if _code_in(c.course_code, q_upper)]
+    if not exact:                                      # a full title of 2+ words: "calculus i" is Calculus I only
+        exact = [c for c in rows if len(c.title.split()) >= 2 and re.search(
+            r"(?<![a-z0-9])" + re.escape(c.title.lower()) + r"(?![a-z0-9])", q_lower)]
+    terms = [(w, _SEARCH_ALIASES.get(w, w)) for w in words if w not in _SEARCH_STOP and len(w) > 1]
+    if not exact and not terms:
+        subjects: dict[str, set] = {}
+        for c in rows:
+            subjects.setdefault(c.program_area, set()).add(c.school_code)
+        return dict(school=sc.school_code if sc else None, matches=[], total=0,
+                    subjects=[dict(subject=k, schools=sorted(v)) for k, v in sorted(subjects.items())])
+
+    def score(c: ExtCourse) -> int:
+        dept = _words(c.course_code)
+        title, subject = _words(c.title), _words(c.program_area)
+        topics = [w for t in c.topics for w in _words(t)]
+        total = 0
+        for orig, alias in terms:
+            stems = {t[:-1] if len(t) > 4 and t.endswith("s") else t for t in (orig, alias)}
+            hit = (4 if orig in dept else
+                   3 if any(w.startswith(st) for w in title for st in stems) else
+                   2 if any(w.startswith(st) for w in subject for st in stems) else
+                   1 if any(w.startswith(st) for w in topics for st in stems) else 0)
+            if not hit:
+                return 0                                   # every search word must match somewhere
+            total += hit
+        return total
+    ranked = exact or sorted((c for c in rows if score(c)), key=lambda c: (-score(c), c.level, c.school_code, c.course_code))
+    return dict(school=sc.school_code if sc else None, total=len(ranked),
+                matches=[dict(school_code=c.school_code, school_name=names.get(c.school_code, ""),
+                              course_code=c.course_code, title=c.title, subject=c.program_area, credits=c.credits)
+                         for c in ranked[:MAX_MATCHES]])
+
+
 GRADE_ASSUMED = " This assumes a grade of C or better; pass/fail grades and grades below C do not transfer."
 
 

@@ -1,7 +1,8 @@
 """Public credit chat (no login): a student asks in plain words whether courses will transfer. ADR 0006.
 
-The model never decides anything. It may only call the credit check (credit_check.check_course) and the school
-list, then explain the results. The facts it used come back as `results`, and the page shows them as cards straight
+The model never decides anything. It may only call the credit check (credit_check.check_course), the school list,
+the catalog search for keywords and subjects (credit_check.search_courses) and BU's general rules (transfer_info),
+then explain the results. The facts it used come back as `results`, and the page shows them as cards straight
 from the rules engine. Guards:
 - The browser holds the conversation, so an "assistant" turn it sends could be forged. Every reply carries an HMAC
   `signature` over the reply AND the question it answered (key derived from TRANSFERIQ_CHAT_SECRET with its own
@@ -117,12 +118,22 @@ SYSTEM_PROMPT = (
     "When they answer, call check_course with the exact school code and full course code.\n"
     "6. Answer only the student's latest message. Earlier messages are context (for example the school they "
     "mentioned before); do not answer them again.\n"
+    "7. Keywords and subjects: when the student gives only a word, a subject or a school (for example 'psychology', "
+    "'calculus', 'NYU math', 'biology courses'), or a course code without a school, call search_courses and list the "
+    "matching courses (school, code, title). If only one course matches, the search also returns its check_result: "
+    "explain that result as you would a check_course result. Otherwise ask "
+    "which one to check, and the grade if they know it. Always search before asking for more detail: for 'course', "
+    "'subject' or only a school name (for example 'NYU'), call search_courses (with that school) and list the "
+    "subjects it returns, then ask which subject or course they mean.\n"
+    "8. General questions about transfer credit (syllabus, grades, pass/fail, units, quarter credits, the 68-unit cap, "
+    "old courses, how evaluation works): call transfer_info with the topic and answer from what it returns only.\n"
     "Answer in short plain sentences."
 )
 
 TOOLS = [
     dict(type="function", function=dict(
-        name="list_schools", description="Schools in the catalog (code, name, calendar).",
+        name="list_schools", description="Schools in the catalog (code, name, calendar). For subjects or courses use "
+                                         "search_courses instead.",
         parameters=dict(type="object", properties={}))),
     dict(type="function", function=dict(
         name="check_course",
@@ -133,7 +144,68 @@ TOOLS = [
             title=dict(type="string"), description=dict(type="string", description="Short course description"),
             grade=dict(type="string", description="Letter grade, e.g. B+"),
             credits=dict(type="number"), term=dict(type="string", description="e.g. Fall 2024"))))),
+    dict(type="function", function=dict(
+        name="search_courses",
+        description="Catalog courses matching a keyword, subject or course code (e.g. psychology, calculus, NYU math, "
+                    "PSYCH-UA 10), optionally at one school. No search word: the subjects per school.",
+        parameters=dict(type="object", required=["query"], properties=dict(
+            query=dict(type="string", description="Keyword, subject or course code as the student wrote it"),
+            school=dict(type="string", description="School code or name, if the student named one"))))),
+    dict(type="function", function=dict(
+        name="transfer_info",
+        description="BU's general transfer credit rules for a topic: syllabus, grades, pass/fail, units, quarter, cap, "
+                    "age, one-credit, course types, accreditation, process, Hub.",
+        parameters=dict(type="object", required=["topic"], properties=dict(
+            topic=dict(type="string", description="The topic or the student's question"))))),
 ]
+
+# General rules for transfer_info (from data/synthetic/seed/rules.csv and the evaluation process). No BU course codes
+# and no promises, so a reply built on them passes the grounding check. The last entry is the default.
+TRANSFER_INFO = [
+    (("syllabus", "syllabi", "outline", "evidence", "document", "upload"),
+     "A syllabus is needed for any course that has no earlier BU decision: the department compares its learning "
+     "outcomes with BU courses. Course descriptions alone are not accepted as evidence (R22). After the transcript is "
+     "uploaded, the student is asked for each missing syllabus and reminded until it arrives; each syllabus can be "
+     "uploaded once (R23). Courses with an earlier reusable BU decision need no syllabus (R10)."),
+    (("grade", "grades", "gpa", "minimum", "fail", "failed"),
+     "The minimum grade is C; C- and below do not earn credit. Grades from other schools do not enter the BU GPA (R06)."),
+    (("pass", "pass/fail", "p/f", "satisfactory"),
+     "Pass/fail grades are generally not accepted (R05)."),
+    (("unit", "units", "credit", "credits", "hours", "how many"),
+     "The units posted are the units the student took (converted from quarter credits if needed), never the BU "
+     "course's credits (R09). One-credit courses are generally not accepted (R04)."),
+    (("quarter", "conversion", "convert", "semester"),
+     "Quarter credits are converted course by course: quarter credits times 2/3, rounded to 2 decimals (R08)."),
+    (("cap", "maximum", "max", "limit", "68"),
+     "At most 68 external units can count toward a BU degree; units above that do not count (R17)."),
+    (("old", "age", "years", "expire", "expired", "recent"),
+     "Courses taken five or more years before starting at BU need a review before any credit (R07)."),
+    (("one-credit", "lab", "1-credit"),
+     "One-credit courses are generally not accepted (R04)."),
+    (("remedial", "developmental", "vocational", "internship", "research", "military", "rotc", "physical",
+      "experience"),
+     "Remedial or developmental, vocational, physical education and ROTC courses, internships, research, and military "
+     "or life experience do not earn transfer credit (R02, R03)."),
+    (("accredited", "accreditation", "institution"),
+     "Only courses from regionally accredited institutions are eligible (R01)."),
+    (("hub", "general education", "gen ed"),
+     "Transfer courses do not earn BU Hub general education units (R18)."),
+    (("deadline", "how long"),
+     "All credits must be transferred within one year of starting at BU; after that a separate review is needed (R19)."),
+    (("process", "how", "work", "works", "evaluate", "evaluation", "decide", "decision", "elective", "equivalent",
+      "review", "transfer", "course", "subject"),
+     "Courses with an earlier reusable BU decision are matched straight away. The rest are compared with BU courses "
+     "and decided by the department: a specific BU course (equivalent), elective credit, or no credit. The official "
+     "decision is made when the transcript is evaluated after registering (R10, R20, R24)."),
+]
+
+
+def transfer_info(topic: str) -> list[str]:
+    """The general rules that fit `topic` (at most 3, most specific first); the process overview when nothing fits."""
+    text = (topic or "").lower()
+    words = set(re.findall(r"[a-z0-9/-]+", text))
+    hits = [info for keys, info in TRANSFER_INFO if any(k in words or (" " in k and k in text) for k in keys)]
+    return list(dict.fromkeys(hits))[:3] or [TRANSFER_INFO[-1][1]]
 
 
 class ChatUnavailable(Exception):
@@ -153,8 +225,15 @@ def _http_chat(messages: list[dict], tools: list[dict], tool_choice: str = "auto
                            max_tokens=500)).encode()
     req = urllib.request.Request(f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={version}",
                                  data=body, headers={"Content-Type": "application/json", **_openai_auth_headers()})
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        return json.loads(resp.read())["choices"][0]["message"]
+    for attempt in (1, 2):                 # one retry when the connection drops (not for HTTP errors from the service)
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                return json.loads(resp.read())["choices"][0]["message"]
+        except urllib.error.HTTPError:
+            raise
+        except (urllib.error.URLError, ConnectionError, TimeoutError):
+            if attempt == 2:
+                raise
 
 
 # Swappable for tests: takes (messages, tools, tool_choice), returns the assistant message dict (content/tool_calls).
@@ -216,6 +295,14 @@ def _run_tool(store, name: str, args_json: str, check: Callable[[dict, bool], di
         return dict(error="arguments must be an object")
     if name == "list_schools":
         return dict(schools=credit_check.schools(store))
+    if name == "search_courses":
+        query, school = args.get("query"), args.get("school")
+        if not isinstance(query, str) or not query.strip():
+            return dict(error="query is required")
+        return credit_check.search_courses(store, query[:200], school if isinstance(school, str) else "")
+    if name == "transfer_info":
+        topic = args.get("topic")
+        return dict(rules=transfer_info(topic if isinstance(topic, str) else ""))
     if name == "check_course":
         allowed = {"school", "course_code", "title", "description", "grade", "credits", "term"}
         args = {k: v for k, v in args.items() if k in allowed}
@@ -271,11 +358,30 @@ def grounded(reply: str, results: list[dict]) -> bool:
     return True
 
 
-def summarize(results: list[dict]) -> str:
-    """Deterministic fallback reply built only from tool results."""
+def _listing(found: dict) -> str:
+    """A search result as plain text: the matching courses, or the subjects when there was no search word."""
+    if found.get("matches"):
+        shown = "; ".join(f"{m['school_code']} {m['course_code']} ({m['title']})" for m in found["matches"])
+        more = found["total"] - len(found["matches"])
+        return (f"Matching courses: {shown}" + (f", and {more} more (add a school or more words)" if more > 0 else "")
+                + ". Tell me which one to check, and your grade if you know it.")
+    if found.get("subjects"):
+        shown = "; ".join(f"{s['subject']} ({', '.join(s['schools'])})" for s in found["subjects"])
+        return f"Subjects in the catalog: {shown}. Tell me a subject or a course and the school, and I will check it."
+    return ""
+
+
+def summarize(results: list[dict], found: Optional[dict] = None, info: Optional[list[str]] = None) -> str:
+    """Deterministic fallback reply built only from tool results: course checks first, then a catalog search, then
+    general rules."""
     if not results:
-        return ("Tell me the school and the course code (for example: NYU PSYCH-UA 10) and I will check it. "
-                "The official decision is made when your transcript is evaluated after registering.")
+        parts = ([_listing(found)] if found else []) + list(info or [])
+        if any(parts):
+            return " ".join(p for p in parts if p) + (" The official decision is made when your transcript is "
+                                                      "evaluated after registering.")
+        return ("Tell me the school and the course code (for example: NYU PSYCH-UA 10), or a subject such as "
+                "psychology, and I will check it. The official decision is made when your transcript is evaluated "
+                "after registering.")
     lines = [f"{r.get('school_code', '')} {r.get('course_code') or r.get('title') or ''}".strip() + ": " + r["message"]
              for r in results]
     return " ".join(lines) + " The official decision is made when your transcript is evaluated after registering."
@@ -288,9 +394,16 @@ def chat(store, messages: list[dict], check: Callable[[dict, bool], dict],
     if not os.environ.get("AZURE_OPENAI_ENDPOINT"):
         raise ChatUnavailable("The chat needs the AI service; use the course check form instead.")
     history = clean_history(messages)
+    if len(history) == 1:                 # a first message with no search word ("subject", "courses", "NYU"): the
+        found = credit_check.search_courses(store, history[0]["content"][:200])     # subjects, no model call needed
+        if "subjects" in found:
+            reply = summarize([], found)
+            return dict(reply=reply, results=[], grounded=True, signature=sign(reply, messages[-1]["content"]))
     stated_grade = grade_in(history[-1]["content"])
     convo = [dict(role="system", content=SYSTEM_PROMPT)] + history
     results: list[dict] = []
+    found: dict = {}                                 # the last catalog search (for the fallback reply)
+    info: list[str] = []                             # general rules looked up this turn
     reply = ""
     deadline = time.monotonic() + TURN_DEADLINE_S
     calls_left, estimates_left = MAX_TOOL_CALLS, MAX_ESTIMATES
@@ -312,6 +425,20 @@ def chat(store, messages: list[dict], check: Callable[[dict, bool], dict],
                 fn = call.get("function", {})
                 res = _run_tool(store, fn.get("name", ""), fn.get("arguments", "{}"), check, stated_grade,
                                 allow_estimate=estimates_left > 0 and time.monotonic() < deadline)
+                if fn.get("name") == "search_courses" and "matches" in res:
+                    found = res
+                    if res["total"] == 1 and calls_left > 0:       # one course matches: check it straight away
+                        only = res["matches"][0]
+                        calls_left -= 1
+                        res["check_result"] = _run_tool(
+                            store, "check_course", json.dumps(dict(school=only["school_code"],
+                                                                   course_code=only["course_code"])),
+                            check, stated_grade, allow_estimate=estimates_left > 0 and time.monotonic() < deadline)
+                        if "kind" in res["check_result"]:
+                            results.append(res["check_result"])
+                            estimates_left -= bool(res["check_result"].get("estimate"))
+                elif fn.get("name") == "transfer_info":
+                    info += [r for r in res.get("rules", []) if r not in info]
                 if fn.get("name") == "check_course" and "kind" in res:
                     results.append(res)
                     if res.get("estimate"):
@@ -324,6 +451,10 @@ def chat(store, messages: list[dict], check: Callable[[dict, bool], dict],
     reply = normalize_reply(reply)
     ok = grounded(reply, results)
     if not ok:
-        reply = summarize(results)
+        if not (results or found or info):         # the model looked nothing up: search the student's own words
+            found = credit_check.search_courses(store, history[-1]["content"][:200])
+            if not found["matches"]:
+                found = {}
+        reply = summarize(results, found, info)
     reply = reply[:MAX_REPLY_CHARS]
     return dict(reply=reply, results=results, grounded=ok, signature=sign(reply, messages[-1]["content"]))
