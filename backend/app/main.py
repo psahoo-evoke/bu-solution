@@ -106,6 +106,13 @@ def _user(request: Request) -> Optional[dict]:
     return (request.scope.get("state") or {}).get("user")
 
 
+def _decided_by(request: Request, typed: str) -> str:
+    """Who made a decision. Portal: the signed-in account's name (from the account store), never the name the
+    browser sent, so the record cannot be attributed to someone else. Demo mode has no accounts: the typed name."""
+    u = _user(request)
+    return (u.get("name") or u.get("email") or typed)[:80] if u else typed
+
+
 def _own_department_only(request: Request, ext_ids: list[str]) -> None:
     """Portal mode: a Department account decides only its own department's courses."""
     u = _user(request)
@@ -605,6 +612,7 @@ def _save_decision(inp: DecisionInput, role: str, rec: Optional[dict]) -> Decisi
 def post_decision(inp: DecisionInput, request: Request, x_demo_role: str = Header(...)):
     role = x_demo_role               # already authorised by RoleGuardMiddleware (ADR 0005)
     _own_department_only(request, [inp.ext_id])
+    inp = inp.model_copy(update=dict(evaluator=_decided_by(request, inp.evaluator)))
     rec = _rec(inp.ext_id) if inp.ext_id in S().ext_courses else None
     return _save_decision(inp, role, rec).to_api()
 
@@ -629,6 +637,7 @@ def _batch_problem(rec: dict) -> Optional[str]:
 @api.post("/decisions/batch", status_code=201)
 def post_batch(inp: BatchInput, request: Request, x_demo_role: str = Header(...)):
     role = x_demo_role               # Evaluator or Department, enforced by RoleGuardMiddleware
+    inp = inp.model_copy(update=dict(evaluator=_decided_by(request, inp.evaluator)))
     recs, problems = {}, []
     bad = [e for e in inp.ext_ids if not re.match(EXT_ID_RE, e)]
     if bad:

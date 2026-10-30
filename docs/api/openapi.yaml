@@ -160,7 +160,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { type: object, required: [ext_ids, evaluator], properties: { ext_ids: { type: array, items: { type: string } }, evaluator: { type: string } } }
+            schema: { type: object, required: [ext_ids, evaluator], properties: { ext_ids: { type: array, items: { type: string } }, evaluator: { type: string, description: "Portal sign-in: ignored; the signed-in account's name is recorded" } } }
       responses:
         "201": { description: Saved, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Decision" } } } } }
         "422": { description: An item is at or below the 90% threshold }
@@ -424,7 +424,7 @@ components:
         bu_course: { type: string, pattern: "^(CAS [A-Z]{2} [0-9]{3}|CAS [A-Z]{2} [12]TR|TFRGEN 1TR|TFRGEN NOCRDT)$", description: "Must be a known BU course, a TR elective code, or TFRGEN NOCRDT; must agree with decision" }
         reason_code: { type: string, description: "Must exist in /reason-codes and match the decision" }
         reusable: { type: boolean, default: true }
-        evaluator: { type: string }
+        evaluator: { type: string, maxLength: 80, description: "Who decided. Portal sign-in: ignored on input; the signed-in account's name is recorded" }
         catalog_year: { type: string, example: 2025-26 }
         note: { type: string }
     Decision:

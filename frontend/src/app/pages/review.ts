@@ -1,6 +1,7 @@
 import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../api/api.service';
+import { AuthService } from '../api/auth.service';
 import { describeError } from '../api/errors';
 import { Candidate, DecisionKind, ReasonCode, Recommendation, ReviewItem } from '../api/models';
 import { Operation, can, suggestedRole, switchRoleMessage } from '../api/permissions';
@@ -30,10 +31,13 @@ export function formatElapsed(totalSeconds: number): string {
 export class ReviewPage {
   private readonly api = inject(ApiService);
   protected readonly roles = inject(RoleService);
+  private readonly auth = inject(AuthService);
 
   protected readonly queue = signal<ReviewItem[]>([]);
   protected readonly departments = signal<string[]>([]);
   protected readonly department = signal('');
+  /** A signed-in department account only ever sees its own department (the API enforces it): fixed, not a choice. */
+  protected readonly ownDepartment = computed(() => (this.roles.role() === 'Department' ? this.auth.department() : null));
   protected readonly queueLoading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly success = signal<string | null>(null);
@@ -48,7 +52,10 @@ export class ReviewPage {
   protected readonly recError = signal<string | null>(null);
 
   // Decision form
-  protected readonly evaluator = signal('Demo Evaluator');
+  protected readonly typedEvaluator = signal('Demo Evaluator');
+  /** Signed in: the account's name (the API records it from the session anyway). Demo mode: the typed name. */
+  protected readonly signedInName = computed(() => this.auth.userName() || null);
+  protected readonly evaluator = computed(() => this.signedInName() ?? this.typedEvaluator());
   protected readonly decision = signal<DecisionKind>('Equivalent');
   protected readonly candidateCode = signal('');
   protected readonly electiveCode = signal('');
@@ -147,6 +154,8 @@ export class ReviewPage {
     if (!this.canQueue()) return;
     this.queueLoading.set(true);
     this.error.set(null);
+    const own = this.ownDepartment();
+    if (own) this.department.set(own);
     const dept = this.department();
     this.api.getReviewQueue(dept || undefined).subscribe({
       next: (items) => {

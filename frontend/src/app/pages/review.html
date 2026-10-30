@@ -3,10 +3,17 @@
     <h1>Evaluator workbench</h1>
     <p class="muted">Maybe courses with the comparison already done.</p>
   </div>
-  <div class="field">
-    <label for="evaluator-name">Evaluator name</label>
-    <input id="evaluator-name" type="text" [ngModel]="evaluator()" (ngModelChange)="evaluator.set($event)" autocomplete="off" />
-  </div>
+  @if (signedInName(); as name) {
+    <p class="field evaluator-fixed">
+      <span class="field__label">Deciding as</span>
+      <strong>{{ name }}</strong>
+    </p>
+  } @else {
+    <div class="field">
+      <label for="evaluator-name">Evaluator name</label>
+      <input id="evaluator-name" type="text" [ngModel]="typedEvaluator()" (ngModelChange)="typedEvaluator.set($event)" autocomplete="off" />
+    </div>
+  }
 </section>
 
 @if (!canQueue()) {
@@ -32,15 +39,22 @@
   <section class="card queue" aria-labelledby="queue-h">
     <div class="queue__head">
       <h2 id="queue-h">Queue <span class="count">{{ queue().length }}</span></h2>
-      <div class="field field--inline">
-        <label for="dept-filter">Department</label>
-        <select id="dept-filter" [value]="department()" (change)="onDepartment($any($event.target).value)">
-          <option value="">All departments</option>
-          @for (d of departments(); track d) {
-            <option [value]="d" [selected]="d === department()">{{ d }}</option>
-          }
-        </select>
-      </div>
+      @if (ownDepartment(); as own) {
+        <p class="field field--inline dept-fixed">
+          <span class="field__label">Department</span>
+          <strong class="dept-fixed__name">{{ own }}</strong>
+        </p>
+      } @else {
+        <div class="field field--inline">
+          <label for="dept-filter">Department</label>
+          <select id="dept-filter" [value]="department()" (change)="onDepartment($any($event.target).value)">
+            <option value="">All departments</option>
+            @for (d of departments(); track d) {
+              <option [value]="d" [selected]="d === department()">{{ d }}</option>
+            }
+          </select>
+        </div>
+      }
     </div>
 
     <fieldset class="batch">

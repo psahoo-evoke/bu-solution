@@ -204,6 +204,8 @@ meter { width: 10rem; height: 1rem; }
 .workbench { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 1rem; align-items: start; }
 @media (max-width: 900px) { .workbench { grid-template-columns: 1fr; } }
 .queue__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem; }
+.dept-fixed, .evaluator-fixed { margin: 0; }
+.dept-fixed__name { padding: .3rem .75rem; border-radius: 999px; background: var(--info-bg); border: 1px solid #a9c6ea; font-size: .92rem; }
 .count { font-size: .8rem; background: var(--bg); border-radius: 999px; padding: .05rem .5rem; margin-left: .25rem; }
 .batch {
   border: 1px dashed var(--border); border-radius: var(--radius); margin: .75rem 0; padding: .5rem .75rem;
