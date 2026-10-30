@@ -119,4 +119,5 @@ def test_decisions_record_the_verified_entra_identity(anon, fresh_store):
                evaluator="Registrar Jane Doe")
     r = anon.post("/api/decisions", json=dec, headers=auth(t))
     assert r.status_code == 201 and r.json()["evaluator"] == "Jordan Lee <jlee@bu.edu>"
-    assert fresh_store.audit_log[-1]["after"]["evaluator"] == "Jordan Lee <jlee@bu.edu>"
+    decision = next(e for e in fresh_store.audit_log if e["action"] == "decision")
+    assert decision["after"]["evaluator"] == "Jordan Lee <jlee@bu.edu>"

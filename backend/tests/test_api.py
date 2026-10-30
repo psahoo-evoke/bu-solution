@@ -134,10 +134,10 @@ def test_T15_reuse_after_approval(client):
     d = r.json()
     assert d["ai_suggestion"] == "Evaluator decides CAS PS 211" and d["ai_agreed"] is True
     liam = _line(client, "SYN-24004", "NYU|PSYCH-UA 10")
-    # matched instantly (no evaluator step) to CAS PS 211; awaiting posting until the Registrar posts it (v0.3.0)
-    assert (liam["state"], liam["bu_course"], liam["units"], liam["bu_status_code"]) == ("approved", "CAS PS 211", 4.0, "TP")
+    # matched instantly (no evaluator step) to CAS PS 211 and posted with the decision: secured (T)
+    assert (liam["state"], liam["bu_course"], liam["units"], liam["bu_status_code"]) == ("posted", "CAS PS 211", 4.0, "T")
     maya = _line(client, "SYN-24001", "NYU|PSYCH-UA 10")
-    assert maya["state"] == "approved" and maya["status"].startswith("Approved")
+    assert maya["state"] == "posted" and maya["status"].startswith("Posted")
     assert "NYU|PSYCH-UA 10" not in {i["ext_id"] for i in client.get("/api/review-queue").json()}
 
 
@@ -145,14 +145,17 @@ def test_department_approve_is_written_to_postgres(client, fresh_store, monkeypa
     """The workbench's candidate Approve (Department) is a POST /api/decisions: with POSTGRES_HOST set it must reach
     db.save_decisions (decisions table) and the audit log, and a failed write must fail the request."""
     from app import db
-    saved, audited = [], []
+    saved, posted, audited = [], [], []
     monkeypatch.setattr(db, "enabled", lambda: True)
     monkeypatch.setattr(db, "save_decisions", lambda ds: saved.extend(ds))
+    monkeypatch.setattr(db, "save_postings", lambda items: posted.extend(items))
     monkeypatch.setattr(db, "save_audit", lambda e: audited.append(e))
     r = client.post("/api/decisions", json=DEC, headers=role("Department"))
     assert r.status_code == 201
     assert [(d.decision_id, d.decision, d.bu_course) for d in saved] == [(r.json()["decision_id"], "Equivalent", "CAS PS 211")]
-    assert [(e["actor_role"], e["action"]) for e in audited] == [("Department", "decision")]
+    # posted with the decision: Maya and Liam both have the course
+    assert sorted(k[0] for k, _ in posted) == ["SYN-24001", "SYN-24004"]
+    assert [(e["actor_role"], e["action"]) for e in audited] == [("Department", "decision")] + [("Department", "posting")] * 2
 
     def down(_):
         raise db.DBError("database unavailable")
@@ -165,7 +168,7 @@ def test_department_approve_is_written_to_postgres(client, fresh_store, monkeypa
 def test_non_reusable_decision_only_for_waiting_students(client, fresh_store):
     body = dict(DEC, reusable=False)
     assert client.post("/api/decisions", json=body, headers=role("Evaluator")).status_code == 201
-    assert _line(client, "SYN-24004", "NYU|PSYCH-UA 10")["state"] == "approved"
+    assert _line(client, "SYN-24004", "NYU|PSYCH-UA 10")["state"] == "posted"
     from app.store import TranscriptLine
     fresh_store.lines.append(TranscriptLine("SYN-24002", "NYU", "Fall 2025", "NYU|PSYCH-UA 10", "PSYCH-UA 10", "Stats", 4, "Semester", "A"))
     assert _line(client, "SYN-24002", "NYU|PSYCH-UA 10")["state"].startswith("maybe")
@@ -333,7 +336,7 @@ def test_metrics_endpoint(client):
 
 def test_demo_reset(client):
     client.post("/api/decisions", json=DEC, headers=role("Evaluator"))
-    assert _line(client, "SYN-24004", "NYU|PSYCH-UA 10")["state"] == "approved"
+    assert _line(client, "SYN-24004", "NYU|PSYCH-UA 10")["state"] == "posted"
     assert client.post("/api/demo/reset", headers=role("CreditStaff")).status_code == 204
     assert _line(client, "SYN-24004", "NYU|PSYCH-UA 10")["state"] == "maybe_review"
 

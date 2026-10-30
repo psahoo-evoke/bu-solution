@@ -10,7 +10,7 @@ It is built against `docs/api/openapi.yaml` and talks to the FastAPI backend und
 | `/student/:id` (default `SYN-24001`, Maya) | Student status: secured, pending and no-credit totals, courses grouped by term with a status chip (plain words + BU code T/TX/TP/TS/TM), BU course, units, next step, flags, transcript and per-course syllabus upload | Student / Advisor |
 | `/review` | Evaluator workbench (CreditStaff read-only; Evaluator/Department decide): queue with department filter and > 90% batch approval; detail pane with top-3 BU candidates (overlap %, tier, outcomes covered vs missing), past decisions, injection warning, "preliminary – not decidable" banner, decision form (Equivalent / Elective TR code / No credit, reason code, reusable) and a timer against the 2-minute target | Evaluator / Department |
 | `/evaluation` | Matcher quality: top-1 candidate agreement vs the 80% gate, with strict agreement and deferrals beside it, wrongly suggested credit vs the 2% gate, engine, per-tier table | anyone |
-| `/registrar` | Post approved courses (`POST /api/postings`: approved → posted/secured), MyBU CSV download (with preview) and demo reset | Registrar / CreditStaff |
+| `/registrar` | Post any approved courses not posted with their decision (`POST /api/postings`: approved → posted/secured), MyBU CSV download (with preview) and demo reset | Registrar / CreditStaff |
 
 The **Demo role** switcher in the top bar sets the `X-Demo-Role` header on every `/api` call (see `src/app/api/role.interceptor.ts`). In production this is replaced by an Entra ID token.
 
@@ -32,7 +32,7 @@ Open http://localhost:4200. It redirects to Maya's status page.
 
 ## Approved vs posted (contract v0.3.0)
 
-An evaluator approval does not secure credit yet. The student sees the line as **Approved – awaiting posting** (TP), and it counts in the pending total. The pending total shows how much of it is approved. After the Registrar posts it on `/registrar`, the line becomes secured (T). The app never claims reminder emails were sent: it says "Reminders scheduled for days 7, 21 and 45 (email sending not enabled in this prototype)".
+An evaluator approval posts the credit straight away, so the student sees the line as secured (T). Only if that posting cannot be saved does the line stay **Approved – awaiting posting** (TP), counted in the pending total (which shows how much of it is approved), until the Registrar posts it on `/registrar`. The app never claims reminder emails were sent: it says "Reminders scheduled for days 7, 21 and 45 (email sending not enabled in this prototype)".
 
 ## Build
 

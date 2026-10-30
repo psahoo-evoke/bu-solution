@@ -44,7 +44,7 @@ Evaluator time per course drops from **12 minutes to under 2**, while the AI's t
 | **2. Pre-match** | Known equivalencies are secured immediately. Eligibility rules (grade, pass/fail, remedial, age, residency, unit cap, quarter → semester conversion, …) are applied by a deterministic rules engine (**R01–R24**). The AI compares every remaining course with the BU catalog and past decisions. | Rules engine + AI |
 | **3. Chase the syllabus** | Every course that needs a syllabus is requested **by email automatically**, with a reminder **every 2 days** until it arrives. The student sees the request in the app too. | System |
 | **4. Decide** | The department sees the ranked BU candidates with overlap %, outcomes covered and missing, the syllabus and past decisions, then approves in one click. Matches above 90 % can be approved as a batch. Every decision is logged with a reason code. | Department / evaluator |
-| **5. Post** | The Registrar posts approved credit and downloads a MyBU-style CSV. The student's status moves from pending (TP) to secured (T). | Registrar |
+| **5. Post** | An approval posts the credit straight away: the student's status moves from pending to secured (T). The Registrar downloads a MyBU-style CSV and posts anything a failed save left behind. | System / Registrar |
 
 Before any of this, a prospective student can ask **"Will my course transfer?"** on the public page, by form or in a chat, without signing in.
 

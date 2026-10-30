@@ -4,8 +4,9 @@ Built from what the app already records, so nothing new has to be written when s
 - transcript received (store.transcripts)
 - syllabus needed, and each reminder (audit "syllabus_request")
 - syllabus received for one of their courses (syllabi[].uploaded_at, set by an upload through the app)
-- a decision on one of their courses (audit "decision"; only if it applies to them: reusable, or made for them)
-- credit posted to their BU record (audit "posting")
+- a decision on one of their courses (audit "decision"; only if it applies to them: reusable, or made for them,
+  and not already posted for them)
+- credit posted to their BU record (audit "posting"; a decision granting credit posts straight away)
 
 Shown in the app even when the email failed or no mail service is configured: the app is the reliable channel.
 Never shown: staff email lists, evaluator names or notes, other students. Read state is one time per student
@@ -43,6 +44,9 @@ def for_student(store: Store, student_id: str) -> dict:
     label = {ln.ext_id: f"{ln.school_code} {ln.course_code}" for ln in lines}
     schools = {s.school_code: s.name for s in store.schools.values()}
     decisions = {d.decision_id: d for d in store.decisions}
+    # A decision posts straight away: its "posted" item says it all, so the decision item would repeat it.
+    posted_decisions = {(e.get("after") or {}).get("decision_id") for e in store.audit_log
+                        if e.get("action") == "posting" and (e.get("after") or {}).get("student_id") == student_id}
     items: list[dict] = []
 
     for t in store.transcripts:
@@ -72,7 +76,7 @@ def for_student(store: Store, student_id: str) -> dict:
                                f"{'Reminder: s' if reminder else 'S'}yllabus needed for {label[ext_id]}", body, at, ext_id))
         elif action == "decision" and ext_id in label:
             d = decisions.get(a.get("decision_id"))
-            if d is None or not (d.reusable or student_id in (d.applies_to or [])):
+            if d is None or not (d.reusable or student_id in (d.applies_to or [])) or d.decision_id in posted_decisions:
                 continue
             outcome = {"Equivalent": f"It transfers as {d.bu_course}.",
                        "Elective": f"It transfers as elective credit ({d.bu_course}).",

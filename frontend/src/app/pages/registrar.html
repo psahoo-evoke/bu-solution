@@ -1,7 +1,7 @@
 <section class="page-head">
   <div>
     <h1>Registrar</h1>
-    <p class="muted">Post evaluator-approved credit so students see it as secured, and export it for MyBU.</p>
+    <p class="muted">Evaluator-approved credit posts straight away; post anything left over and export it for MyBU.</p>
   </div>
 </section>
 
@@ -37,8 +37,8 @@
       <div>
         <h3 id="post-h">Post approved courses</h3>
         <p class="muted small">
-          Evaluator-approved courses wait as TP ("Approved – awaiting posting"). Posting makes them secured (T) on the
-          student's status page.
+          An evaluator's approval posts the credit straight away (T, secured on the student's status page). A course
+          is left as TP ("Approved – awaiting posting") only if that posting could not be saved; post it here.
         </p>
         <button type="button" class="btn btn--primary" (click)="post()" [disabled]="posting() || !canPost()" [attr.aria-describedby]="canPost() ? null : 'post-hint'">
           {{ posting() ? 'Posting…' : 'Post approved courses' }}

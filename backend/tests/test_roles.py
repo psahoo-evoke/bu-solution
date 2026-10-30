@@ -94,7 +94,8 @@ def test_refusal_has_no_side_effect(anon, fresh_store):
 def test_decision_audit_records_actor_role(anon, fresh_store):
     body = BODIES[("POST", "/decisions")]["json"]
     anon.post("/api/decisions", json=body, headers=role("Department"))
-    [entry] = fresh_store.audit_log
+    [entry] = [e for e in fresh_store.audit_log if e["action"] == "decision"]
+    assert all(e["actor_role"] == "Department" for e in fresh_store.audit_log)     # incl. the postings it made
     assert entry["actor_role"] == "Department" and entry["action"] == "decision" and entry["ext_id"] == "NYU|PSYCH-UA 10"
 
 

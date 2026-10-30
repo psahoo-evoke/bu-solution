@@ -863,7 +863,9 @@ def post_decision(inp: DecisionInput, request: Request, x_demo_role: str = Heade
     if rec and not _decidable(inp.ext_id, rec):      # the workbench disables it; the API is the authority
         raise HTTPException(409, "Not decidable yet: there is no complete syllabus on file (R22). "
                                  "A course description is not evidence; decide once the student uploads the syllabus.")
-    return _save_decision(inp, role, rec).to_api()
+    d = _save_decision(inp, role, rec)
+    _auto_post(role, {inp.ext_id})
+    return d.to_api()
 
 
 class BatchInput(BaseModel):
@@ -912,6 +914,7 @@ def post_batch(inp: BatchInput, request: Request, x_demo_role: str = Header(...)
                               reason_code=reason, reusable=True, evaluator=inp.evaluator,
                               note=f"Batch-approved (R21), AI confidence {rec['confidence_pct']}%")
         saved.append(_save_decision(inp_d, role, rec).to_api())
+    _auto_post(role, set(recs))
     return saved
 
 
@@ -925,32 +928,52 @@ class PostingInput(BaseModel):
     student_id: Optional[str] = Field(None, pattern=STUDENT_ID_RE)
 
 
-@api.post("/postings", status_code=201)
-def post_postings(inp: Optional[PostingInput] = None, x_demo_role: str = Header(...)):
-    """Registrar step: every `approved` line (for one student, or all) becomes `posted` (secured, T).
-    Returns the MyBU-style CSV of exactly the rows posted. GET /exports/mybu.csv stays a read-only preview."""
-    student_id = inp.student_id if inp else None
+def _post_approved(role: str, student_ids: list[str], ext_ids: Optional[set[str]] = None) -> tuple[int, str]:
+    """Every `approved` line (of these students, optionally only these courses) becomes `posted` (secured, T).
+    Returns the count and the MyBU-style CSV of exactly the rows posted."""
     s = S()
-    ids = [student_id] if student_id else list(s.students)
-    if student_id and student_id not in s.students:
-        raise HTTPException(404, f"Unknown student {student_id}")
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["student_id", "ext_course", "bu_course", "units", "grade"])
     now = dt.datetime.now(dt.timezone.utc).isoformat()
     posted = 0
     with s.lock:
-        todo = [(sid, o) for sid in ids for o in evaluate_student(s, s.students[sid]) if o["state"] == "approved"]
+        todo = [(sid, o) for sid in student_ids for o in evaluate_student(s, s.students[sid])
+                if o["state"] == "approved" and (ext_ids is None or o["ext_id"] in ext_ids)]
         items = [((sid, o["ext_id"], o["term"]), dict(decision_id=o["_decision_id"], posted_at=now,
-                                                       actor_role=x_demo_role)) for sid, o in todo]
+                                                       actor_role=role)) for sid, o in todo]
         _persist(db.save_postings, items)            # all postings of this request in one transaction
         for (key, val), (sid, o) in zip(items, todo):
             s.postings[key] = val
             w.writerow([_csv_safe(v) for v in (sid, o["ext_id"], o["bu_course"], f"{o['units']:.2f}", "T")])
-            _audit(x_demo_role, "posting", o["ext_id"], dict(student_id=sid, state="approved"),
-                   dict(student_id=sid, state="posted", bu_course=o["bu_course"], units=o["units"]))
+            _audit(role, "posting", o["ext_id"], dict(student_id=sid, state="approved"),
+                   dict(student_id=sid, state="posted", bu_course=o["bu_course"], units=o["units"],
+                        decision_id=o["_decision_id"]))
             posted += 1
-    return dict(posted=posted, csv=buf.getvalue())
+    return posted, buf.getvalue()
+
+
+def _auto_post(role: str, ext_ids: set[str]) -> None:
+    """An evaluator decision posts straight away, so students see the credit as secured without waiting on the
+    Registrar. Best-effort: the decision is already saved, so a failed posting write leaves the lines approved (TP)
+    for POST /postings to pick up instead of failing the decision."""
+    sids = sorted({ln.student_id for ln in S().lines if ln.ext_id in ext_ids and ln.student_id in S().students})
+    try:
+        _post_approved(role, sids, ext_ids)
+    except Exception:                    # the posting write runs before the store changes, so nothing is half-done
+        _log.exception("auto-posting after decision failed; lines stay approved for POST /postings")
+
+
+@api.post("/postings", status_code=201)
+def post_postings(inp: Optional[PostingInput] = None, x_demo_role: str = Header(...)):
+    """Registrar step: posts any `approved` line (for one student, or all) that was not posted with its decision.
+    Returns the MyBU-style CSV of exactly the rows posted. GET /exports/mybu.csv stays a read-only preview."""
+    student_id = inp.student_id if inp else None
+    s = S()
+    if student_id and student_id not in s.students:
+        raise HTTPException(404, f"Unknown student {student_id}")
+    posted, csv_text = _post_approved(x_demo_role, [student_id] if student_id else list(s.students))
+    return dict(posted=posted, csv=csv_text)
 
 
 @api.get("/exports/mybu.csv")

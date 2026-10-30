@@ -228,7 +228,7 @@ paths:
         "200": { description: CSV, content: { text/csv: { schema: { type: string } } } }
   /postings:
     post:
-      summary: Post approved courses (Registrar step) - approved lines become posted/secured; returns the MyBU-style CSV rows posted
+      summary: Post approved courses (Registrar safety net; POST /decisions and /decisions/batch already post) - approved lines become posted/secured; returns the MyBU-style CSV rows posted
       x-roles: [Registrar, CreditStaff]
       requestBody:
         required: false

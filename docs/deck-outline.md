@@ -65,7 +65,7 @@ Team solutionauts · EvoHack 2026 · Synthetic data only.
 
 **Footer:** 5 ADRs: rules in code, own equivalency table, offline matcher fallback, syllabus is untrusted, default-deny role matrix.
 
-> Speaker notes: Be explicit that the Azure design is written as Bicep and compiles cleanly [M], but it is **not deployed**; the demo runs locally with the offline matcher (ADR 0003). Point at the one-course data flow: line → rules → lookup → syllabus check → matcher → evaluator → reusable decision (TP, "Approved – awaiting posting", still pending) → Registrar **posts** → T, secured → CSV.
+> Speaker notes: Be explicit that the Azure design is written as Bicep and compiles cleanly [M], but it is **not deployed**; the demo runs locally with the offline matcher (ADR 0003). Point at the one-course data flow: line → rules → lookup → syllabus check → matcher → evaluator → reusable decision → **posted at once** → T, secured → CSV (the Registrar's posting step only catches a failed save).
 
 ## Slide 3 · AI agents used: from business analysis to adoption (2:30)
 
@@ -162,9 +162,9 @@ Not tuned on the holdout.
 Follow `docs/demo-runbook.md` exactly. Script outline:
 1. Student Maya: secured vs pending, codes in words, quarter course 2.67 units, missing syllabus with reminders. (1:30)
 2. Evaluator: PSYCH-UA 10 comparison already done, decide in under 2 minutes, reusable. (2:00)
-3. Maya's PSYCH-UA 10 is now TP "Approved – awaiting posting", still pending. PSYCH-UA 25: preliminary, not decidable → student uploads syllabus → decidable at 62 %. (1:15)
+3. Maya's PSYCH-UA 10 is now T "Posted – credit secured": secured 14.67 → 18.67. PSYCH-UA 25: preliminary, not decidable → student uploads syllabus → decidable at 62 %. (1:15)
 4. Liam's ECON-UA 266: injection warning, tier unchanged. Liam's PSYCH-UA 10: matched instantly by reuse (TP, awaiting his posting). (1:15)
-5. AI evaluation page (top-1, strict, deferrals, wrong credit) → Registrar **Post approved courses** → Maya secured 14.67 → 18.67 → MyBU CSV. (2:00)
+5. AI evaluation page (top-1, strict, deferrals, wrong credit) → Registrar → MyBU CSV with Maya's posted row. (2:00)
 
 Backup: pre-recorded video + screenshots (see runbook fallback).
 

@@ -20,73 +20,98 @@ def _line(ev, ext_id):
     return next(o for o in ev["lines"] if o["ext_id"] == ext_id)
 
 
-def test_demo_step8_approve_reuse_post(client):
-    """Demo step 8: Maya's PSYCH-UA 10 approved -> Maya sees TP/pending, Liam matches instantly ->
-    Registrar posts SYN-24001 -> Maya's line is secured with T."""
+def test_demo_step8_approve_posts_straight_away(client):
+    """Demo step 8: Maya's PSYCH-UA 10 approved -> posted at once, so Maya sees it secured (T); Liam's line is
+    reused (R10) and posted too. The Registrar's POST /postings has nothing left to do."""
     before = _ev(client, "SYN-24001")["totals"]
+    assert before["secured_units"] == 14.67 and before["pending_units"] == 8.0
     assert client.post("/api/decisions", json=DEC, headers=role("Evaluator")).status_code == 201
 
     maya = _ev(client, "SYN-24001")
     m = _line(maya, "NYU|PSYCH-UA 10")
-    assert (m["state"], m["bu_status_code"], m["bu_course"], m["units"]) == ("approved", "TP", "CAS PS 211", 4.0)
-    assert m["status"] == "Approved – awaiting posting"
-    assert maya["totals"]["secured_units"] == before["secured_units"] == 14.67      # NOT secured yet
-    assert maya["totals"]["approved_units"] == 4.0
-    assert maya["totals"]["pending_units"] == before["pending_units"] == 8.0         # 4 approved + 4 PSYCH-UA 25
+    assert (m["state"], m["bu_status_code"], m["bu_course"], m["units"]) == ("posted", "T", "CAS PS 211", 4.0)
+    assert m["status"] == "Posted – credit secured"
+    assert maya["totals"]["secured_units"] == 18.67 and maya["totals"]["approved_units"] == 0.0
+    assert maya["totals"]["pending_units"] == 4.0                                    # only PSYCH-UA 25 left
 
     liam = _line(_ev(client, "SYN-24004"), "NYU|PSYCH-UA 10")                        # reused instantly (R10)
     assert (liam["bu_course"], liam["units"], liam["reason_code"]) == ("CAS PS 211", 4.0, "EQ-EVALUATOR")
-    assert liam["state"] == "approved"
+    assert (liam["state"], liam["bu_status_code"]) == ("posted", "T")
 
-    # the export is a read-only preview: it does not post
-    client.get("/api/exports/mybu.csv", headers=role("Registrar"))
+    # the export lists the posted credit
+    rows = list(csv.DictReader(io.StringIO(client.get("/api/exports/mybu.csv?student_id=SYN-24001",
+                                                       headers=role("Registrar")).text)))
+    assert dict(student_id="SYN-24001", ext_course="NYU|PSYCH-UA 10", bu_course="CAS PS 211", units="4.00",
+                grade="T") in rows
+    # nothing left for the Registrar to post
+    r = client.post("/api/postings", json={"student_id": "SYN-24001"}, headers=role("Registrar"))
+    assert r.status_code == 201 and r.json()["posted"] == 0
+
+
+def test_decision_posts_for_every_student_and_is_audited(client, fresh_store):
+    r = client.post("/api/decisions", json=DEC, headers=role("Department"))
+    assert {k[0] for k in fresh_store.postings} == {"SYN-24001", "SYN-24004"}
+    assert all(p["decision_id"] == r.json()["decision_id"] for p in fresh_store.postings.values())
+    posts = [a for a in fresh_store.audit_log if a["action"] == "posting"]
+    assert len(posts) == 2 and all(a["actor_role"] == "Department" for a in posts)
+    assert all(a["after"]["decision_id"] == r.json()["decision_id"] for a in posts)
+    assert client.post("/api/postings", headers=role("CreditStaff")).json()["posted"] == 0   # no body: all students
+
+
+def test_only_the_decided_course_is_posted(client, fresh_store):
+    """An approved line of another course (posting failed earlier) is the Registrar's to post, not this decision's."""
+    client.post("/api/decisions", json=DEC)
+    fresh_store.postings.clear()                                            # PSYCH-UA 10 back to approved
+    batch = client.post("/api/decisions/batch", json={"ext_ids": ["NEU|BIOL 3712"], "evaluator": "E"})
+    assert batch.status_code == 201
+    assert "NYU|PSYCH-UA 10" not in {k[1] for k in fresh_store.postings}
     assert _line(_ev(client, "SYN-24001"), "NYU|PSYCH-UA 10")["state"] == "approved"
 
-    r = client.post("/api/postings", json={"student_id": "SYN-24001"}, headers=role("Registrar"))
-    assert r.status_code == 201
-    body = r.json()
-    assert body["posted"] == 1
-    rows = list(csv.DictReader(io.StringIO(body["csv"])))
-    assert rows == [dict(student_id="SYN-24001", ext_course="NYU|PSYCH-UA 10", bu_course="CAS PS 211", units="4.00", grade="T")]
 
-    maya = _ev(client, "SYN-24001")
-    m = _line(maya, "NYU|PSYCH-UA 10")
-    assert (m["state"], m["bu_status_code"], m["status"]) == ("posted", "T", "Posted – credit secured")
-    assert maya["totals"]["secured_units"] == 18.67 and maya["totals"]["approved_units"] == 0.0
-    assert maya["totals"]["pending_units"] == 4.0
-    # posting was per student: Liam still awaits his own posting
-    assert _line(_ev(client, "SYN-24004"), "NYU|PSYCH-UA 10")["state"] == "approved"
-    # idempotent: nothing left to post for Maya
-    assert client.post("/api/postings", json={"student_id": "SYN-24001"}, headers=role("Registrar")).json()["posted"] == 0
+def test_failed_posting_keeps_the_decision_and_leaves_it_for_the_registrar(client, fresh_store, monkeypatch):
+    from app import db
+    monkeypatch.setattr(db, "enabled", lambda: True)
+    monkeypatch.setattr(db, "save_decisions", lambda ds: None)
+    monkeypatch.setattr(db, "save_audit", lambda e: None)
 
+    def down(_):
+        raise db.DBError("database unavailable")
+    monkeypatch.setattr(db, "save_postings", down)
+    assert client.post("/api/decisions", json=DEC, headers=role("Evaluator")).status_code == 201   # decision stands
+    assert fresh_store.postings == {}
+    m = _line(_ev(client, "SYN-24001"), "NYU|PSYCH-UA 10")
+    assert (m["state"], m["bu_status_code"]) == ("approved", "TP")                 # awaiting posting
 
-def test_postings_all_students_and_audit(client, fresh_store):
-    client.post("/api/decisions", json=DEC, headers=role("Department"))
-    r = client.post("/api/postings", headers=role("CreditStaff"))          # no body: all students
+    monkeypatch.setattr(db, "save_postings", lambda items: None)
+    r = client.post("/api/postings", headers=role("Registrar"))
     assert r.status_code == 201 and r.json()["posted"] == 2
-    assert {k[0] for k in fresh_store.postings} == {"SYN-24001", "SYN-24004"}
-    posts = [a for a in fresh_store.audit_log if a["action"] == "posting"]
-    assert len(posts) == 2 and all(a["actor_role"] == "CreditStaff" for a in posts)
-    assert _line(_ev(client, "SYN-24004"), "NYU|PSYCH-UA 10")["bu_status_code"] == "T"
+    assert _line(_ev(client, "SYN-24001"), "NYU|PSYCH-UA 10")["bu_status_code"] == "T"
 
 
 def test_postings_validation_and_reset(client, fresh_store):
     assert client.post("/api/postings", json={"student_id": "NOPE-1"}, headers=role("Registrar")).status_code == 404
     assert client.post("/api/postings", json={"student_id": "x;y"}, headers=role("Registrar")).status_code == 422
-    client.post("/api/decisions", json=DEC)
-    client.post("/api/postings", json={"student_id": "SYN-24001"}, headers=role("Registrar"))
+    client.post("/api/decisions", json=DEC)                                 # posts straight away
+    assert fresh_store.postings
     client.post("/api/demo/reset", headers=role("Registrar"))
     assert fresh_store.postings == {}
     assert _line(_ev(client, "SYN-24001"), "NYU|PSYCH-UA 10")["state"] == "maybe_review"
 
 
-def test_newer_decision_after_posting_needs_reposting(client):
+def test_newer_decision_is_posted_with_its_new_code(client, fresh_store):
     client.post("/api/decisions", json=DEC)
-    client.post("/api/postings", json={"student_id": "SYN-24001"}, headers=role("Registrar"))
     newer = dict(DEC, decision="Elective", bu_course="CAS PS 2TR", reason_code="EL-PARTIAL", catalog_year="2027-28")
-    assert client.post("/api/decisions", json=newer).status_code == 201
+    r = client.post("/api/decisions", json=newer)
+    assert r.status_code == 201
     m = _line(_ev(client, "SYN-24001"), "NYU|PSYCH-UA 10")
-    assert (m["state"], m["bu_course"]) == ("approved", "CAS PS 2TR")
+    assert (m["state"], m["bu_course"]) == ("posted", "CAS PS 2TR")
+    assert fresh_store.postings[("SYN-24001", "NYU|PSYCH-UA 10", m["term"])]["decision_id"] == r.json()["decision_id"]
+
+
+def test_no_credit_decision_posts_nothing(client, fresh_store):
+    client.post("/api/decisions", json=dict(DEC, decision="No credit", bu_course="TFRGEN NOCRDT", reason_code="NC-GRADE"))
+    assert fresh_store.postings == {}
+    assert _line(_ev(client, "SYN-24001"), "NYU|PSYCH-UA 10")["state"] == "posted_no_credit"
 
 
 def test_seed_matches_stay_secured(client):

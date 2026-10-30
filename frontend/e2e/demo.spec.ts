@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
  *  1. Student (Maya, SYN-24001) sees secured vs pending units and per-course status.
  *  2. Evaluator opens a maybe course, sees top-3 candidates + timer, decides in under 2 minutes.
  *  3. Evaluation page shows the sponsor gates.
- *  4. Approved course shows as TP "Approved – awaiting posting" (pending) until the Registrar posts it, then T (secured).
+ *  4. Approved course is posted straight away: the student sees it as T (secured), with no Registrar step.
  *  5. Registrar downloads the MyBU CSV, then resets the demo.
  * Requires the FastAPI backend on :8000 and the Angular dev server (proxy) on :4200.
  */
@@ -59,8 +59,9 @@ test('evaluator decides a maybe course with the comparison already done', async 
   await expect(page.getByRole('timer')).toContainText('under 2:00');
   await expect(page.getByRole('heading', { name: 'BU candidates' })).toBeVisible();
   await expect(page.getByRole('radiogroup', { name: 'BU candidate course' }).getByRole('radio')).toHaveCount(3);
-  await expect(page.getByText('Covered').first()).toBeVisible();
-  await expect(page.getByText('Missing').first()).toBeVisible();
+  // the outcome headings, "Covered (n)" / "Missing (n)", not the queue's hidden "Syllabus missing" chips
+  await expect(page.getByRole('heading', { name: /^Covered \(\d+\)$/ }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Missing \(\d+\)$/ }).first()).toBeVisible();
 
   await page.getByLabel('Approve equivalent').check();
   await expect(page.getByLabel('Reusable – apply to the next student with this course')).toBeChecked();
@@ -68,31 +69,23 @@ test('evaluator decides a maybe course with the comparison already done', async 
   await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toContainText('PSYCH-UA 10');
 });
 
-test('approved course stays pending (TP) until the Registrar posts it, then it is secured (T)', async ({ page }) => {
-  const securedUnits = async () =>
-    Number((await page.getByLabel('Credit totals').locator('.total--secured .total__value').innerText()).replace(/[^\d.]/g, ''));
+test('an approved course is posted straight away: the student sees it secured (T)', async ({ page }) => {
   const row = () => page.getByRole('row', { name: /PSYCH-UA 10\b/ });
 
-  // Student view right after the evaluator approved PSYCH-UA 10
+  // Student view right after the evaluator approved PSYCH-UA 10: no Registrar step in between
   await page.goto('/student/SYN-24001');
   await setRole(page, 'Student');
-  await expect(row()).toContainText('Approved – awaiting posting');
-  await expect(row().locator('.chip__code')).toHaveText('TP');
-  await expect(page.getByLabel('Credit totals')).toContainText('approved, awaiting posting');
-  const before = await securedUnits();
+  await expect(row().locator('.chip__code')).toHaveText('T');
+  await expect(row()).toContainText('CAS PS 211');
+  await expect(row()).not.toContainText('awaiting posting');
+  await expect(page.getByLabel('Credit totals')).not.toContainText('awaiting posting');
 
-  // Registrar posts Maya's approved courses
+  // The Registrar's posting step finds nothing left to post for Maya
   await page.goto('/registrar');
   await setRole(page, 'Registrar');
   await page.getByLabel('Student').selectOption('SYN-24001');
   await page.getByRole('button', { name: 'Post approved courses' }).click();
-  await expect(page.getByRole('heading', { name: /Posted just now: [1-9]/ })).toBeVisible();
-
-  // Back on the student page: now secured
-  await page.goto('/student/SYN-24001');
-  await expect(row().locator('.chip__code')).toHaveText('T');
-  await expect(row()).not.toContainText('awaiting posting');
-  expect(await securedUnits()).toBeGreaterThan(before);
+  await expect(page.getByRole('heading', { name: /Posted just now: 0/ })).toBeVisible();
 });
 
 test('a course without a syllabus is preliminary and not decidable', async ({ page }) => {
@@ -100,7 +93,7 @@ test('a course without a syllabus is preliminary and not decidable', async ({ pa
   await setRole(page, 'Evaluator');
   // Not the evaluator's work yet (R22): listed apart from the queue, under "Waiting for a syllabus".
   await expect(page.getByRole('list', { name: 'Courses awaiting a decision' }).getByRole('button', { name: /PSYCH-UA 25/ })).toHaveCount(0);
-  await page.getByText('Waiting for a syllabus').click();
+  await page.getByText('Waiting for a syllabus', { exact: true }).click();
   await page.getByRole('list', { name: 'Courses waiting for a syllabus' }).getByRole('button', { name: /PSYCH-UA 25/ }).click();
   await expect(page.getByText('Preliminary – not decidable')).toBeVisible();
   await expect(page.getByRole('button', { name: /Approve equivalent|Approve as elective|Record no credit/ })).toBeDisabled();

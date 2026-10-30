@@ -6,6 +6,8 @@ Date: 2026-10-28 · API contract v0.3.0 · Synthetic data only · Runs locally (
 
 ## Changes since the first draft (contract v0.3.0)
 
+- **Approval posts at once (2026-10-30).** An evaluator's decision now posts the credit straight away, for every student it applies to, so students see it secured (T) without waiting on the Registrar. **Post approved courses** stays as the safety net for a posting that could not be saved. This replaces the two-step flow below.
+
 - **Approved is not posted.**
   - An evaluator's approval shows **TP "Approved – awaiting posting"**. It counts as **pending** and appears in a new "approved" total.
   - The Registrar's **Post approved courses** step (`POST /api/postings`) turns it into **T "Posted – credit secured"**, and only then does it count as secured. This follows the sponsor process: department → Registrar → posting.

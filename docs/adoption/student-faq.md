@@ -21,11 +21,11 @@ Each course shows a short status in words plus a BU code.
 | --- | --- | --- |
 | **T** | You get credit for this course. It counts as a specific BU course (for example `CAS PS 101`) or as an elective (a BU code ending in `TR`, for example `CAS PS 2TR`). | Nothing. |
 | **TX** | No credit. The course is on your record with 0 units. The reason is shown (for example: grade below C, Pass/Fail, one-credit course, remedial course, internship, or a school that is not regionally accredited). | Nothing, unless you think the reason is wrong. Then contact the transfer credit office. |
-| **TP** | Pending. Either an evaluator is reviewing it, or it is approved and waiting for the Registrar to post it ("Approved – awaiting posting"). | Nothing. Wait for the decision or the posting. |
+| **TP** | Pending. An evaluator is reviewing it, or, rarely, it is approved and waiting for the Registrar to post it ("Approved – awaiting posting"). | Nothing. Wait for the decision. |
 | **TS** | Pending: **we need your syllabus** for this course. | Upload the syllabus (see below). |
 | **TM** | Pending: **we need more material**. The syllabus we have is incomplete, usually because it has no learning outcomes or no weekly schedule. | Upload a fuller syllabus or the missing pages. |
 
-**"Approved – awaiting posting" (TP)** means the department said yes, but the Registrar has not posted it to your BU record yet. It still counts as **pending**. When it is posted, it changes to **T, "Posted – credit secured"**.
+When the department approves a course, the credit is posted to your BU record straight away: it shows **T, "Posted – credit secured"**. In the rare case it shows **"Approved – awaiting posting" (TP)**, the posting could not be saved; it still counts as **pending** until the Registrar posts it.
 
 ## What is "secured" and what is "pending"?
 
@@ -76,7 +76,7 @@ Courses taken **five or more years** before you start at BU need an extra review
 
 ## What if I took the same course as another student?
 
-When an evaluator approves a course and marks the decision as reusable, the next student with that same course gets the match instantly. You do not need to send that syllabus again. Your course shows "Approved – awaiting posting" until the Registrar posts your record.
+When an evaluator approves a course and marks the decision as reusable, the next student with that same course gets the match instantly. You do not need to send that syllabus again. The credit is posted to your record at the same time.
 
 ## Who sees my information?
 

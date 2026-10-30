@@ -54,4 +54,4 @@ The **Batch approve (confidence above 90%)** list shows only items with confiden
 
 ## 7. After you decide
 
-The student sees **TP "Approved – awaiting posting"**. It still counts as pending. The Registrar presses **Post approved courses**, and the course becomes **T "Posted – credit secured"** and appears in the MyBU-style CSV. If your decision is reusable, other students with the same course match at once and wait only for their own posting. Every decision and posting is logged with the role, the time, the AI suggestion and whether you agreed with it.
+Your approval posts the credit straight away: the student sees **T "Posted – credit secured"**, and the course appears in the MyBU-style CSV. If your decision is reusable, other students with the same course match and are posted at once too. (If a posting cannot be saved, the course shows **TP "Approved – awaiting posting"** until the Registrar presses **Post approved courses**.) Every decision and posting is logged with the role, the time, the AI suggestion and whether you agreed with it.

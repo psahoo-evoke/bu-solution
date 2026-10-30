@@ -128,7 +128,7 @@ STATE_TEXT = {
                  "Upload a syllabus that includes learning outcomes and a weekly schedule." + _REMINDERS),
     "pending_age": ("Under review - course is 5+ years old", "An evaluator will review this older course before any credit."),
 }
-# Approved-but-not-posted shows TP to the student until the Registrar posts it (sponsor process; contract v0.3.0).
+# Approved-but-not-posted shows TP to the student until it is posted (normally with the decision itself).
 STATUS_CODE = {"matched": "T", "approved": "TP", "posted": "T", "posted_no_credit": "TX", "maybe_review": "TP",
                "maybe_ts": "TS", "maybe_tm": "TM", "pending_age": "TP"}
 
@@ -188,7 +188,7 @@ def evaluate_student(store: Store, student: Student, ai_hint: Optional[AiHint] =
                     if econ_after_count > 4:
                         code, reason = elective_code(dept, level), "EL-RESIDENCY"
                 # Seed equivalency-table matches are secured ("matched"). A decision recorded in the app is
-                # "approved" (awaiting posting, TP) for each student until the Registrar posts that line.
+                # "approved" (awaiting posting, TP) for each student until that line is posted (with the decision).
                 if dec.split == "runtime":
                     p = store.postings.get((student.student_id, ln.ext_id, ln.term))
                     state = "posted" if p and p["decision_id"] == dec.decision_id else "approved"

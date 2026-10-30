@@ -33,15 +33,14 @@ def test_the_students_journey_shows_up_newest_first(client, fresh_store):
         client.post("/api/courses/NYU%7CPSYCH-UA%2025/syllabus", files={"file": ("s.pdf", f, "application/pdf")},
                     headers=role("Student"))
     assert client.post("/api/decisions", json=DECISION, headers=role("Evaluator")).status_code == 201
-    assert client.post("/api/postings", json={"student_id": "SYN-24001"}, headers=role("Registrar")).status_code == 201
     body = items(client)
-    assert kinds(body) == ["posted", "decision", "syllabus_received", "syllabus_request", "transcript"]
-    assert body["unread"] == 5 and all(i["unread"] for i in body["items"])
+    # the decision posts straight away: one "posted" item, not a "decision" item repeating it
+    assert kinds(body) == ["posted", "syllabus_received", "syllabus_request", "transcript"]
+    assert body["unread"] == 4 and all(i["unread"] for i in body["items"])
     by = {i["kind"]: i for i in body["items"]}
     assert by["transcript"]["title"] == "Transcript received" and "5 courses evaluated" in by["transcript"]["body"]
     assert by["syllabus_request"]["title"] == "Syllabus needed for NYU PSYCH-UA 25"
     assert by["syllabus_received"]["title"] == "Syllabus received for NYU PSYCH-UA 25"
-    assert by["decision"]["body"].startswith("It transfers as CAS PS 211.")
     assert by["posted"]["body"] == "CAS PS 211, 4 units, is now on your BU record."
     # never internal details: staff email lists, the evaluator's name or note
     text = str(body)
@@ -50,8 +49,25 @@ def test_the_students_journey_shows_up_newest_first(client, fresh_store):
 
 def test_a_reusable_decision_reaches_every_student_with_the_course_only(client, fresh_store):
     client.post("/api/decisions", json=DECISION, headers=role("Evaluator"))
-    assert kinds(items(client, "/api/students/SYN-24004/notifications")) == ["decision"]   # Liam has PSYCH-UA 10 too
+    assert kinds(items(client, "/api/students/SYN-24004/notifications")) == ["posted"]     # Liam has PSYCH-UA 10 too
     assert kinds(items(client, "/api/students/SYN-24002/notifications")) == []            # Jordan does not
+
+
+def test_a_decision_without_credit_is_still_announced(client, fresh_store):
+    client.post("/api/decisions", json=dict(DECISION, decision="No credit", bu_course="TFRGEN NOCRDT",
+                                            reason_code="NC-GRADE"), headers=role("Evaluator"))
+    [item] = items(client)["items"]
+    assert item["kind"] == "decision" and item["body"] == "It does not transfer (no credit)."
+
+
+def test_an_unposted_decision_is_announced_until_it_is_posted(client, fresh_store, monkeypatch):
+    from app import main
+    monkeypatch.setattr(main, "_auto_post", lambda role, ext_ids: None)       # as if the posting write failed
+    client.post("/api/decisions", json=DECISION, headers=role("Evaluator"))
+    [item] = items(client)["items"]
+    assert item["kind"] == "decision" and item["body"].endswith("The Registrar posts it to your BU record next.")
+    client.post("/api/postings", json={"student_id": "SYN-24001"}, headers=role("Registrar"))
+    assert kinds(items(client)) == ["posted"]
 
 
 def test_opening_marks_read_and_staff_views_do_not(client, fresh_store):
