@@ -224,6 +224,23 @@
           <div><span class="muted small">Engine</span><br /><code>{{ r.engine }}</code></div>
         </div>
 
+        @if (item.workbook_notes?.length) {
+          <aside class="wb-notes" aria-label="Workbook notes">
+            <p class="wb-notes__h">
+              Workbook note{{ item.workbook_notes!.length > 1 ? 's' : '' }}
+              <span class="muted small">BU transfer course-match workbook · reference only, not used by the AI</span>
+            </p>
+            <ul>
+              @for (n of item.workbook_notes; track n.bu_course) {
+                <li>
+                  <span class="wb-notes__row"><strong>{{ n.bu_course }}</strong>@if (n.match_level) { · {{ n.match_level }} }</span>
+                  <span>{{ n.note }}</span>
+                </li>
+              }
+            </ul>
+          </aside>
+        }
+
         <details class="syllabus-panel" [open]="!!syllabus()">
           <summary>
             <span>Syllabus</span>

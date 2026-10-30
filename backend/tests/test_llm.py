@@ -168,6 +168,10 @@ def test_prompt_contains_course_data_only(azure):
         user = msgs[1]["content"]
         assert user.startswith("<course_data>") and "</course_data>" in user
         assert "UNTRUSTED DATA" in msgs[0]["content"]
+        # Workbook notes name the expected BU course: staff reference only, never a model input. One-word notes
+        # ("Algorithms.") also occur in ordinary descriptions, so only the distinctive ones are checked.
+        long_notes = [n["note"] for ns in s.workbook_notes.values() for n in ns if len(n["note"]) > 40]
+        assert long_notes and not any(n in text for n in long_notes)
 
 
 def _top_at(pct):

@@ -187,6 +187,9 @@ class Store:
     syllabi: dict[str, SyllabusRecord] = field(default_factory=dict)
     rules: list[dict] = field(default_factory=list)
     reason_codes: dict[str, dict] = field(default_factory=dict)
+    # Hackathon workbook "Course Match" notes, ext_id -> [{bu_course, match_level, note}]. Staff reference only:
+    # never passed to the matcher, never shown to students.
+    workbook_notes: dict[str, list[dict]] = field(default_factory=dict)
     audit_log: list[dict] = field(default_factory=list)
     # Registrar posting step: (student_id, ext_id, term) -> {decision_id, posted_at, actor_role}
     postings: dict[tuple[str, str, str], dict] = field(default_factory=dict)
@@ -276,6 +279,7 @@ def load() -> Store:
         s.syllabi[r["ext_id"]] = rec
     s.rules = _read("rules.csv")
     s.reason_codes = {r["reason_code"]: r for r in _read("reason_codes.csv")}
+    s.workbook_notes = _workbook_notes()
     return s
 
 
@@ -287,12 +291,30 @@ def syllabus_file_for(ext_id: str) -> Optional[str]:
     return None
 
 
+def _workbook_notes() -> dict[str, list[dict]]:
+    """seed/workbook_notes.csv (scripts/synthetic/extract_workbook_notes.py): the CSV store's notes and the seed for
+    the workbook_notes table in PostgreSQL mode. Optional: no file, no notes."""
+    try:
+        rows = _read("workbook_notes.csv")
+    except FileNotFoundError:
+        return {}
+    out: dict[str, list[dict]] = {}
+    for r in rows:
+        if r.get("note", "").strip():
+            out.setdefault(f"{r['school_code']}|{r['course_code']}", []).append(
+                dict(bu_course=r["bu_course"], match_level=r.get("match_level", ""), note=r["note"].strip()))
+    return out
+
+
 def load_db() -> Store:
-    """Store from PostgreSQL. Rules and reason codes are not in the schema and still come from the seed CSVs."""
+    """Store from PostgreSQL. Rules and reason codes are not in the schema and still come from the seed CSVs;
+    workbook notes are read from the workbook_notes table (seeded from the CSV)."""
     from . import db
     db.ensure_schema()
     if db.is_empty():
         db.reseed(load())
+    else:
+        db.seed_workbook_notes_if_empty(_workbook_notes())
     s = Store()
     s.rules = _read("rules.csv")
     s.reason_codes = {r["reason_code"]: r for r in _read("reason_codes.csv")}

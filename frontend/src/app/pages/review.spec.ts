@@ -137,6 +137,7 @@ describe('ReviewPage role gating', () => {
     expect(banner).toContain('next reminder 3 Nov');
     expect(banner).not.toContain('Request the syllabus');
     expect(el.querySelector('.syllabus-panel')?.textContent).toContain('No syllabus on file yet');
+    expect(el.querySelector('.wb-notes')).toBeNull();                       // no workbook note for this course
     const suggestion = el.querySelector('.suggestion') as HTMLElement;
     expect(suggestion.classList).toContain('suggestion--prelim');
     expect(suggestion.textContent).toContain('Preliminary');
@@ -150,7 +151,8 @@ describe('ReviewPage role gating', () => {
     http.expectOne('/api/reason-codes').flush([]);
     const item = { ext_id: 'NEU|CS 2700', course_code: 'CS 2700', title: 'Data Structures', school_code: 'NEU',
                    department: 'Computer Science', students: ['SYN-24002'], syllabus_state: 'incomplete', confidence_pct: 83,
-                   batch_eligible: false, top_candidate: { bu_code: 'CAS CS 112', title: 'CS 2', overlap_pct: 83 } };
+                   batch_eligible: false, top_candidate: { bu_code: 'CAS CS 112', title: 'CS 2', overlap_pct: 83 },
+                   workbook_notes: [{ bu_course: 'CAS CS 112', match_level: 'Partial - syllabus review', note: 'NU splits program design and data structures.' }] };
     http.expectOne((r) => r.url === '/api/review-queue').flush([item]);
     await fixture.whenStable();
     fixture.detectChanges();
@@ -179,6 +181,10 @@ describe('ReviewPage role gating', () => {
     expect(panel).toContain('5 of 6 CAS CS 112 outcomes');
     expect(el.querySelector('.suggestion')?.textContent).toContain('Likely equivalent');
     expect(el.querySelector('.suggestion')?.textContent).toContain('catalogue estimate');
+    const notes = el.querySelector('.wb-notes')?.textContent ?? '';
+    expect(notes).toContain('reference only, not used by the AI');
+    expect(notes).toContain('CAS CS 112 · Partial - syllabus review');
+    expect(notes).toContain('NU splits program design and data structures.');
 
     const banner = el.querySelector('.banner--warning') as HTMLElement;
     expect(banner.textContent).toContain('Syllabus incomplete (no learning outcomes, no weekly schedule).');

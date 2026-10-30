@@ -120,6 +120,14 @@ CREATE TABLE IF NOT EXISTS notification_reads (
     student_id  text PRIMARY KEY REFERENCES students,
     seen_at     timestamptz NOT NULL            -- the student read every in-app notification up to this time
 );
+-- Hackathon workbook "Course Match" notes (seed/workbook_notes.csv): staff reference, never an AI or rules input.
+CREATE TABLE IF NOT EXISTS workbook_notes (
+    ext_id       text NOT NULL REFERENCES external_courses ON DELETE CASCADE,
+    bu_course    text NOT NULL,                 -- the workbook row (BU course) the note belongs to
+    match_level  text,
+    note         text NOT NULL,
+    PRIMARY KEY (ext_id, bu_course)
+);
 """
 
 
@@ -206,6 +214,11 @@ def load_store(s) -> None:
             s.syllabi[ext_id] = SyllabusRecord(ext_id=ext_id, state=state, file=path if state != "missing" else "",
                                                text=text or "", injection_detected=bool(inj), seed_state=seed_state,
                                                uploaded_at=received_at.isoformat() if received_at else "")
+        cur.execute("select ext_id, bu_course, coalesce(match_level,''), note from workbook_notes "
+                    "order by ext_id, bu_course")
+        s.workbook_notes = {}
+        for ext_id, bu, level, note in cur.fetchall():
+            s.workbook_notes.setdefault(ext_id, []).append(dict(bu_course=bu, match_level=level, note=note))
         cur.execute("select student_id, ext_id, term, decision_id, posted_at, actor_role from postings")
         for sid, ext_id, term, did, posted_at, actor in cur.fetchall():
             s.postings[(sid, ext_id, term)] = dict(decision_id=did, posted_at=posted_at.isoformat(), actor_role=actor)
@@ -329,6 +342,27 @@ def save_registration(acct, student=None) -> None:
 
 
 # ------------------------------------------------------------------ seed / demo reset
+def _insert_workbook_notes(cur, notes: dict[str, list[dict]], known_ext_ids: set[str]) -> None:
+    for ext_id, rows in notes.items():
+        if ext_id not in known_ext_ids:          # a workbook course missing from the catalogue: nothing to attach to
+            continue
+        for n in rows:
+            cur.execute("insert into workbook_notes (ext_id, bu_course, match_level, note) values (%s,%s,%s,%s) "
+                        "on conflict (ext_id, bu_course) do nothing",
+                        (ext_id, n["bu_course"], n.get("match_level") or None, n["note"]))
+
+
+def seed_workbook_notes_if_empty(notes: dict[str, list[dict]]) -> None:
+    """A database seeded before the table existed is not reseeded (it is not empty): copy the notes in once."""
+    with tx() as cur:
+        cur.execute("select exists (select 1 from workbook_notes)")
+        if cur.fetchone()[0]:
+            return
+        cur.execute("select ext_id from external_courses")
+        _insert_workbook_notes(cur, notes, {r[0] for r in cur.fetchall()})
+    log.info("workbook notes copied into the database")
+
+
 def reseed(seed) -> None:
     """Make the database match the seed Store `seed` (CSV state). Runtime data (runtime decisions, postings, audit,
     uploaded lines, uploaded syllabi, courses created by uploads) is removed; registered students and portal accounts
@@ -378,6 +412,8 @@ def reseed(seed) -> None:
                         "credits, calendar, grade) values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                         (ln.student_id, ln.ext_id, ln.term, seq, ln.school_code, ln.course_code, ln.title, ln.credits,
                          ln.calendar, ln.grade))
+        cur.execute("delete from workbook_notes")
+        _insert_workbook_notes(cur, seed.workbook_notes, set(seed.ext_courses))
         from .store import SYNTH_DIR, syllabus_file_for
         for rec in seed.syllabi.values():
             seed_file = syllabus_file_for(rec.ext_id)

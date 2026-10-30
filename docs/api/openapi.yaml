@@ -533,6 +533,15 @@ components:
         top_candidate: { $ref: "#/components/schemas/Candidate" }
         confidence_pct: { type: integer }
         batch_eligible: { type: boolean }
+        workbook_notes:
+          type: array
+          description: "Notes from the hackathon workbook's Course Match sheet for this course, one per BU course row. Staff reference only: never an input to the AI or the rules, never shown to students."
+          items:
+            type: object
+            properties:
+              bu_course: { type: string }
+              match_level: { type: string }
+              note: { type: string }
     DecisionInput:
       type: object
       required: [ext_id, decision, bu_course, reason_code]

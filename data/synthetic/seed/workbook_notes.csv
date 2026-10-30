@@ -1,0 +1,74 @@
+school_code,course_code,bu_course,match_level,note
+NEU,CS 2000,CAS CS 111,Likely equivalent,Intro programming courses.
+NYU,CSCI-UA 101,CAS CS 111,Likely equivalent,Intro programming courses.
+NEU,CS 2100,CAS CS 112,Partial - syllabus review,NU splits program design (CS 2100) and data structures (CS 2700); evaluator may need both.
+NYU,CSCI-UA 102,CAS CS 112,Likely equivalent,NU splits program design (CS 2100) and data structures (CS 2700); evaluator may need both.
+NEU,CS 1800,CAS CS 131,Likely equivalent,Discrete structures / discrete math.
+NYU,MATH-UA 120,CAS CS 131,Likely equivalent,Discrete structures / discrete math.
+NEU,CS 3650,CAS CS 210,Likely equivalent,Computer systems / organization.
+NYU,CSCI-UA 201,CAS CS 210,Likely equivalent,Computer systems / organization.
+NEU,CS 3000,CAS CS 330,Likely equivalent,Algorithms.
+NYU,CSCI-UA 310,CAS CS 330,Likely equivalent,Algorithms.
+NEU,MATH 2331,CAS CS 132,Partial - syllabus review,BU allows MA 242 (Linear Algebra) to substitute for CS 132.
+NYU,MATH-UA 140,CAS CS 132,Partial - syllabus review,BU allows MA 242 (Linear Algebra) to substitute for CS 132.
+NEU,MATH 3081,CAS CS 237,Partial - syllabus review,BU allows MA 581 (Probability) to substitute for CS 237.
+NYU,MATH-UA 233,CAS CS 237,Partial - syllabus review,BU allows MA 581 (Probability) to substitute for CS 237.
+NEU,CS 4400,CAS CS 320,Must be taken at BU,"Group C: BU only, even if a similar course exists."
+NEU,CS 3800,CAS CS 332,Must be taken at BU,"Group C: BU only, even if a similar course exists."
+NYU,CSCI-UA 453,CAS CS 332,Must be taken at BU,"Group C: BU only, even if a similar course exists."
+NYU,CSCI-UA 202,CAS CS 350,Must be taken at BU,"Group C: BU only, even if a similar course exists."
+NEU,ECON 1116,CAS EC 101,Likely equivalent,Principles of microeconomics.
+NYU,ECON-UA 2,CAS EC 101,Likely equivalent,Principles of microeconomics.
+NEU,ECON 1115,CAS EC 102,Likely equivalent,Principles of macroeconomics.
+NYU,ECON-UA 1,CAS EC 102,Likely equivalent,Principles of macroeconomics.
+NEU,ECON 2316,CAS EC 201,Likely equivalent,Counts toward BU's 4-course cap on 200+ level transfers.
+NYU,ECON-UA 10,CAS EC 201,Likely equivalent,Counts toward BU's 4-course cap on 200+ level transfers.
+NEU,ECON 2315,CAS EC 202,Likely equivalent,Counts toward BU's 4-course cap on 200+ level transfers.
+NYU,ECON-UA 12,CAS EC 202,Likely equivalent,Counts toward BU's 4-course cap on 200+ level transfers.
+NEU,ECON 2350,CAS EC 203,Likely equivalent,Statistics for economics.
+NYU,ECON-UA 18,CAS EC 203,Likely equivalent,Statistics for economics.
+NEU,ECON 2560,CAS EC 204,Partial - syllabus review,Econometrics content; check depth against EC 204.
+NYU,ECON-UA 266,CAS EC 204,Partial - syllabus review,Econometrics content; check depth against EC 204.
+NEU,PSYC 1101,CAS PS 101,Likely equivalent,Intro psychology.
+NYU,PSYCH-UA 1,CAS PS 101,Likely equivalent,Intro psychology.
+NEU,PSYC 2320,CAS PS 211,Partial - syllabus review,Peer courses are statistics-focused; BU PS 211 is experimental design.
+NYU,PSYCH-UA 10,CAS PS 211,Partial - syllabus review,Peer courses are statistics-focused; BU PS 211 is experimental design.
+NEU,PSYC 3458,CAS PS 231,Likely equivalent,NYU course is cognitive neuroscience rather than physiological psychology.
+NYU,PSYCH-UA 25,CAS PS 231,Partial - syllabus review,NYU course is cognitive neuroscience rather than physiological psychology.
+NYU,PSYCH-UA 22,CAS PS 222,Likely equivalent,Perception.
+NYU,PSYCH-UA 29,CAS PS 336,Likely equivalent,Cognition.
+NEU,PSYC 3404,CAS PS 241,Likely equivalent,Developmental psychology.
+NYU,PSYCH-UA 34,CAS PS 241,Likely equivalent,Developmental psychology.
+NYU,PSYCH-UA 30,CAS PS 251,Likely equivalent,Personality.
+NEU,PSYC 3402,CAS PS 261,Likely equivalent,Social psychology.
+NYU,PSYCH-UA 32,CAS PS 261,Likely equivalent,Social psychology.
+NYU,PSYCH-UA 51,CAS PS 371,Likely equivalent,NU lists a Clinical Psychology and Mental Health course; code not verified here.
+NEU,BIOL 1107,CAS BI 107,Likely equivalent,First-semester biology.
+NYU,BIOL-UA 11,CAS BI 107,Likely equivalent,First-semester biology.
+NEU,BIOL 1113,CAS BI 108,Likely equivalent,Second-semester biology.
+NYU,BIOL-UA 12,CAS BI 108,Likely equivalent,Second-semester biology.
+NYU,BIOL-UA 21,CAS BI 203,Partial - syllabus review,NYU course combines molecular and cell biology.
+NEU,BIOL 2301,CAS BI 206,Partial - syllabus review,NU course combines genetics and molecular biology.
+NYU,BIOL-UA 30,CAS BI 206,Likely equivalent,NU course combines genetics and molecular biology.
+NEU,CHEM 1161,CAS CH 101,Partial - syllabus review,NU covers general chemistry in one accelerated 5-credit course; may map to CH 101 or CH 101 + CH 102.
+NYU,CHEM-UA 125,CAS CH 101,Likely equivalent,NU covers general chemistry in one accelerated 5-credit course; may map to CH 101 or CH 101 + CH 102.
+NEU,CHEM 1161,CAS CH 102,Partial - syllabus review,See CH 101 note.
+NYU,CHEM-UA 126,CAS CH 102,Likely equivalent,See CH 101 note.
+NEU,CHEM 2311,CAS CH 203,Likely equivalent,Organic chemistry 1.
+NYU,CHEM-UA 225,CAS CH 203,Likely equivalent,Organic chemistry 1.
+NEU,CHEM 2313,CAS CH 204,Likely equivalent,Organic chemistry 2.
+NYU,CHEM-UA 226,CAS CH 204,Likely equivalent,Organic chemistry 2.
+NEU,MATH 1341,CAS MA 123,Likely equivalent,Calculus I.
+NYU,MATH-UA 121,CAS MA 123,Likely equivalent,Calculus I.
+NEU,MATH 1342,CAS MA 124,Likely equivalent,Calculus II.
+NYU,MATH-UA 122,CAS MA 124,Likely equivalent,Calculus II.
+NEU,MATH 2321,CAS MA 225,Likely equivalent,Multivariable calculus.
+NYU,MATH-UA 123,CAS MA 225,Likely equivalent,Multivariable calculus.
+NEU,MATH 2331,CAS MA 242,Likely equivalent,Linear algebra.
+NYU,MATH-UA 140,CAS MA 242,Likely equivalent,Linear algebra.
+NEU,MATH 2341,CAS MA 226,Partial - syllabus review,NU course combines differential equations with linear algebra.
+NYU,MATH-UA 262,CAS MA 226,Likely equivalent,NU course combines differential equations with linear algebra.
+NEU,MATH 1365,CAS MA 293,Partial - syllabus review,NU CS 1800 is another possible match.
+NYU,MATH-UA 120,CAS MA 293,Likely equivalent,NU CS 1800 is another possible match.
+NEU,MATH 3081,CAS MA 581,Partial - syllabus review,NU course combines probability and statistics.
+NYU,MATH-UA 233,CAS MA 581,Likely equivalent,NU course combines probability and statistics.

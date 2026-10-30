@@ -186,6 +186,8 @@ export interface ReviewItem {
   top_candidate: Candidate;
   confidence_pct: number;
   batch_eligible: boolean;
+  /** Hackathon workbook notes for this course (staff reference; not an AI input). */
+  workbook_notes?: { bu_course: string; match_level: string; note: string }[];
 }
 
 export type DecisionKind = 'Equivalent' | 'Elective' | 'No credit';

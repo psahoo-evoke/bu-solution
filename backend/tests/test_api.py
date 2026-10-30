@@ -100,6 +100,12 @@ def test_review_queue(client):
     assert item["students"] == ["SYN-24001", "SYN-24004"] and item["syllabus_state"] == "complete"
     assert next(i for i in q if i["ext_id"] == "NEU|CS 2700")["syllabus_state"] == "incomplete"
     assert not any(i["batch_eligible"] for i in q)
+    # Workbook notes: shown to staff as reference; a course not in the workbook has none.
+    cs2100 = next(i for i in q if i["ext_id"] == "NEU|CS 2100")
+    assert cs2100["workbook_notes"] == [{"bu_course": "CAS CS 112", "match_level": "Partial - syllabus review",
+                                         "note": "NU splits program design (CS 2100) and data structures (CS 2700); "
+                                                 "evaluator may need both."}]
+    assert next(i for i in q if i["ext_id"] == "NEU|CS 2700")["workbook_notes"] == []
     psych = client.get("/api/review-queue", params={"department": "Psychology"}).json()
     assert psych and all(i["department"] == "Psychology" for i in psych)
 

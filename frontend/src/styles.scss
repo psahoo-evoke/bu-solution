@@ -375,6 +375,14 @@ meter { width: 10rem; height: 1rem; }
   display: flex; flex-wrap: wrap; gap: 1.5rem; padding: .6rem .8rem; margin: .75rem 0; background: var(--info-bg); border-radius: var(--radius);
   &--prelim { background: var(--pending-bg); border: 1px dashed #e6c77a; }
 }
+.wb-notes {
+  margin: -.25rem 0 .75rem; padding: .55rem .8rem; border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); background: #fff;
+  &__h { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .6rem; margin: 0 0 .35rem; font-weight: 600; font-size: .9rem; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; }
+  li { display: flex; flex-direction: column; gap: .1rem; font-size: .88rem; line-height: 1.45; }
+  &__row { font-size: .8rem; color: var(--muted); strong { color: var(--text); } }
+}
 .prelim-tag {
   margin-left: .35rem; padding: 0 .45rem; border-radius: 999px; background: #fff; border: 1px solid #e6c77a;
   color: var(--pending-fg); font-size: .72rem; font-weight: 600; vertical-align: 1px;

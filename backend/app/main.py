@@ -785,7 +785,9 @@ def review_queue(request: Request, department: Optional[str] = Query(None)):
                           department=c.program_area, students=students, syllabus_state=S().syllabus_state(ext_id),
                           top_candidate=top, confidence_pct=rec["confidence_pct"],
                           preliminary=rec["preliminary"], injection_detected=rec["injection_detected"],
-                          batch_eligible=_batch_problem(rec) is None))
+                          batch_eligible=_batch_problem(rec) is None,
+                          # Staff reference from the hackathon workbook; not an input to the AI or the rules.
+                          workbook_notes=[dict(n) for n in S().workbook_notes.get(ext_id, [])]))
     return items
 
 
