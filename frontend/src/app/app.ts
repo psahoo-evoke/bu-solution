@@ -6,6 +6,7 @@ import { DemoRole } from './api/models';
 import { Operation, can } from './api/permissions';
 import { RoleService } from './api/role.service';
 import { NotificationBell } from './shared/notification-bell';
+import { statusTitle } from './shared/status';
 
 @Component({
   selector: 'app-root',
@@ -20,6 +21,10 @@ export class App implements OnInit {
   /** null = checking, true = up, false = down */
   protected readonly apiUp = signal<boolean | null>(null);
   /** A signed-in student's link goes straight to their own record. */
+  protected readonly statusLabel = computed(() => {
+    const role = this.roleService.role();
+    return role === 'Student' || role === 'Department' ? statusTitle(role) : 'Student status';
+  });
   protected readonly studentLink = computed(() => (this.auth.studentId() ? ['/student', this.auth.studentId()!] : ['/student']));
 
   ngOnInit(): void {

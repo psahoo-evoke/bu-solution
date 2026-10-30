@@ -128,10 +128,10 @@ describe('StudentStatusPage header', () => {
   }
 
   it('is titled for who is signed in', () => {
-    expect(render('Student').querySelector('h1')?.textContent?.trim()).toBe('My transfer credit status');
+    expect(render('Student').querySelector('h1')?.textContent?.trim()).toBe('My Transfer Credit Status');
   });
-  it('is titled "Student transfer credit status" for a department', () => {
-    expect(render('Department').querySelector('h1')?.textContent?.trim()).toBe('Student transfer credit status');
+  it('is titled "Student Transfer Credit Status" for a department', () => {
+    expect(render('Department').querySelector('h1')?.textContent?.trim()).toBe('Student Transfer Credit Status');
   });
   it('keeps "Transfer credit status" for other staff', () => {
     expect(render('Evaluator').querySelector('h1')?.textContent?.trim()).toBe('Transfer credit status');

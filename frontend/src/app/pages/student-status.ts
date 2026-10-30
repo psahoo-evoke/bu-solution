@@ -8,7 +8,7 @@ import { can } from '../api/permissions';
 import { RoleService } from '../api/role.service';
 import { DEFAULT_STUDENT } from '../app.routes';
 import { ErrorBanner } from '../shared/error-banner';
-import { displayStatus, groupByTerm, nextStepText } from '../shared/status';
+import { displayStatus, groupByTerm, nextStepText, statusTitle } from '../shared/status';
 import { StatusChip } from '../shared/status-chip';
 
 /** States where a syllabus upload can move the course forward. */
@@ -39,12 +39,7 @@ export class StudentStatusPage {
   protected readonly canUploadSyllabusRole = computed(() => can(this.roles.role(), 'uploadSyllabus'));
   /** A student only ever sees their own record, so no student picker; staff use it to switch students. */
   protected readonly showPicker = computed(() => this.roles.role() !== 'Student');
-  protected readonly heading = computed(() => {
-    const role = this.roles.role();
-    return role === 'Student' ? 'My transfer credit status'
-      : role === 'Department' ? 'Student transfer credit status'
-      : 'Transfer credit status';
-  });
+  protected readonly heading = computed(() => statusTitle(this.roles.role()));
   protected readonly groups = computed(() => groupByTerm(this.evaluation()?.lines ?? []));
   protected readonly totals = computed(() => this.evaluation()?.totals ?? null);
   protected readonly hasCourses = computed(() => (this.evaluation()?.lines.length ?? 0) > 0);

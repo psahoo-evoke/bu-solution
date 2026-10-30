@@ -1,4 +1,4 @@
-import { BuStatusCode, CourseEvaluation } from '../api/models';
+import { BuStatusCode, CourseEvaluation, DemoRole } from '../api/models';
 
 export type ChipTone = 'secured' | 'pending' | 'nocredit' | 'action';
 
@@ -80,4 +80,11 @@ export function displayStatus(line: CourseEvaluation): { label: string; code: Bu
  * never adds or invents one. */
 export function nextStepText(line: CourseEvaluation): string {
   return (line.next_step ?? '').trim();
+}
+
+/** The status page's name for who is signed in (heading and menu link). */
+export function statusTitle(role: DemoRole): string {
+  return role === 'Student' ? 'My Transfer Credit Status'
+    : role === 'Department' ? 'Student Transfer Credit Status'
+    : 'Transfer credit status';
 }

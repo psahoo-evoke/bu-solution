@@ -92,6 +92,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-30 | [developer-36](2026-10-30/developer-36.md) | In-app notifications for students | psahoo (POD) |
 | 2026-10-30 | [developer-37](2026-10-30/developer-37.md) | Remove "Other staff" from the front page | Sagar (spathur) |
 | 2026-10-30 | [developer-38](2026-10-30/developer-38.md) | Status page heading per signed-in role | Sagar (spathur) |
+| 2026-10-30 | [developer-39](2026-10-30/developer-39.md) | Title-case status page names, also on the menu link | Sagar (spathur) |
 | 2026-10-30 | [security-05](2026-10-30/security-05.md) | Security review of the course picker, chat context, partial matching and workbench identity | psahoo (POD) |
 <!-- INDEX:END -->
 

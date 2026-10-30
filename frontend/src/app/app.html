@@ -9,7 +9,7 @@
     <a routerLink="/credit-check" routerLinkActive="active" ariaCurrentWhenActive="page">Check a course</a>
     @if (!auth.secured() || (auth.signedIn() && roleService.available().length > 0)) {
       <a [routerLink]="studentLink()" routerLinkActive="active" ariaCurrentWhenActive="page">
-        {{ auth.studentId() ? 'My status' : 'Student status' }}
+        {{ statusLabel() }}
       </a>
       @if (showNav('reviewQueue')) {
         <a routerLink="/review" routerLinkActive="active" ariaCurrentWhenActive="page">Evaluator workbench</a>
