@@ -4,6 +4,7 @@ import { ApiService } from './api/api.service';
 import { AuthService } from './api/auth.service';
 import { DemoRole } from './api/models';
 import { Operation, can } from './api/permissions';
+import { homeHidden, homeRoute } from './api/role-home';
 import { RoleService } from './api/role.service';
 import { NotificationBell } from './shared/notification-bell';
 import { statusTitle } from './shared/status';
@@ -26,6 +27,14 @@ export class App implements OnInit {
     const role = this.roleService.role();
     return role === 'Student' || role === 'Department' ? statusTitle(role) : 'Student status';
   });
+  /** Signed-in students and departments have no Home: the link is hidden and the logo opens their own page. */
+  protected readonly noHome = computed(() =>
+    this.auth.secured() && this.roleService.available().length > 0
+      && homeHidden(this.roleService.role(), this.auth.signedIn()),
+  );
+  protected readonly brandLink = computed(() =>
+    this.noHome() ? homeRoute(this.roleService.role(), this.auth.studentId()) : '/',
+  );
   /** A signed-in student's link goes straight to their own record. */
   protected readonly studentLink = computed(() => (this.auth.studentId() ? ['/student', this.auth.studentId()!] : ['/student']));
 

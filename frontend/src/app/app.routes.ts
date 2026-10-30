@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard } from './api/auth.guard';
+import { authGuard, homeGuard } from './api/auth.guard';
 
 export const DEFAULT_STUDENT = 'SYN-24001';
 
@@ -8,6 +8,7 @@ export const routes: Routes = [
     path: '',
     pathMatch: 'full',
     title: 'TransferIQ · Transfer credit co-pilot',
+    canActivate: [homeGuard],          // signed-in students and departments go to their own page instead
     loadComponent: () => import('./pages/home').then((m) => m.HomePage),
   },
   {

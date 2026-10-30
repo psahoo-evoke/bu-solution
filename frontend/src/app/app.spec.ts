@@ -1,7 +1,10 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, UrlTree } from '@angular/router';
+import { homeGuard } from './api/auth.guard';
+import { AuthService, PortalUser } from './api/auth.service';
+import { DemoRole } from './api/models';
 import { roleInterceptor } from './api/role.interceptor';
 import { App } from './app';
 
@@ -34,5 +37,83 @@ describe('App shell', () => {
     await fixture.whenStable();
     const alert = (fixture.nativeElement as HTMLElement).querySelector('[role="alert"]');
     expect(alert?.textContent).toContain('API offline');
+  });
+});
+
+describe('App shell: no Home for signed-in students and departments', () => {
+  const user = (role: DemoRole, student_id: string | null = null, department: string | null = null): PortalUser =>
+    ({ email: 'x@bu.edu', name: 'X', role, student_id, department });
+
+  beforeEach(async () => {
+    localStorage.clear();
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [provideRouter([]), provideHttpClient(withInterceptors([roleInterceptor])), provideHttpClientTesting()],
+    }).compileComponents();
+  });
+
+  async function shell(u: PortalUser | null): Promise<HTMLElement> {
+    const auth = TestBed.inject(AuthService);
+    auth.config.set({ mode: 'portal' });
+    auth.portalUser.set(u);
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    TestBed.inject(HttpTestingController).match('/api/health').forEach((r) => r.flush({ status: 'ok' }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+  const navTexts = (el: HTMLElement) => Array.from(el.querySelectorAll('.topbar__nav a')).map((a) => a.textContent?.trim());
+  const brandHref = (el: HTMLElement) => el.querySelector('.topbar__brand')?.getAttribute('href');
+
+  it('hides Home for a student and the logo opens their own status page', async () => {
+    const el = await shell(user('Student', 'SYN-24001'));
+    expect(navTexts(el)).not.toContain('Home');
+    expect(brandHref(el)).toBe('/student/SYN-24001');
+  });
+
+  it('hides Home for a department and the logo opens the workbench', async () => {
+    const el = await shell(user('Department', null, 'Biology'));
+    expect(navTexts(el)).not.toContain('Home');
+    expect(brandHref(el)).toBe('/review');
+  });
+
+  it('keeps Home for staff and for visitors who are not signed in', async () => {
+    expect(navTexts(await shell(user('Registrar')))).toContain('Home');
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [provideRouter([]), provideHttpClient(withInterceptors([roleInterceptor])), provideHttpClientTesting()],
+    }).compileComponents();
+    const el = await shell(null);
+    expect(navTexts(el)).toContain('Home');
+    expect(brandHref(el)).toBe('/');
+  });
+});
+
+describe('homeGuard', () => {
+  const run = (role: DemoRole | null, mode: 'portal' | 'demo' = 'portal') => {
+    TestBed.configureTestingModule({ providers: [provideRouter([])] });
+    const auth = TestBed.inject(AuthService);
+    auth.config.set({ mode });
+    if (role) auth.portalUser.set({ email: 'x@bu.edu', name: 'X', role, student_id: role === 'Student' ? 'SYN-24002' : null,
+                                    department: role === 'Department' ? 'Biology' : null });
+    const res = TestBed.runInInjectionContext(() => homeGuard({} as never, {} as never));
+    return res instanceof UrlTree ? res.toString() : res;
+  };
+  beforeEach(() => localStorage.clear());
+
+  it('sends a signed-in student to their own status page and a department to the workbench', () => {
+    expect(run('Student')).toBe('/student/SYN-24002');
+    TestBed.resetTestingModule();
+    expect(run('Department')).toBe('/review');
+  });
+
+  it('lets staff, signed-out visitors and demo mode open the home page', () => {
+    expect(run('Registrar')).toBe(true);
+    TestBed.resetTestingModule();
+    expect(run(null)).toBe(true);
+    TestBed.resetTestingModule();
+    expect(run(null, 'demo')).toBe(true);
   });
 });

@@ -1,11 +1,13 @@
 <a class="skip-link" href="#main">Skip to main content</a>
 <header class="topbar">
-  <a class="topbar__brand" routerLink="/" aria-label="TransferIQ home">
+  <a class="topbar__brand" [routerLink]="brandLink()" [attr.aria-label]="noHome() ? 'TransferIQ, my page' : 'TransferIQ home'">
     <span class="logo" aria-hidden="true">TIQ</span>
     <span class="topbar__title">TransferIQ</span>
   </a>
   <nav class="topbar__nav" aria-label="Main">
-    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Home</a>
+    @if (!noHome()) {
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Home</a>
+    }
     <a routerLink="/credit-check" routerLinkActive="active" ariaCurrentWhenActive="page">Check a course</a>
     @if (!auth.secured() || (auth.signedIn() && roleService.available().length > 0)) {
       <a [routerLink]="studentLink()" routerLinkActive="active" ariaCurrentWhenActive="page">

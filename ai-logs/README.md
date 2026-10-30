@@ -100,6 +100,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-30 | [developer-41](2026-10-30/developer-41.md) | UX quick wins for students and department reviewers | Sagar (spathur) |
 | 2026-10-30 | [developer-42](2026-10-30/developer-42.md) | No misleading Retry after a refused upload | psahoo (POD) |
 | 2026-10-30 | [developer-43](2026-10-30/developer-43.md) | Credit chat answers keywords, subjects and general questions | Sagar (spathur) |
+| 2026-10-30 | [developer-44](2026-10-30/developer-44.md) | No Home for signed-in students and departments | Sagar (spathur) |
 | 2026-10-30 | [devops-01](2026-10-30/devops-01.md) | Azure OpenAI for the live chat ("Ask in your words") | Sagar (spathur) |
 | 2026-10-30 | [devops-02](2026-10-30/devops-02.md) | Commit .claude agent definitions for the submission checklist | Team lead |
 | 2026-10-30 | [devops-03](2026-10-30/devops-03.md) | Sample backend configuration (.env.example) | Team lead |
