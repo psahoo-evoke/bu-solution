@@ -1,10 +1,10 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { DemoRole, StudentEvaluation } from '../api/models';
 import { RoleService } from '../api/role.service';
-import { StudentStatusPage, syllabusAskedMessage, transcriptUploadMessage, uploadProblem } from './student-status';
+import { StudentStatusPage, syllabusAskedMessage, transcriptUploadMessage, uploadErrorMessage, uploadProblem } from './student-status';
 
 const maya: StudentEvaluation = {
   student: { student_id: 'SYN-24001', name: 'Maya R. Delgado', intended_major: 'Psychology', bu_start_term: 'Fall 2026' },
@@ -71,6 +71,50 @@ describe('StudentStatusPage', () => {
     expect(el.querySelector('input[aria-label="Upload syllabus for PSYCH-UA 25"]')).toBeNull();
     expect(el.textContent).not.toContain('Upload syllabus');
     expect(el.textContent).toContain('✓ Syllabus uploaded');
+  });
+});
+
+describe('a refused upload offers no Retry (Retry only reloads the page data)', () => {
+  it('shows the reason and what to do, without a Retry button', async () => {
+    TestBed.configureTestingModule({
+      imports: [StudentStatusPage],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    });
+    const fixture = TestBed.createComponent(StudentStatusPage);
+    fixture.componentRef.setInput('id', 'SYN-24001');
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/students').flush([maya.student]);
+    http.expectOne('/api/students/SYN-24001/evaluation').flush(maya);
+    await fixture.whenStable();
+    const file = new File(['%PDF-1.4'], 'notes.pdf', { type: 'application/pdf' });
+    const input = { target: { files: [file], value: 'x' } } as unknown as Event;
+    (fixture.componentInstance as unknown as { onTranscript(e: Event): void }).onTranscript(input);
+    http.expectOne('/api/students/SYN-24001/transcripts').flush(
+      { detail: "This does not look like a transcript: no 'Institution:' line was found." },
+      { status: 422, statusText: 'Unprocessable Entity' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const banner = (fixture.nativeElement as HTMLElement).querySelector('.banner--error');
+    expect(banner?.textContent).toContain('This file was not accepted.');
+    expect(banner?.textContent).toContain('Choose the official transcript PDF');
+    expect(banner?.querySelector('button')).toBeNull();
+  });
+});
+
+describe('uploadErrorMessage', () => {
+  const refused = (status: number, detail: unknown) => new HttpErrorResponse({ status, error: { detail } });
+  it('explains a refused file and what to upload instead', () => {
+    expect(uploadErrorMessage(refused(422, 'Not a syllabus'), 'syllabus'))
+      .toBe('This file was not accepted. Not a syllabus. Choose the course syllabus as a PDF and upload it again.');
+    expect(uploadErrorMessage(refused(415, 'Only PDF files are accepted.'), 'transcript'))
+      .toBe('This file was not accepted. Only PDF files are accepted. Choose the official transcript PDF from your previous school and upload it again.');
+    expect(uploadErrorMessage(refused(422, [{ msg: 'x' }]), 'transcript')).toContain('This file was not accepted. Choose');
+  });
+  it('passes on "already uploaded" as is, and asks to upload again when the service did not answer', () => {
+    expect(uploadErrorMessage(refused(409, 'A syllabus for X has already been uploaded.'), 'syllabus'))
+      .toBe('A syllabus for X has already been uploaded.');
+    expect(uploadErrorMessage(new HttpErrorResponse({ status: 0 }), 'transcript')).toContain('upload the file again');
   });
 });
 
