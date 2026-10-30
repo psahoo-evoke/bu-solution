@@ -7,7 +7,6 @@
 
 // ------------------------------------------------------------------ page head
 .cc-head h1 { font-size: 1.75rem; letter-spacing: -.01em; }
-.cc-head { align-items: flex-end; margin-bottom: 1.1rem; .tabs { margin: 0; width: 26rem; max-width: 100%; } }   // tabs share the heading row
 .cc-trust {
   display: flex; flex-wrap: wrap; gap: .4rem .5rem; margin: .7rem 0 0; padding: 0; list-style: none;
   li {
@@ -31,14 +30,20 @@
 }
 
 // ------------------------------------------------------------------ layout: conversation + help rail
-.cc-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: 1.25rem; align-items: stretch; }
+.cc-layout {
+  display: grid; grid-template-columns: minmax(0, 1fr) 20rem; grid-template-rows: auto 1fr; column-gap: 1.25rem; align-items: stretch;
+  > .tabs { grid-column: 1; grid-row: 1; max-width: none; width: 100%; margin-bottom: 1rem; }   // as wide as the card under it
+  .cc-main { grid-column: 1; grid-row: 2; }
+  .cc-rail { grid-column: 2; grid-row: 1 / span 2; }
+}
 // The card fills the column, so it ends level with the help rail instead of leaving a gap under it.
 .cc-main { display: flex; flex-direction: column; }
 .cc-main > .card { margin-bottom: 0; flex: 1; }
 // Quick check is a short form: no side column, the help panels sit in a row below it.
 .cc-layout--form {
-  grid-template-columns: minmax(0, 1fr); align-items: start;
+  grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; align-items: start;
   .cc-main > .card { flex: none; }
+  .cc-rail { grid-column: 1; grid-row: auto; margin-top: 1.25rem; }
   .cc-rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); align-items: stretch; }
 }
 .cc-main, .cc-rail { min-width: 0; }
@@ -239,7 +244,8 @@
 
 // ------------------------------------------------------------------ narrower screens
 @media (max-width: 1000px) {
-  .cc-layout { grid-template-columns: minmax(0, 1fr); }
+  .cc-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; }
+  .cc-layout .cc-rail { grid-column: 1; grid-row: auto; margin-top: 1.25rem; }
   .cc-chat { min-height: 0; }
   .cc-log { flex: none; height: clamp(24rem, 65vh, 40rem); }
   .cc-rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }

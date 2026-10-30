@@ -24,18 +24,6 @@
       </li>
     </ul>
   </div>
-  <div class="tabs cc-tabs" role="tablist" aria-label="Ask or quick check">
-    <button type="button" role="tab" id="cc-tab-chat" class="tabs__tab" aria-controls="cc-panel-chat"
-            [class.is-active]="tab() === 'chat'" [attr.aria-selected]="tab() === 'chat'" (click)="tab.set('chat')">
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 4h16v12H7l-3 3zm2 2v8.2L6.2 14H18V6z"/></svg>
-      Ask in your words
-    </button>
-    <button type="button" role="tab" id="cc-tab-form" class="tabs__tab" aria-controls="cc-panel-form"
-            [class.is-active]="tab() === 'form'" [attr.aria-selected]="tab() === 'form'" (click)="tab.set('form')">
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 5h16v2H4zm0 6h10v2H4zm0 6h16v2H4z"/></svg>
-      Quick check
-    </button>
-  </div>
 </section>
 
 <ng-template #resultCard let-r>
@@ -99,6 +87,18 @@
 </ng-template>
 
 <div class="cc-layout" [class.cc-layout--form]="tab() === 'form'">
+  <div class="tabs cc-tabs" role="tablist" aria-label="Ask or quick check">
+    <button type="button" role="tab" id="cc-tab-chat" class="tabs__tab" aria-controls="cc-panel-chat"
+            [class.is-active]="tab() === 'chat'" [attr.aria-selected]="tab() === 'chat'" (click)="tab.set('chat')">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 4h16v12H7l-3 3zm2 2v8.2L6.2 14H18V6z"/></svg>
+      Ask in your words
+    </button>
+    <button type="button" role="tab" id="cc-tab-form" class="tabs__tab" aria-controls="cc-panel-form"
+            [class.is-active]="tab() === 'form'" [attr.aria-selected]="tab() === 'form'" (click)="tab.set('form')">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 5h16v2H4zm0 6h10v2H4zm0 6h16v2H4z"/></svg>
+      Quick check
+    </button>
+  </div>
   <div class="cc-main">
     @if (tab() === 'chat') {
       <section class="card cc-chat" id="cc-panel-chat" role="tabpanel" aria-labelledby="cc-tab-chat">
