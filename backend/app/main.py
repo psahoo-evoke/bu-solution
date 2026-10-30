@@ -716,12 +716,17 @@ def course_syllabus(request: Request, ext_id: str = ExtIdPath):
     rec = S().syllabi.get(ext_id)
     names = {sid: st.name for sid, st in S().students.items()}
     waiting = sorted({ln.student_id for ln in S().lines if ln.ext_id == ext_id})
-    return dict(ext_id=ext_id, state=S().syllabus_state(ext_id),
+    state = S().syllabus_state(ext_id)
+    # Why an incomplete syllabus is incomplete (R23): the same check as at upload, run on the text on file.
+    missing_sections = check_syllabus(rec.text)["missing_sections"] if state == "incomplete" and rec and rec.text else []
+    return dict(ext_id=ext_id, state=state, missing_sections=missing_sections,
                 source=("upload" if rec and rec.uploaded_at else "on file") if rec and rec.text else None,
                 uploaded_at=(rec.uploaded_at or None) if rec else None,
                 injection_detected=bool(rec and rec.injection_detected),
                 text=(rec.text[:SYLLABUS_TEXT_MAX] if rec and rec.text else None),
                 truncated=bool(rec and len(rec.text or "") > SYLLABUS_TEXT_MAX),
+                # What the matcher used when the syllabus lists no outcomes, so the evaluator can trace the score.
+                catalogue_outcomes=list(S().ext_courses[ext_id].learning_outcomes),
                 requests=[_request_summary(sid, ext_id, names) for sid in waiting
                           if syllabus_requests(sid, ext_id)])
 

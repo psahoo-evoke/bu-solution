@@ -137,6 +137,69 @@ describe('ReviewPage role gating', () => {
     expect(banner).toContain('next reminder 3 Nov');
     expect(banner).not.toContain('Request the syllabus');
     expect(el.querySelector('.syllabus-panel')?.textContent).toContain('No syllabus on file yet');
+    const suggestion = el.querySelector('.suggestion') as HTMLElement;
+    expect(suggestion.classList).toContain('suggestion--prelim');
+    expect(suggestion.textContent).toContain('Preliminary');
+    expect(suggestion.textContent).toContain('Likely elective');
+  });
+
+  it('shows the catalogue outcomes the score used when the syllabus lists none', async () => {
+    TestBed.inject(RoleService).set('Evaluator');
+    const fixture = TestBed.createComponent(ReviewPage);
+    fixture.detectChanges();
+    http.expectOne('/api/reason-codes').flush([]);
+    const item = { ext_id: 'NEU|CS 2700', course_code: 'CS 2700', title: 'Data Structures', school_code: 'NEU',
+                   department: 'Computer Science', students: ['SYN-24002'], syllabus_state: 'incomplete', confidence_pct: 83,
+                   batch_eligible: false, top_candidate: { bu_code: 'CAS CS 112', title: 'CS 2', overlap_pct: 83 } };
+    http.expectOne((r) => r.url === '/api/review-queue').flush([item]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    (el.querySelector('.queue__item') as HTMLButtonElement).click();
+    http.expectOne('/api/courses/NEU%7CCS%202700/syllabus').flush({
+      ext_id: 'NEU|CS 2700', state: 'incomplete', missing_sections: ['learning_outcomes', 'schedule'],
+      source: 'on file', uploaded_at: null, injection_detected: false,
+      text: 'Course description\nData Structures.\nLearning outcomes\nTo be discussed in the first class meeting.\nAssessment',
+      truncated: false, requests: [], catalogue_outcomes: ['Explain the core ideas of linked lists', 'Analyze problems involving hash tables'],
+    });
+    http.expectOne('/api/courses/NEU%7CCS%202700/recommendation').flush({
+      ext_id: 'NEU|CS 2700', suggested_decision: 'Equivalent', suggested_code: 'CAS CS 112', confidence_pct: 83,
+      engine: 'azure-openai', injection_detected: false, preliminary: true, past_decisions: [],
+      candidates: [{ bu_code: 'CAS CS 112', title: 'CS 2', overlap_pct: 83, tier: 'equivalent', description_match_pct: 90,
+                     covered: ['a', 'b', 'c', 'd', 'e'], missing: ['f'] }],
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const panel = el.querySelector('.syllabus-panel')?.textContent ?? '';
+    expect(el.querySelector('.syl-reason')?.textContent?.trim()).toBe('no learning outcomes, no weekly schedule');
+    expect(panel).toContain('Syllabus: To be discussed in the first class meeting.');
+    expect(panel).toContain('Catalogue lists');
+    expect(el.querySelectorAll('.syl-sec__catalogue li').length).toBe(2);
+    expect(panel).toContain('90% match · CAS CS 112');
+    expect(panel).toContain('5 of 6 CAS CS 112 outcomes');
+    expect(el.querySelector('.suggestion')?.textContent).toContain('Likely equivalent');
+    expect(el.querySelector('.suggestion')?.textContent).toContain('catalogue estimate');
+
+    const banner = el.querySelector('.banner--warning') as HTMLElement;
+    expect(banner.textContent).toContain('Syllabus incomplete (no learning outcomes, no weekly schedule).');
+    expect(banner.textContent).toContain('No syllabus request sent yet to SYN-24002.');
+    const ask = banner.querySelector('.req-line--ask button') as HTMLButtonElement;
+    expect(ask.textContent?.trim()).toBe('Request syllabus');
+    ask.click();
+    const post = http.expectOne('/api/students/SYN-24002/courses/NEU%7CCS%202700/syllabus-request');
+    expect(post.request.method).toBe('POST');
+    post.flush({ student_id: 'SYN-24002', ext_id: 'NEU|CS 2700', status: 'not_sent', to: [], cc: [], requested_at: '2026-10-30T12:00:00+00:00' });
+    http.expectOne('/api/courses/NEU%7CCS%202700/syllabus').flush({
+      ext_id: 'NEU|CS 2700', state: 'incomplete', missing_sections: ['learning_outcomes', 'schedule'], source: 'on file',
+      uploaded_at: null, injection_detected: false, text: null, truncated: false, catalogue_outcomes: [],
+      requests: [{ student_id: 'SYN-24002', student_name: 'Jordan Reyes', requested_at: '2026-10-30T12:00:00+00:00',
+                   last_sent_at: null, reminders: 0, next_reminder_at: null, status: 'not_sent', automatic: false,
+                   emailed_student: false }],
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(banner.textContent).toContain('Requested from Jordan Reyes');
+    expect(banner.querySelector('.req-line--ask')).toBeNull();
   });
 });
 

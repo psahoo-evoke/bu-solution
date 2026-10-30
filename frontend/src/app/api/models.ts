@@ -124,12 +124,16 @@ export interface StudentNotifications {
 export interface CourseSyllabus {
   ext_id: string;
   state: 'complete' | 'incomplete' | 'missing';
+  /** Incomplete only: which R23 requirement the syllabus fails. */
+  missing_sections?: ('learning_outcomes' | 'schedule')[];
   source: 'upload' | 'on file' | null;
   uploaded_at: string | null;
   injection_detected: boolean;
   /** Plain text from the PDF: always interpolated, never bound as HTML. */
   text: string | null;
   truncated: boolean;
+  /** The catalogue record's outcomes: what the matcher compares when the syllabus lists none. */
+  catalogue_outcomes?: string[];
   requests: {
     student_id: string;
     student_name: string;

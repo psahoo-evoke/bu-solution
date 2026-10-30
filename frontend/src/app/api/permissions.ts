@@ -10,6 +10,7 @@ export type Operation =
   | 'studentEvaluation'
   | 'uploadTranscript'
   | 'uploadSyllabus'
+  | 'requestSyllabus'
   | 'recommendation'
   | 'reviewQueue'
   | 'decide'
@@ -28,6 +29,7 @@ export const OPERATION_ROLES: Record<Operation, readonly DemoRole[]> = {
   studentEvaluation: ALL,
   uploadTranscript: ['Student', 'CreditStaff'],
   uploadSyllabus: ['Student', 'CreditStaff', 'Evaluator', 'Department'],
+  requestSyllabus: ['Student', 'CreditStaff', 'Evaluator', 'Department'],
   recommendation: ['CreditStaff', 'Evaluator', 'Department'],
   reviewQueue: ['CreditStaff', 'Evaluator', 'Department'],
   decide: ['Evaluator', 'Department'],
@@ -46,6 +48,7 @@ const VERBS: Record<Operation, string> = {
   studentEvaluation: 'see this status page',
   uploadTranscript: 'upload a transcript',
   uploadSyllabus: 'upload a syllabus',
+  requestSyllabus: 'request a syllabus',
   recommendation: 'see the AI comparison',
   reviewQueue: 'open the review queue',
   decide: 'decide',

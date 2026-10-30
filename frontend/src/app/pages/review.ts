@@ -74,6 +74,54 @@ export class ReviewPage {
     return cands.find((c) => c.bu_code === this.candidateCode()) ?? cands[0] ?? null;
   });
 
+  /** R22: a preliminary suggestion is worded as an estimate ("Likely equivalent"); the decision itself is unchanged. */
+  protected suggestionLabel(decision: string): string {
+    if (!this.notDecidable() || decision === 'Evaluator decides') return decision;
+    return `Likely ${decision.toLowerCase()}`;
+  }
+
+  /** Why a syllabus is incomplete, in words: "no learning outcomes, no weekly schedule". */
+  protected missingSectionsLabel(sections: string[]): string {
+    const words: Record<string, string> = { learning_outcomes: 'no learning outcomes', schedule: 'no weekly schedule' };
+    return sections.map((s) => words[s] ?? `no ${s.replace(/_/g, ' ')}`).join(', ');
+  }
+
+  /** Students waiting on this course who have never been asked for its syllabus (e.g. a transcript loaded as seed
+   *  data, so the automatic request after an upload never ran). */
+  protected readonly unaskedStudents = computed(() => {
+    const s = this.syllabus();
+    const item = this.selected();
+    if (!s || !item || s.state === 'complete') return [];
+    const asked = new Set(s.requests.map((q) => q.student_id));
+    return item.students.filter((id) => !asked.has(id));
+  });
+  protected readonly canRequestSyllabus = computed(() => can(this.roles.role(), 'requestSyllabus'));
+  protected readonly requestBusy = signal(false);
+  protected readonly requestError = signal<string | null>(null);
+
+  /** Ask one student for this course's syllabus, then reload the request list shown in the banner. */
+  askForSyllabus(studentId: string): void {
+    const item = this.selected();
+    if (!item || this.requestBusy()) return;
+    this.requestBusy.set(true);
+    this.requestError.set(null);
+    this.api.requestSyllabus(studentId, item.ext_id).subscribe({
+      next: () => {
+        this.api.getSyllabus(item.ext_id).subscribe({
+          next: (s) => {
+            if (this.selected()?.ext_id === item.ext_id) this.syllabus.set(s);
+            this.requestBusy.set(false);
+          },
+          error: () => this.requestBusy.set(false),
+        });
+      },
+      error: (err) => {
+        this.requestBusy.set(false);
+        this.requestError.set(this.fail(err, 'requestSyllabus'));
+      },
+    });
+  }
+
   /** Same bands as the R20 tiers: 80+ high, 50-79 mid, below 50 low. */
   protected matchTone(pct: number): 'high' | 'mid' | 'low' {
     return pct >= 80 ? 'high' : pct >= 50 ? 'mid' : 'low';
@@ -282,6 +330,7 @@ export class ReviewPage {
     }
     this.syllabus.set(null);
     this.syllabusError.set(null);
+    this.requestError.set(null);
     this.api.getSyllabus(item.ext_id).subscribe({
       next: (s) => {
         if (this.selected()?.ext_id === item.ext_id) this.syllabus.set(s);   // ignore a late answer for another course
