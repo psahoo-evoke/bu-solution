@@ -12,7 +12,10 @@ param targetPort int = 8000
 param registryLoginServer string
 param pullIdentityId string
 param minReplicas int = 1
-param maxReplicas int = 2
+// 1: the API keeps a copy of the PostgreSQL data in memory (read at start-up, written through on change), so a second
+// replica would not see the first one's decisions until it restarts. Raise only once reads come from the database.
+@maxValue(1)
+param maxReplicas int = 1
 param cpu string = '0.5'
 param memory string = '1Gi'
 @description('Plain (non-secret) environment variables: [{ name, value }].')

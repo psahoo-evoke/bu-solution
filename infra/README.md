@@ -37,7 +37,7 @@ RG=rg-tiq-test LOCATION=westeurope scripts/deploy_aca.sh   # overrides
 - Runs in Git Bash, WSL, macOS/Linux or Azure Cloud Shell. Images are built with `az acr build`, so you don't need Docker locally.
 - Re-running is safe: it builds new image tags and rolls both apps to a new revision.
 - The web image reads `API_UPSTREAM` at container start, so the same image works with `docker compose` (`http://api:8000`) and in Azure (`https://<api internal fqdn>`).
-- The API runs with **exactly one replica**, because `backend/app/store.py` is in memory and every restart re-seeds it. Don't raise `--max-replicas` until the store moves to Postgres.
+- The API runs with **exactly one replica** (`maxReplicas = 1`, capped with `@maxValue(1)` in `modules/containerapp-api.bicep`). Writes go to PostgreSQL first, but reads come from the copy `backend/app/store.py` loads into memory at start-up, so a second replica would not see the first one's decisions until it restarts. Don't raise it until reads come from the database.
 - **Upload archive:** add `STORAGE_ACCOUNT=<existing account>` (and `STORAGE_RG` if it's in another resource group). The script then:
   - creates the `transcripts` and `syllabi` containers if they're missing (private)
   - turns on the API's system-assigned identity

@@ -49,7 +49,7 @@ Trust boundaries: (1) internet → SWA/API; (2) API → AI services (untrusted m
 | **T** | Batch-approve items ≤ 90 %; change units | Server recomputes confidence and rejects with 422 (sponsor rule); units only from `rules.py` (ADR 0001); decision input validated by Pydantic | `main.py` `/decisions/batch`, `rules.py` |
 | **R** | Evaluator denies having approved a course | Append-only audit log: actor role (+ user in prod), action, ext_id, before/after, timestamp, AI suggestion vs decision (`ai_agreed`) | `main.py` `_audit`, `decisions` table, App Insights |
 | **I** | Stack traces, student names in logs; CSV export to wrong role | Generic error bodies; log IDs not names (`SYN-*` only, no names, no transcript text); `/exports/mybu.csv` limited to Registrar/CreditStaff | checklist §4, §5 |
-| **D** | Huge or malicious PDF (decompression bomb, thousands of pages) exhausts memory | Size limit (≤ 10 MB), `%PDF-` magic + `application/pdf` check, page limit (≤ 30 pages), parsing time-out; Container Apps max 2 replicas caps cost | checklist §2; `containerapp-api.bicep` scale |
+| **D** | Huge or malicious PDF (decompression bomb, thousands of pages) exhausts memory | Size limit (≤ 10 MB), `%PDF-` magic + `application/pdf` check, page limit (≤ 30 pages), parsing time-out; Container Apps max 1 replica caps cost | checklist §2; `containerapp-api.bicep` scale |
 | **E** | Student role posts a decision | `require_role` on every mutating route; default-deny for unknown/missing role | checklist §1 |
 
 ### 3. Matcher / LLM (Azure OpenAI, AI Search, Document Intelligence)
