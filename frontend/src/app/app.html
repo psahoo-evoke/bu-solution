@@ -1,6 +1,6 @@
 <a class="skip-link" href="#main">Skip to main content</a>
 <header class="topbar">
-  <a class="topbar__brand" routerLink="/" aria-label="TransferIQ home">
+  <a class="topbar__brand" [routerLink]="brandLink()" [attr.aria-label]="noHome() ? 'TransferIQ, my page' : 'TransferIQ home'">
     <span class="logo" aria-hidden="true">TIQ</span>
     <span class="topbar__wordmark">
       <span class="topbar__title">Transfer<span class="topbar__iq">IQ</span></span>
@@ -9,9 +9,11 @@
   </a>
   <!-- Icons are decorative: each link's accessible name is its text. -->
   <nav class="topbar__nav" aria-label="Main">
-    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 11.5h3V20h5.5v-5.5h3V20H19v-8.5h3z"/></svg>Home
-    </a>
+    @if (!noHome()) {
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 11.5h3V20h5.5v-5.5h3V20H19v-8.5h3z"/></svg>Home
+      </a>
+    }
     <a routerLink="/credit-check" routerLinkActive="active" ariaCurrentWhenActive="page">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2a8 8 0 1 0 4.9 14.3l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0 0 10 2zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12z"/></svg>Check a course
     </a>
