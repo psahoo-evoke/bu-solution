@@ -130,6 +130,8 @@ export interface CourseSyllabus {
   /** Plain text from the PDF: always interpolated, never bound as HTML. */
   text: string | null;
   truncated: boolean;
+  /** The catalogue record's outcomes: what the matcher compares when the syllabus lists none. */
+  catalogue_outcomes?: string[];
   requests: {
     student_id: string;
     student_name: string;

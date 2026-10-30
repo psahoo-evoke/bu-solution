@@ -474,6 +474,10 @@ components:
         injection_detected: { type: boolean }
         text: { type: string, nullable: true, description: "Plain text extracted from the PDF; never render as HTML" }
         truncated: { type: boolean }
+        catalogue_outcomes:
+          type: array
+          items: { type: string }
+          description: "The course's learning outcomes from the institution's catalogue record (what the matcher compares when the syllabus lists none). Plain text."
         requests:
           type: array
           items:

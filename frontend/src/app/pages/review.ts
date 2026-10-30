@@ -74,6 +74,12 @@ export class ReviewPage {
     return cands.find((c) => c.bu_code === this.candidateCode()) ?? cands[0] ?? null;
   });
 
+  /** R22: a preliminary suggestion is worded as an estimate ("Likely equivalent"); the decision itself is unchanged. */
+  protected suggestionLabel(decision: string): string {
+    if (!this.notDecidable() || decision === 'Evaluator decides') return decision;
+    return `Likely ${decision.toLowerCase()}`;
+  }
+
   /** Same bands as the R20 tiers: 80+ high, 50-79 mid, below 50 low. */
   protected matchTone(pct: number): 'high' | 'mid' | 'low' {
     return pct >= 80 ? 'high' : pct >= 50 ? 'mid' : 'low';

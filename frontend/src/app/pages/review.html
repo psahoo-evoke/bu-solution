@@ -191,8 +191,12 @@
           </div>
         }
 
-        <div class="suggestion">
-          <div><span class="muted small">AI suggestion</span><br /><strong>{{ r.suggested_decision }}</strong> {{ r.suggested_code }}</div>
+        <div class="suggestion" [class.suggestion--prelim]="notDecidable()">
+          <div>
+            <span class="muted small">AI suggestion</span>
+            @if (notDecidable()) { <span class="prelim-tag" title="Based on the catalogue description only; decide once a complete syllabus arrives">Preliminary</span> }
+            <br /><strong>{{ suggestionLabel(r.suggested_decision) }}</strong> {{ r.suggested_code }}
+          </div>
           <div><span class="muted small">Confidence</span><br /><strong>{{ r.confidence_pct }}%</strong></div>
           <div><span class="muted small">Engine</span><br /><code>{{ r.engine }}</code></div>
         </div>
@@ -254,7 +258,15 @@
                           @for (o of v.outcomes; track $index) { <li>{{ o }}</li> }
                         </ol>
                       } @else {
-                        <p class="syl-sec__none">{{ v.outcomesNote || 'Not given in this syllabus.' }}</p>
+                        <p class="syl-sec__none">Syllabus: {{ v.outcomesNote || 'not given.' }}</p>
+                        @if (s.catalogue_outcomes?.length) {
+                          <div class="syl-sec__catalogue">
+                            <p class="syl-sec__catalogue-h">Catalogue lists (used for the score above):</p>
+                            <ol class="syl-sec__outcomes">
+                              @for (o of s.catalogue_outcomes; track $index) { <li>{{ o }}</li> }
+                            </ol>
+                          </div>
+                        }
                       }
                     </section>
                   </div>

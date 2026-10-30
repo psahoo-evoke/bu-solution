@@ -81,10 +81,12 @@ def test_evaluator_reads_the_syllabus_and_the_requests(client, fresh_store):
     body = r.json()
     assert body["state"] == "complete" and body["source"] == "on file" and len(body["text"]) > 200
     assert body["requests"] == []
+    assert body["catalogue_outcomes"] == fresh_store.ext_courses["NYU|PSYCH-UA 10"].learning_outcomes
     fresh_store.lines = [ln for ln in fresh_store.lines if ln.student_id != "SYN-24001"]
     upload(client, "SYN-24001", MAYA_NYU, role("Student"))
     body = client.get("/api/courses/NYU%7CPSYCH-UA%2025/syllabus", headers=role("Evaluator")).json()
     assert body["state"] == "missing" and body["text"] is None
+    assert body["catalogue_outcomes"] == fresh_store.ext_courses["NYU|PSYCH-UA 25"].learning_outcomes
     [req] = body["requests"]
     assert (req["student_id"], req["student_name"], req["automatic"], req["status"]) == \
         ("SYN-24001", "Maya R. Delgado", True, "not_sent")

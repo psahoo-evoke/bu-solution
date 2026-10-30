@@ -722,6 +722,8 @@ def course_syllabus(request: Request, ext_id: str = ExtIdPath):
                 injection_detected=bool(rec and rec.injection_detected),
                 text=(rec.text[:SYLLABUS_TEXT_MAX] if rec and rec.text else None),
                 truncated=bool(rec and len(rec.text or "") > SYLLABUS_TEXT_MAX),
+                # What the matcher used when the syllabus lists no outcomes, so the evaluator can trace the score.
+                catalogue_outcomes=list(S().ext_courses[ext_id].learning_outcomes),
                 requests=[_request_summary(sid, ext_id, names) for sid in waiting
                           if syllabus_requests(sid, ext_id)])
 
