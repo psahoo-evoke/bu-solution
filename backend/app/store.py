@@ -183,6 +183,7 @@ class Store:
     students: dict[str, Student] = field(default_factory=dict)
     lines: list[TranscriptLine] = field(default_factory=list)
     transcripts: list[TranscriptRecord] = field(default_factory=list)   # uploads, oldest first (seed: none)
+    notification_seen: dict[str, str] = field(default_factory=dict)     # student_id -> read up to (ISO time)
     syllabi: dict[str, SyllabusRecord] = field(default_factory=dict)
     rules: list[dict] = field(default_factory=list)
     reason_codes: dict[str, dict] = field(default_factory=dict)

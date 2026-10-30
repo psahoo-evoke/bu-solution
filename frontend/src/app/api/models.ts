@@ -103,6 +103,23 @@ export interface TranscriptUpload {
   };
 }
 
+/** openapi: components.schemas.StudentNotifications (GET /students/{id}/notifications). */
+export interface StudentNotification {
+  id: string;
+  kind: 'transcript' | 'syllabus_request' | 'syllabus_reminder' | 'syllabus_received' | 'decision' | 'posted';
+  title: string;
+  body: string;
+  at: string;
+  ext_id: string | null;
+  unread: boolean;
+}
+
+export interface StudentNotifications {
+  items: StudentNotification[];
+  unread: number;
+  seen_at: string | null;
+}
+
 /** openapi: components.schemas.CourseSyllabus (GET /courses/{ext_id}/syllabus, staff only). */
 export interface CourseSyllabus {
   ext_id: string;

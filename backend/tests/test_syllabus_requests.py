@@ -203,3 +203,13 @@ def test_without_a_mail_service_nothing_is_sent_or_recorded(requested, fresh_sto
     before = len(fresh_store.audit_log)
     res = remind(dt.datetime.now(dt.timezone.utc) + 10 * DAY)
     assert res["courses"] == [] and res["skipped"] == "no mail service configured" and len(fresh_store.audit_log) == before
+
+
+def test_no_next_reminder_is_shown_for_a_course_no_longer_waiting_for_a_syllabus(requested, client, fresh_store):
+    # The plan shown to the evaluator follows the same rule as the reminder job: once PSYCH-UA 25 is decided, no
+    # reminder is planned (and none is sent).
+    client.post("/api/decisions", json=dict(ext_id="NYU|PSYCH-UA 25", decision="Elective", bu_course="CAS PS 2TR",
+                                            reason_code="EL-LOWOVERLAP", evaluator="E"), headers=role("Evaluator"))
+    [req] = client.get("/api/courses/NYU%7CPSYCH-UA%2025/syllabus").json()["requests"]
+    assert req["next_reminder_at"] is None
+    assert remind(dt.datetime.now(dt.timezone.utc) + 10 * DAY)["courses"] == []

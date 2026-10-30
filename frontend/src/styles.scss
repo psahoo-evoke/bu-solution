@@ -83,6 +83,40 @@ code { font-size: .9em; background: #eef1f4; padding: 0 .25em; border-radius: 4p
   font-size: .75rem; font-weight: 700; padding: .15rem .55rem; border-radius: 999px;
   background: var(--info-bg); color: var(--accent); border: 1px solid #a9c6ea;
 }
+.bell {
+  position: relative;
+  &__button {
+    position: relative; display: inline-grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;
+    &:hover { background: #f0f2f5; }
+    &:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  }
+  &__badge {
+    position: absolute; top: -.3rem; right: -.35rem; min-width: 1.15rem; height: 1.15rem; padding: 0 .3rem; border-radius: 999px;
+    background: var(--brand); color: #fff; font-size: .7rem; font-weight: 700; line-height: 1.15rem; text-align: center;
+    box-shadow: 0 0 0 2px var(--surface);
+  }
+  &__panel {
+    position: absolute; right: 0; top: calc(100% + .5rem); z-index: 50; width: min(24rem, calc(100vw - 2rem));
+    max-height: min(70vh, 32rem); overflow-y: auto; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: 0 8px 24px rgba(27, 31, 36, .16); text-align: left;
+  }
+  &__head { position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; padding: .7rem .9rem;
+            background: var(--surface); border-bottom: 1px solid var(--border); }
+  &__empty { margin: 0; padding: 1.1rem .9rem; color: var(--muted); font-size: .9rem; }
+  &__list { list-style: none; margin: 0; padding: 0; }
+  &__item {
+    border-bottom: 1px solid var(--border); border-left: 3px solid transparent;
+    &:last-child { border-bottom: 0; }
+    &.is-new { background: #fdf3f3; border-left-color: var(--brand); }
+    button { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: .2rem; width: 100%; padding: .65rem .9rem; cursor: pointer; }
+    button:hover { background: #f7f8fa; }
+    button:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+  }
+  &__title { font-weight: 600; font-size: .9rem; }
+  &__body { font-size: .85rem; color: var(--text); }
+  &__time { font-size: .75rem; color: var(--muted); }
+}
 .topbar__user { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .badge {
   display: inline-block; font-size: .75rem; padding: .15rem .5rem; border-radius: 999px; font-weight: 600;

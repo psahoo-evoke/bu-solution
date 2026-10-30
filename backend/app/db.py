@@ -116,6 +116,10 @@ CREATE TABLE IF NOT EXISTS transcripts (
     uploaded_at       timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS transcripts_student_school ON transcripts (student_id, school_code, uploaded_at);
+CREATE TABLE IF NOT EXISTS notification_reads (
+    student_id  text PRIMARY KEY REFERENCES students,
+    seen_at     timestamptz NOT NULL            -- the student read every in-app notification up to this time
+);
 """
 
 
@@ -190,6 +194,8 @@ def load_store(s) -> None:
                     "coalesce(blob_url,''), course_count, coalesce(uploaded_by,''), uploaded_at from transcripts "
                     "order by uploaded_at, transcript_id")
         s.transcripts = [TranscriptRecord(*r[:8], uploaded_at=r[8].isoformat()) for r in cur.fetchall()]
+        cur.execute("select student_id, seen_at from notification_reads")
+        s.notification_seen = {sid: at.isoformat() for sid, at in cur.fetchall()}
         cur.execute("select ext_id, state, blob_url, source_file, extracted_text, injection_detected, "
                     "coalesce(seed_state,''), received_at from syllabi")
         for ext_id, state, blob_url, source_file, text, inj, seed_state, received_at in cur.fetchall():
@@ -284,6 +290,12 @@ def save_postings(items: list[tuple[tuple[str, str, str], dict]]) -> None:
                         "decision_id = excluded.decision_id, posted_at = excluded.posted_at, "
                         "actor_role = excluded.actor_role",
                         (sid, ext_id, term, p["decision_id"], _ts(p["posted_at"]), p["actor_role"]))
+
+
+def save_notification_seen(student_id: str, seen_at: str) -> None:
+    with tx() as cur:
+        cur.execute("insert into notification_reads (student_id, seen_at) values (%s, %s) on conflict (student_id) "
+                    "do update set seen_at = excluded.seen_at", (student_id, _ts(seen_at)))
 
 
 def save_audit(entry: dict) -> None:

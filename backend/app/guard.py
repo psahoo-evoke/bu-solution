@@ -5,7 +5,7 @@ before any route code runs. A refused request therefore cannot cause a side effe
 
 - Every /api route except the PUBLIC allowlist (health, /auth/*, the credit check and chat; ADR 0006) needs a valid
   X-Demo-Role: missing or unknown -> 401, not allowed -> 403. Public routes: a body over MAX_PUBLIC_BODY -> 413.
-- Allowed roles per operation mirror `x-roles` in docs/api/openapi.yaml (v0.7.0). tests/test_roles.py checks that
+- Allowed roles per operation mirror `x-roles` in docs/api/openapi.yaml (v0.8.0). tests/test_roles.py checks that
   this table and the contract stay identical.
 - Upload routes: a body over MAX_UPLOAD_BYTES -> 413. Content-Length is checked up front; chunked bodies are
   counted while streaming.
@@ -39,6 +39,8 @@ MAX_PUBLIC_BODY = 64 * 1024         # public routes take small JSON only
 ROUTE_ROLES: list[tuple[str, str, set[str]]] = [
     ("GET", "/students", EVERYONE),
     ("GET", "/students/{student_id}/evaluation", EVERYONE),
+    ("GET", "/students/{student_id}/notifications", EVERYONE),
+    ("POST", "/students/{student_id}/notifications/seen", {"Student"}),
     ("POST", "/students/{student_id}/transcripts", {"Student", "CreditStaff"}),
     ("POST", "/courses/{ext_id}/syllabus", {"Student", "CreditStaff", "Evaluator", "Department"}),
     ("POST", "/students/{student_id}/courses/{ext_id}/syllabus-request", {"Student", "CreditStaff", "Evaluator", "Department"}),

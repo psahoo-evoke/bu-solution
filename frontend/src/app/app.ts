@@ -5,10 +5,11 @@ import { AuthService } from './api/auth.service';
 import { DemoRole } from './api/models';
 import { Operation, can } from './api/permissions';
 import { RoleService } from './api/role.service';
+import { NotificationBell } from './shared/notification-bell';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NotificationBell],
   templateUrl: './app.html',
 })
 export class App implements OnInit {

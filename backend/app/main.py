@@ -26,7 +26,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from . import accounts, blob_store, credit_chat, credit_check, db, notify, ratelimit
+from . import accounts, blob_store, credit_chat, credit_check, db, notifications, notify, ratelimit
 from . import store as store_mod
 from .evaluation import evaluate_holdout
 from .guard import MAX_UPLOAD_BYTES, RoleGuardMiddleware, auth_mode
@@ -67,7 +67,7 @@ async def lifespan(_app: FastAPI):
 
 
 _entra = auth_mode() == "entra"
-app = FastAPI(title="TransferIQ API", version="0.7.0",
+app = FastAPI(title="TransferIQ API", version="0.8.0",
               description="AI recommends, the rules engine computes, evaluators decide.", lifespan=lifespan,
               docs_url=None if _entra else "/docs", redoc_url=None, openapi_url=None if _entra else "/openapi.json")
 
@@ -335,6 +335,30 @@ def list_students(request: Request):
 @api.get("/students/{student_id}/evaluation")
 def student_evaluation(student_id: str = StudentIdPath):
     return build_evaluation(student_id)
+
+
+@api.get("/students/{student_id}/notifications")
+def student_notifications(student_id: str = StudentIdPath):
+    """In-app notifications (app/notifications.py). Reading them does not mark them read: a staff member looking at
+    a student's record must not clear the student's unread count."""
+    if student_id not in S().students:
+        raise HTTPException(404, f"Unknown student {student_id}")
+    return notifications.for_student(S(), student_id)
+
+
+@api.post("/students/{student_id}/notifications/seen")
+def student_notifications_seen(student_id: str = StudentIdPath):
+    """The student opened their notifications: everything they were shown is read (Student role only; portal: own
+    id). Read up to the newest notification, not "now": an event in the same moment stays unread."""
+    if student_id not in S().students:
+        raise HTTPException(404, f"Unknown student {student_id}")
+    with S().lock:
+        shown = notifications.for_student(S(), student_id)["items"]
+        if shown:
+            seen = shown[0]["at"]
+            _persist(db.save_notification_seen, student_id, seen)
+            S().notification_seen[student_id] = seen
+    return notifications.for_student(S(), student_id)
 
 
 PDF_PARSE_TIMEOUT_S = float(os.environ.get("TRANSFERIQ_PDF_TIMEOUT_S", "15"))
@@ -707,7 +731,11 @@ def _request_summary(student_id: str, ext_id: str, names: dict) -> dict:
     reqs = syllabus_requests(student_id, ext_id)                           # newest first, failed ones included
     latest = reqs[0]
     plan = _reminder_plan(student_id, ext_id)
-    open_ = S().syllabus_state(ext_id) != "complete" and not _syllabus_uploaded(ext_id)
+    st = S().students.get(student_id)
+    # The same rule as send_due_reminders: only a course still waiting for its syllabus (TS/TM) gets reminders. An old
+    # request on a course that is now, for example, under age review (RV-AGE) shows no next reminder.
+    open_ = bool(st) and not _syllabus_uploaded(ext_id) and any(
+        o["ext_id"] == ext_id and o["state"] in NEEDS_SYLLABUS for o in evaluate_student(S(), st))
     return dict(student_id=student_id, student_name=names.get(student_id, student_id),
                 requested_at=plan["requested_at"] or reqs[-1]["requested_at"], last_sent_at=plan["last_sent_at"],
                 reminders=plan["reminders"], next_reminder_at=plan["next_reminder_at"] if open_ else None,

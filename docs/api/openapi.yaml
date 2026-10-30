@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: TransferIQ API
-  version: 0.7.0
+  version: 0.8.0
   description: |
     Transfer credit evaluation co-pilot (EvoHack 2026, BU problem statement).
     AI recommends, the rules engine computes, evaluators decide.
@@ -83,6 +83,28 @@ paths:
       responses:
         "200": { description: Evaluation, content: { application/json: { schema: { $ref: "#/components/schemas/StudentEvaluation" } } } }
         "404": { description: Unknown student }
+  /students/{student_id}/notifications:
+    get:
+      summary: "In-app notifications for a student, newest first (at most 50)"
+      description: |
+        Transcript received, syllabus needed (and each reminder), syllabus received, a decision on one of the student's courses
+        (only when it applies to them) and credit posted. Built from what the app already records; shown even when an email
+        failed or no mail service is configured. Never includes staff email lists, evaluator names or notes. Reading does not
+        mark anything read (staff may look at a student's record). Portal: a student only reaches their own id.
+      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor]
+      parameters: [ { $ref: "#/components/parameters/StudentId" } ]
+      responses:
+        "200": { description: Notifications, content: { application/json: { schema: { $ref: "#/components/schemas/StudentNotifications" } } } }
+        "404": { description: Unknown student }
+  /students/{student_id}/notifications/seen:
+    post:
+      summary: "The student opened their notifications: everything up to now is read"
+      x-roles: [Student]
+      parameters: [ { $ref: "#/components/parameters/StudentId" } ]
+      responses:
+        "200": { description: Notifications after marking them read, content: { application/json: { schema: { $ref: "#/components/schemas/StudentNotifications" } } } }
+        "404": { description: Unknown student }
+        "503": { description: The read state could not be saved }
   /students/{student_id}/transcripts:
     post:
       summary: Upload a transcript PDF; lines are extracted and evaluated
@@ -421,6 +443,26 @@ components:
                     to: { type: array, items: { type: string } }
                     cc: { type: array, items: { type: string } }
                     emailed_student: { type: boolean, description: "false for seeded sample students: the notification list receives it" }
+    StudentNotifications:
+      type: object
+      required: [items, unread]
+      properties:
+        unread: { type: integer }
+        seen_at: { type: string, format: date-time, nullable: true, description: "Read up to this time (null: never opened)" }
+        items:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [id, kind, title, body, at, unread]
+            properties:
+              id: { type: string }
+              kind: { type: string, enum: [transcript, syllabus_request, syllabus_reminder, syllabus_received, decision, posted] }
+              title: { type: string, example: "Syllabus needed for NYU PSYCH-UA 25" }
+              body: { type: string }
+              at: { type: string, format: date-time }
+              ext_id: { type: string, nullable: true }
+              unread: { type: boolean }
     CourseSyllabus:
       type: object
       required: [ext_id, state, requests]

@@ -39,6 +39,9 @@
       } @else if (roleService.available().length === 1) {
         <span class="role-badge">{{ roleService.role() }}</span>
       }
+      @if (auth.studentId(); as sid) {
+        <app-notification-bell [studentId]="sid" />
+      }
       <span class="topbar__user" [title]="auth.email()">{{ auth.userName() }}</span>
       <button type="button" class="btn btn--small" (click)="signOut()">Sign out</button>
     } @else if (auth.entra()) {
