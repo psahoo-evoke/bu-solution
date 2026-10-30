@@ -24,6 +24,10 @@
 @if (notice()) {
   <div class="banner banner--info" role="status">
     {{ notice() }}
+    @if (loading() && evaluation()) {
+      <!-- A reload on top of the page shown (e.g. after an upload): say so, the rows below are about to change. -->
+      <span class="refreshing"><span class="spinner" aria-hidden="true"></span> Updating your credit status…</span>
+    }
     <button type="button" class="btn btn--small btn--ghost" (click)="notice.set(null)" aria-label="Dismiss message">Dismiss</button>
   </div>
 }

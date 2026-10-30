@@ -206,6 +206,65 @@ def test_changed_syllabus_is_a_new_model_call(azure):
     assert len(calls) == 2
 
 
+def test_wait_false_answers_offline_now_and_warms_the_model_for_next_time(azure):
+    """Status-page hints (wait=False) never block on the model: offline now, the model ranking in the background,
+    then the cached model ranking. A reload while it is still running does not start a second call."""
+    import threading
+    release, started = threading.Event(), threading.Event()
+
+    def slow(messages):
+        started.set()
+        assert release.wait(5)
+        return _top_at(70)(messages)
+    calls = azure(slow)
+    first = matcher.recommend(*_course(), wait=False)
+    assert first["engine"] == "offline-fallback"
+    assert started.wait(5)
+    assert matcher.recommend(*_course(), wait=False)["engine"] == "offline-fallback"   # still running: no 2nd call
+    assert len(calls) == 1
+    release.set()
+    for t in [t for t in threading.enumerate() if t.name == "rank-warm"]:
+        t.join(5)
+    warmed = matcher.recommend(*_course(), wait=False)
+    assert warmed["engine"] == "azure-openai" and len(calls) == 1
+
+
+def test_a_failed_background_call_is_retried_later(azure):
+    import threading
+    state = {"fail": True}
+
+    def flaky(messages):
+        if state["fail"]:
+            raise TimeoutError("quota")
+        return _top_at(70)(messages)
+    calls = azure(flaky)
+    assert matcher.recommend(*_course(), wait=False)["engine"] == "offline-fallback"
+    for t in [t for t in threading.enumerate() if t.name == "rank-warm"]:
+        t.join(5)
+    state["fail"] = False
+    assert matcher.recommend(*_course())["engine"] == "azure-openai"           # a waiting call retries the model
+    assert len(calls) == 2
+
+
+def test_status_page_does_not_wait_on_the_model(azure, client):
+    """Right after a syllabus upload the status page must not wait 15-20 s on a model call (the rows looked stuck)."""
+    import time
+    from .conftest import role
+
+    def slow(messages):
+        time.sleep(1.5)
+        return _top_at(70)(messages)
+    azure(slow)
+    t0 = time.monotonic()
+    r = client.get("/api/students/SYN-24001/evaluation", headers=role("Student"))
+    assert r.status_code == 200 and time.monotonic() - t0 < 1.5
+    assert {"NYU|PSYCH-UA 25", "NYU|PSYCH-UA 10"} <= {ln["ext_id"] for ln in r.json()["lines"]}
+    import threading
+    for t in [t for t in threading.enumerate() if t.name == "rank-warm"]:    # no late writes into the next test
+        t.join(5)
+    matcher.clear_cache()
+
+
 def test_failures_are_not_cached(azure):
     state = {"fail": True}
 

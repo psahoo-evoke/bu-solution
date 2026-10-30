@@ -29,7 +29,7 @@ What goes wrong today:
 - **Missing paperwork stalls everything.** Nobody is chased for a missing or incomplete syllabus, so courses sit in limbo.
 - **No system integration.** There is no access to Transferology, BU's equivalency database or MyBU, so results are re-keyed by hand.
 
-All numbers are the sponsor's estimates, not measured BU data. Full answers: [`docs/discovery/sponsor-answers.md`](docs/discovery/sponsor-answers.md).
+All numbers are the sponsor's estimates, not measured BU data. **Discovery document** (problem, users, functional and non-functional requirements, assumptions, constraints, out of scope, requirement → feature → test traceability, edge cases): [`docs/discovery/discovery.md`](docs/discovery/discovery.md). Sponsor answers: [`docs/discovery/sponsor-answers.md`](docs/discovery/sponsor-answers.md).
 
 ### Success test (agreed with the sponsor)
 Evaluator time per course drops from **12 minutes to under 2**, while the AI's top suggestion matches the evaluator's decision in **≥ 80 %** of cases and **wrongly suggested credit stays ≤ 2 %**.
@@ -257,7 +257,7 @@ The work was split across eight **role agents** run with our AI assistant, **Sol
 ### Repository map
 | Path | Owner role | Contents |
 | --- | --- | --- |
-| `docs/discovery/`, `docs/stories.md` | BA | Sponsor discovery log, what we learned, 12 user stories |
+| `docs/discovery/`, `docs/stories.md` | BA | Discovery document with requirements and traceability, sponsor discovery log, what we learned, 12 user stories |
 | `docs/architecture.md`, `docs/data-model.md`, `docs/adr/`, `docs/api/` | Architect | Architecture, data model, ADRs, API contract |
 | `data/synthetic/`, `scripts/synthetic/` | Synthetic Data | Test catalogs, past decisions, transcripts, syllabi, generator |
 | `backend/` | Developer + QA | FastAPI, rules engine, matcher, chat, database, storage, email, sign-in, 599 tests, evaluation |
