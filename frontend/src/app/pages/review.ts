@@ -67,6 +67,17 @@ export class ReviewPage {
   protected readonly syllabusError = signal<string | null>(null);
   /** Only the parts used to compare courses: description, learning outcomes and the weekly schedule. */
   protected readonly syllabusView = computed(() => parseSyllabus(this.syllabus()?.text));
+  /** The BU course the syllabus sections are scored against: the selected candidate, or the top one when the
+   *  selection is not a candidate (e.g. an elective code). */
+  protected readonly matchCandidate = computed(() => {
+    const cands = this.rec()?.candidates ?? [];
+    return cands.find((c) => c.bu_code === this.candidateCode()) ?? cands[0] ?? null;
+  });
+
+  /** Same bands as the R20 tiers: 80+ high, 50-79 mid, below 50 low. */
+  protected matchTone(pct: number): 'high' | 'mid' | 'low' {
+    return pct >= 80 ? 'high' : pct >= 50 ? 'mid' : 'low';
+  }
 
   // Decision form
   protected readonly typedEvaluator = signal('Demo Evaluator');

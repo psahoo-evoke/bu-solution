@@ -1,43 +1,28 @@
-/** The parts of a syllabus an evaluator compares against a BU course: what it covers, what students can do after
- *  it, and the week-by-week plan. Everything else (header, assessment weights, policies) is left out of the view. */
-export interface SyllabusWeek {
-  week: string;
-  topic: string;
-  activity: string;
-}
-
+/** The parts of a syllabus an evaluator compares against a BU course: what it covers and what students can do after
+ *  it. Everything else (header, schedule, assessment weights, policies) is left out of the view. */
 export interface SyllabusSections {
-  /** null: the heading is not in the text. A string with no list/rows: the syllabus gives only a placeholder note. */
+  /** null: the heading is not in the text. */
   description: string | null;
   outcomes: string[];
+  /** The placeholder an incomplete syllabus gives instead of a list ("To be discussed in the first class"). */
   outcomesNote: string | null;
-  weeks: SyllabusWeek[];
-  weeksNote: string | null;
-  /** False when none of the three headings were found (e.g. an uploaded syllabus with its own layout). */
+  /** False when neither heading was found (e.g. an uploaded syllabus with its own layout). */
   recognised: boolean;
 }
 
-type Key = 'description' | 'outcomes' | 'schedule' | 'other';
+type Key = 'description' | 'outcomes' | 'other';
 
 const HEADINGS: [RegExp, Key][] = [
   [/^course description$/i, 'description'],
   [/^(learning outcomes|learning objectives|course objectives)$/i, 'outcomes'],
-  [/^(weekly schedule|course schedule|schedule|course outline)$/i, 'schedule'],
+  // Headings that end the two sections above; their content is not shown.
+  [/^(weekly schedule|course schedule|schedule|course outline)$/i, 'other'],
   [/^(assessment|grading|materials and policies|materials|policies|required materials)$/i, 'other'],
 ];
 /** pdfplumber keeps the page footer, which can land in the middle of a section. */
 const FOOTER = /syllabus\s*-\s*page\s+\d+\s*$/i;
-const SCHEDULE_HEADER = /^week\s+topic\b/i;
 const OUTCOMES_INTRO = /^by the end of (the|this) course/i;
 const NUMBERED = /^(\d{1,2})[.)]\s+(.*)$/;
-const WEEK_ROW = /^(\d{1,2})\s+(.+)$/;
-/** Assessment names seen at the end of a schedule row; anything else stays in the topic column. */
-const ACTIVITY = new RegExp(
-  '\\s(problem sets?|in-class exercises?|quiz(zes)?|case stud(y|ies)|reading and discussion|readings?|discussion|' +
-    'midterm( exam)?|final exam( \\/ project)?|final project|exam|labs?( report)?|project|presentation|essay|' +
-    'homework|assignment|paper|none)$',
-  'i',
-);
 
 export function parseSyllabus(text: string | null | undefined): SyllabusSections {
   const sections: Partial<Record<Key, string[]>> = {};
@@ -66,28 +51,10 @@ export function parseSyllabus(text: string | null | undefined): SyllabusSections
     else outcomeLoose.push(line);
   }
 
-  const rows: string[][] = [];
-  const weekLoose: string[] = [];
-  for (const line of sections.schedule ?? []) {
-    if (SCHEDULE_HEADER.test(line)) continue;
-    const m = WEEK_ROW.exec(line);
-    if (m) rows.push([m[1], m[2]]);
-    else if (rows.length) rows[rows.length - 1][1] += ' ' + line;            // wrapped row
-    else weekLoose.push(line);
-  }
-  const weeks = rows.map(([week, rest]) => {
-    const a = ACTIVITY.exec(rest);
-    return a && a.index > 0
-      ? { week, topic: rest.slice(0, a.index).trim(), activity: rest.slice(a.index).trim() }
-      : { week, topic: rest, activity: '' };
-  });
-
   return {
     description,
     outcomes,
     outcomesNote: outcomes.length ? null : outcomeLoose.join(' ') || null,
-    weeks,
-    weeksNote: weeks.length ? null : weekLoose.join(' ') || null,
-    recognised: !!(sections.description || sections.outcomes || sections.schedule),
+    recognised: !!(sections.description || sections.outcomes),
   };
 }

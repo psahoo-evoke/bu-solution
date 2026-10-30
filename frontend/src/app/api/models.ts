@@ -154,6 +154,8 @@ export interface Candidate {
   tier: CandidateTier;
   covered: string[];
   missing: string[];
+  /** How much of this BU course's description the external description covers (display only; null: nothing to compare). */
+  description_match_pct?: number | null;
 }
 
 export interface Recommendation {

@@ -497,7 +497,10 @@ components:
         tier: { type: string, enum: [equivalent, evaluator_decides, elective] }
         covered: { type: array, items: { type: string } }
         missing: { type: array, items: { type: string } }
-    Recommendation:
+        description_match_pct:
+          type: integer
+          nullable: true
+          description: "0-100: how much of this BU course's description the external course description covers (Azure OpenAI, offline topic match as fallback). Display only: never changes overlap_pct, tier or the suggested decision. Null when there is nothing to compare."
       type: object
       properties:
         ext_id: { type: string }

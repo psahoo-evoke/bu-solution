@@ -61,6 +61,46 @@ def test_valid_output_is_used(azure):
         assert c["tier"] == matcher.tier_of(c["overlap_pct"])
 
 
+def test_description_match_comes_from_the_model_with_offline_fallback(azure):
+    seen = {}
+
+    def reply(messages):
+        codes = seen["codes"] = _shortlist_codes(messages)
+        return json.dumps({"candidates": [
+            {"bu_code": codes[0], "overlap_pct": 0, "description_match_pct": 140},      # clamped
+            {"bu_code": codes[1], "overlap_pct": 0, "description_match_pct": 42},
+            {"bu_code": codes[2], "overlap_pct": 0, "description_match_pct": "high"},   # not a number: offline
+            {"bu_code": codes[3], "overlap_pct": 0}]})                                  # missing: offline
+    azure(reply)
+    course, bus, syl = _course()
+    rec = matcher.recommend(course, bus, syl)
+    assert rec["engine"] == "azure-openai"             # a bad description figure does not reject the answer
+    by = {c["bu_code"]: c for c in matcher._azure_rank(course, bus, matcher.sanitize(syl.text))[0]}
+    s = store_mod.STORE.bu_courses
+    codes = seen["codes"]
+    assert by[codes[0]]["description_match_pct"] == 100
+    assert by[codes[1]]["description_match_pct"] == 42
+    for code in codes[2:4]:
+        assert by[code]["description_match_pct"] == matcher.description_match(course, s[code])
+
+
+def test_prompt_carries_bu_descriptions(azure):
+    calls = azure(_top_at(50))
+    matcher.recommend(*_course())
+    cands = json.loads(calls[-1][1]["content"].split("Candidate BU courses (trusted):\n")[1])
+    assert all(c["description"] == store_mod.STORE.bu_courses[c["bu_code"]].description for c in cands)
+    assert "description_match_pct" in calls[-1][0]["content"]
+
+
+def test_offline_description_match():
+    course = store_mod.STORE.ext_courses["NYU|ECON-UA 266"]
+    b = next(iter(store_mod.STORE.bu_courses.values()))
+    named = dataclasses.replace(course, description=" and ".join(b.topics[:2]) + ".")
+    assert matcher.description_match(named, b) == round(100 * 2 / len(b.topics))
+    assert matcher.description_match(dataclasses.replace(course, description=""), b) is None
+    assert matcher.description_match(course, dataclasses.replace(b, topics=[])) is None
+
+
 def test_model_overlap_is_kept_only_without_bu_outcomes():
     b = next(iter(store_mod.STORE.bu_courses.values()))
     bare = dataclasses.replace(b, learning_outcomes=[])

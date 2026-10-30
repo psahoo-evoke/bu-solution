@@ -218,7 +218,17 @@
                 @if (v.recognised) {
                   <div class="syllabus-panel__body" tabindex="0" aria-label="Syllabus">
                     <section class="syl-sec">
-                      <h4 class="syl-sec__h">Course description</h4>
+                      <h4 class="syl-sec__h">
+                        Course description
+                        @if (matchCandidate(); as m) {
+                          @if (m.description_match_pct != null) {
+                            <span class="match match--{{ matchTone(m.description_match_pct) }}"
+                                  title="How much of {{ m.bu_code }}'s description this course's description covers">
+                              {{ m.description_match_pct }}% match · {{ m.bu_code }}
+                            </span>
+                          }
+                        }
+                      </h4>
                       @if (v.description) {
                         <p class="syl-sec__desc">{{ v.description }}</p>
                       } @else {
@@ -227,35 +237,24 @@
                     </section>
 
                     <section class="syl-sec">
-                      <h4 class="syl-sec__h">Learning outcomes @if (v.outcomes.length) { <span class="count">{{ v.outcomes.length }}</span> }</h4>
+                      <h4 class="syl-sec__h">
+                        Learning outcomes @if (v.outcomes.length) { <span class="count">{{ v.outcomes.length }}</span> }
+                        @if (matchCandidate(); as m) {
+                          @if (m.covered.length + m.missing.length) {
+                            <span class="match match--{{ matchTone(m.overlap_pct) }}"
+                                  title="{{ m.bu_code }} learning outcomes this course covers (see Covered / Missing below)">
+                              {{ m.overlap_pct }}% · {{ m.covered.length }} of {{ m.covered.length + m.missing.length }} {{ m.bu_code }} outcomes
+                              @if (!v.outcomes.length) { · from catalogue }
+                            </span>
+                          }
+                        }
+                      </h4>
                       @if (v.outcomes.length) {
                         <ol class="syl-sec__outcomes">
                           @for (o of v.outcomes; track $index) { <li>{{ o }}</li> }
                         </ol>
                       } @else {
                         <p class="syl-sec__none">{{ v.outcomesNote || 'Not given in this syllabus.' }}</p>
-                      }
-                    </section>
-
-                    <section class="syl-sec">
-                      <h4 class="syl-sec__h">Weekly schedule @if (v.weeks.length) { <span class="count">{{ v.weeks.length }} weeks</span> }</h4>
-                      @if (v.weeks.length) {
-                        <div class="syl-sec__table-wrap">
-                          <table class="syl-sec__table">
-                            <thead><tr><th scope="col">Week</th><th scope="col">Topic</th><th scope="col">Activity / assessment</th></tr></thead>
-                            <tbody>
-                              @for (w of v.weeks; track $index) {
-                                <tr>
-                                  <td class="syl-sec__wk">{{ w.week }}</td>
-                                  <td>{{ w.topic }}</td>
-                                  <td class="syl-sec__act">@if (w.activity) { <span class="syl-act">{{ w.activity }}</span> } @else { <span class="muted">–</span> }</td>
-                                </tr>
-                              }
-                            </tbody>
-                          </table>
-                        </div>
-                      } @else {
-                        <p class="syl-sec__none">{{ v.weeksNote || 'Not given in this syllabus.' }}</p>
                       }
                     </section>
                   </div>
