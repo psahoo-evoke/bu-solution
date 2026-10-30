@@ -35,6 +35,7 @@ flowchart TB
 | Matcher | Narrow BU candidates (search), score learning-outcome overlap, tier, evidence, injection flag | Azure OpenAI; offline fallback for CI/demo |
 | Review | Queue, single decision, batch (> 90%), reuse flag, audit | No |
 | Status | Plain-words status, next step, secured vs pending, reminders day 7/21/45, MyBU CSV | Status wording only |
+| Public credit check (ADR 0006) | No login: "will this course transfer?" form and chat. Per-course rules and reusable decisions only; preliminary estimate otherwise; rate limits and AI budgets; nothing stored | Chat explains tool results only; the result cards come from the rules engine |
 
 Data flow for one course: extract line -> rules (R01–R07) -> equivalency lookup (R10–R12) -> if none: syllabus state -> matcher -> evaluator -> decision saved (reusable) -> Department -> Registrar -> CSV.
 

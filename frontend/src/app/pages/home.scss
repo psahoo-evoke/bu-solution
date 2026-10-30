@@ -87,3 +87,5 @@
 @media (max-width: 760px) {
   .hero { grid-template-columns: 1fr; padding: 1.5rem 1.25rem; }
 }
+
+.home-check { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; h2 { margin: 0 0 .25rem; } p { margin: 0; } }

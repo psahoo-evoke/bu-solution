@@ -1,6 +1,6 @@
 import { DecimalPipe } from '@angular/common';
 import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../api/api.service';
 import { describeError } from '../api/errors';
 import { CourseEvaluation, Student, StudentEvaluation, SyllabusCheck, SyllabusRequest } from '../api/models';
@@ -16,7 +16,7 @@ const SYLLABUS_STATES = new Set(['maybe_ts', 'maybe_tm', 'maybe_review', 'pendin
 
 @Component({
   selector: 'app-student-status',
-  imports: [StatusChip, ErrorBanner, DecimalPipe],
+  imports: [StatusChip, ErrorBanner, DecimalPipe, RouterLink],
   templateUrl: './student-status.html',
 })
 export class StudentStatusPage {

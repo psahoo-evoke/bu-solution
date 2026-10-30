@@ -48,6 +48,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-28 | [synthetic-data-02](2026-10-28/synthetic-data-02.md) | Rebuild on Northeastern + NYU | Data / QA lead |
 | 2026-10-28 | [synthetic-data-03](2026-10-28/synthetic-data-03.md) | Transcript layout change | Data / QA lead |
 | 2026-10-29 | [adoption-01](2026-10-29/adoption-01.md) | Rename the agent folder, name the assistant, rewrite README around the problem statement | Sagar (spathur) |
+| 2026-10-29 | [architect-05](2026-10-29/architect-05.md) | Review of the public credit check and chat (developer-26) | psahoo (POD) |
 | 2026-10-29 | [developer-01](2026-10-29/developer-01.md) | Remove "synthetic data" wording from the UI | Sagar (spathur) |
 | 2026-10-29 | [developer-02](2026-10-29/developer-02.md) | Store uploaded transcripts and syllabi in Azure Blob Storage | Sagar (spathur) |
 | 2026-10-29 | [developer-03](2026-10-29/developer-03.md) | Entra ID sign-in with app roles (Student, Department, …) | Sagar (spathur) |
@@ -72,7 +73,12 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-29 | [developer-22](2026-10-29/developer-22.md) | Upload hardening for transcripts and syllabi: junk, hostile and scanned PDFs, file size | psahoo (POD) |
 | 2026-10-29 | [developer-23](2026-10-29/developer-23.md) | Azure AI Search picks the model's BU candidate shortlist | psahoo (POD) |
 | 2026-10-29 | [developer-24](2026-10-29/developer-24.md) | A syllabus can be uploaded only once; the button disappears after the upload | Sagar (spathur) |
+| 2026-10-29 | [developer-25](2026-10-29/developer-25.md) | Prompt experiment: a broader definition of "covered" (rejected, reverted) | psahoo (POD) |
+| 2026-10-29 | [developer-26](2026-10-29/developer-26.md) | Public "Will my course transfer?" check and chat (no login) | psahoo (POD) |
+| 2026-10-29 | [developer-27](2026-10-29/developer-27.md) | Fix the architect-05 and security-04 findings on the public credit check and chat | psahoo (POD) |
+| 2026-10-29 | [developer-28](2026-10-29/developer-28.md) | Quick check: a course picker for the chosen school | psahoo (POD) |
 | 2026-10-29 | [devops-03](2026-10-29/devops-03.md) | Containerised frontend + lean Azure Container Apps deployment | Sagar (spathur) |
+| 2026-10-29 | [security-04](2026-10-29/security-04.md) | Security review of the public credit check and chat (developer-26) | psahoo (POD) |
 | 2026-10-30 | [developer-01](2026-10-30/developer-01.md) | One-click Approve on the selected BU candidate for Department approvers | Sagar (spathur) |
 | 2026-10-30 | [developer-02](2026-10-30/developer-02.md) | Green candidate Approve button | Sagar (spathur) |
 <!-- INDEX:END -->

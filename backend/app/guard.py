@@ -3,8 +3,9 @@
 A pure ASGI middleware, so the role check and the Content-Length check run BEFORE the request body is read and
 before any route code runs. A refused request therefore cannot cause a side effect.
 
-- Every /api route except /api/health needs a valid X-Demo-Role: missing or unknown -> 401, not allowed -> 403.
-- Allowed roles per operation mirror `x-roles` in docs/api/openapi.yaml (v0.3.0). tests/test_roles.py checks that
+- Every /api route except the PUBLIC allowlist (health, /auth/*, the credit check and chat; ADR 0006) needs a valid
+  X-Demo-Role: missing or unknown -> 401, not allowed -> 403. Public routes: a body over MAX_PUBLIC_BODY -> 413.
+- Allowed roles per operation mirror `x-roles` in docs/api/openapi.yaml (v0.4.0). tests/test_roles.py checks that
   this table and the contract stay identical.
 - Upload routes: a body over MAX_UPLOAD_BYTES -> 413. Content-Length is checked up front; chunked bodies are
   counted while streaming.
@@ -32,6 +33,7 @@ ALL_ROLES = ("Student", "CreditStaff", "Evaluator", "Department", "Registrar", "
 EVERYONE = set(ALL_ROLES)
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 _MULTIPART_SLACK = 64 * 1024        # multipart boundaries/headers around the file part
+MAX_PUBLIC_BODY = 64 * 1024         # public routes take small JSON only
 
 # (method, path template under /api, allowed roles). Keep in sync with docs/api/openapi.yaml x-roles.
 ROUTE_ROLES: list[tuple[str, str, set[str]]] = [
@@ -53,6 +55,7 @@ ROUTE_ROLES: list[tuple[str, str, set[str]]] = [
 ]
 UPLOAD_ROUTES = {"/students/{student_id}/transcripts", "/courses/{ext_id}/syllabus"}
 PUBLIC = {("GET", "/health"), ("POST", "/auth/login"), ("POST", "/auth/register/student"),
+          ("GET", "/credit-check/schools"), ("GET", "/credit-check/courses"),("POST", "/credit-check"), ("POST", "/credit-chat"),   # public, no login
           ("POST", "/auth/register/department"), ("GET", "/auth/options")}
 _STUDENT_PATH = re.compile(r"^/students/([^/]+)(/|$)")
 
@@ -168,10 +171,10 @@ class RoleGuardMiddleware:
         if not path.startswith(self.prefix) or method == "OPTIONS":      # docs, CORS preflight
             return await self.app(scope, receive, send_with_headers)
         sub = path[len(self.prefix):] or "/"
-        if (method, sub) in PUBLIC:
-            return await self.app(scope, receive, send_with_headers)
-
         headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
+        if (method, sub) in PUBLIC:              # no login; small JSON bodies only (the auth forms, credit check/chat)
+            return await self._capped(scope, headers, receive, send, send_with_headers, MAX_PUBLIC_BODY,
+                                      f"Request too large (max {MAX_PUBLIC_BODY // 1024} KB)")
         role = headers.get("x-demo-role")
         if auth_mode() == "entra":
             try:
@@ -208,14 +211,17 @@ class RoleGuardMiddleware:
 
         if template not in UPLOAD_ROUTES:
             return await self.app(scope, receive, send_with_headers)
+        return await self._capped(scope, headers, receive, send, send_with_headers, MAX_UPLOAD_BYTES + _MULTIPART_SLACK,
+                                  f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)")
 
-        limit = MAX_UPLOAD_BYTES + _MULTIPART_SLACK
+    async def _capped(self, scope, headers, receive, send, send_with_headers, limit: int, too_large: str):
+        """Run the app with the request body capped at `limit` bytes: Content-Length up front, chunks while streaming."""
         try:
             declared = int(headers.get("content-length", "0") or 0)
         except ValueError:
             declared = 0
         if declared > limit:
-            return await _send_json(send, 413, f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)")
+            return await _send_json(send, 413, too_large)
 
         seen = 0
         started = False
@@ -239,4 +245,4 @@ class RoleGuardMiddleware:
             await self.app(scope, counting_receive, tracking_send)
         except _TooLarge:
             if not started:
-                await _send_json(send, 413, f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)")
+                await _send_json(send, 413, too_large)
