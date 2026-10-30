@@ -103,6 +103,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-30 | [devops-01](2026-10-30/devops-01.md) | Azure OpenAI for the live chat ("Ask in your words") | Sagar (spathur) |
 | 2026-10-30 | [devops-02](2026-10-30/devops-02.md) | Commit .claude agent definitions for the submission checklist | Team lead |
 | 2026-10-30 | [devops-03](2026-10-30/devops-03.md) | Sample backend configuration (.env.example) | Team lead |
+| 2026-10-30 | [qa-01](2026-10-30/qa-01.md) | Volume test: one year of intake, up to 5x | Team lead |
 | 2026-10-30 | [security-05](2026-10-30/security-05.md) | Security review of the course picker, chat context, partial matching and workbench identity | psahoo (POD) |
 <!-- INDEX:END -->
 

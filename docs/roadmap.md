@@ -28,6 +28,7 @@
 | | FERPA data-processing agreement for the AI service; private endpoints; retention (delete documents after the appeal window) | L4 | 5 d + legal | Signed agreement; retention job runs |
 | | Separate dev / test / prod environments with their own parameters and approvals | L10 | 2 d | Prod deploys only from a tagged release after test passes |
 | **3. Scale for the intake (1-2 weeks, before the semester)** | ADR 0007 phase 1: raise Azure OpenAI to 150K TPM, API to 2 vCPU / 4 GiB, PostgreSQL to B2s | L6 | 1 d | Load test of 800 transcripts completes with the AI engine in under 1 hour |
+| | Index transcript lines by student (`Store.lines_for` scans every line today) | L5 | 0.5 d | Volume test: queue refresh and export grow linearly, not quadratically |
 | | ADR 0007 phase 2: background AI queue that waits on quota instead of falling back; model results cached in PostgreSQL | L6, L5 | 2 d | No silent offline fallback under load; restart does not repeat AI calls |
 | | Reminders on the sponsor's day 7 / 21 / 45 schedule, sent through Communication Services in every environment | L8 | 1 d | Students receive day 7 / 21 / 45 emails with an upload link |
 | **4. Integrate (when BU grants access)** | Import Transferology / BU equivalency data into our equivalency table | L7 | 5 d | Existing matches resolve instantly from BU's own data |
@@ -35,6 +36,8 @@
 | **5. Extend scope** | Appeals workflow, AP/IB/CLEP credit, Engineering residency, more departments | L9 | per item | Agreed with the sponsor |
 
 ## At 10x load
+
+Measured up to 5x in the [volume test](quality/scalability-report.md): at one year's volume a status page loads in 0.2 s and the review queue refreshes in 0.5 s, but the queue refresh and the MyBU export grow quadratically (transcript lines are not indexed by student), and the first queue load after a restart ranks every waiting course in turn. Both are added to phase 3 below.
 
 Today's volume is about 8,000 courses a year (800 students × 10). At 10x (80,000 courses, about 8,000 transcripts a year, peaks of a few thousand in a day):
 
