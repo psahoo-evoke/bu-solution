@@ -392,13 +392,18 @@ export class ReviewPage {
       },
       error: () => this.syllabusError.set('The syllabus could not be loaded.'),
     });
+    // A late answer for a course no longer open must not fill this one's decision form (it would post the other
+    // course's BU code under this course).
+    const stillOpen = () => this.selected()?.ext_id === item.ext_id;
     this.api.getRecommendation(item.ext_id).subscribe({
       next: (rec) => {
+        if (!stillOpen()) return;
         this.rec.set(rec);
         this.recLoading.set(false);
         this.prefill(rec);
       },
       error: (err) => {
+        if (!stillOpen()) return;
         this.recLoading.set(false);
         this.recError.set(this.fail(err, 'recommendation'));
       },

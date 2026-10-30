@@ -104,6 +104,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-30 | [developer-44](2026-10-30/developer-44.md) | Index transcript lines by student (volume fix) | Team lead |
 | 2026-10-30 | [developer-45](2026-10-30/developer-45.md) | No Home for signed-in students and departments | Sagar (spathur) |
 | 2026-10-30 | [developer-46](2026-10-30/developer-46.md) | Approve said "Not saved: API not reachable": duplicate decision id | Sagar (spathur) |
+| 2026-10-30 | [developer-47](2026-10-30/developer-47.md) | Reminder loop survives a failed check; a late AI comparison never fills another course | psahoo (POD) |
 | 2026-10-30 | [devops-01](2026-10-30/devops-01.md) | Azure OpenAI for the live chat ("Ask in your words") | Sagar (spathur) |
 | 2026-10-30 | [devops-02](2026-10-30/devops-02.md) | Commit .claude agent definitions for the submission checklist | Team lead |
 | 2026-10-30 | [devops-03](2026-10-30/devops-03.md) | Sample backend configuration (.env.example) | Team lead |

@@ -223,3 +223,24 @@ def test_no_next_reminder_is_shown_for_a_course_no_longer_waiting_for_a_syllabus
     [req] = client.get("/api/courses/NYU%7CPSYCH-UA%2025/syllabus").json()["requests"]
     assert req["next_reminder_at"] is None
     assert remind(dt.datetime.now(dt.timezone.utc) + 10 * DAY)["courses"] == []
+
+
+def test_a_failed_reminder_check_does_not_stop_the_hourly_loop(monkeypatch, caplog):
+    # The error is logged and the next check still runs; only cancelling (shutdown) ends the loop.
+    checks, sleeps = [], []
+
+    async def fail():
+        checks.append(1)
+        raise RuntimeError("database down")
+
+    async def tick(_seconds):
+        sleeps.append(1)
+        if len(sleeps) == 3:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(main, "send_due_reminders", fail)
+    monkeypatch.setattr(main.asyncio, "sleep", tick)
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(main._reminder_loop())
+    assert len(checks) == 2
+    assert "syllabus reminder check failed" in caplog.text

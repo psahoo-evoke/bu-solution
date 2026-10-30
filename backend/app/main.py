@@ -669,7 +669,7 @@ async def _reminder_loop() -> None:
         try:
             await send_due_reminders()
         except Exception:
-            log.warning("syllabus reminder check failed", exc_info=True)
+            _log.warning("syllabus reminder check failed", exc_info=True)
 
 
 @api.post("/syllabus-reminders/run")

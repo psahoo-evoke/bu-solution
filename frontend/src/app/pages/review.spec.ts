@@ -338,6 +338,56 @@ describe('ReviewPage candidate Approve', () => {
     expect(el.querySelector('.decision')).not.toBeNull();   // the course stays open, so the evaluator can retry
   });
 
+  describe('a late AI comparison for a course no longer open', () => {
+    const other = { ...item, ext_id: 'EXT-2', course_code: 'BIO 202', title: 'Genetics' } as ReviewItem;
+    const recFor = (ext_id: string, code: string) => ({
+      ext_id, preliminary: false, engine: 'offline-fallback', candidates: [cand(code, 95)],
+      suggested_decision: 'Equivalent', suggested_code: code, confidence_pct: 95,
+      injection_detected: false, past_decisions: [],
+    });
+
+    // Opens EXT-1, then EXT-2 before EXT-1's comparison has come back. `second` is EXT-2's pending comparison.
+    async function switchCourses() {
+      TestBed.inject(RoleService).set('Evaluator');
+      const fixture = TestBed.createComponent(ReviewPage);
+      fixture.detectChanges();
+      http.expectOne('/api/reason-codes').flush([
+        { reason_code: 'EQ-CONTENT', decision: 'Equivalent', meaning: 'Substantially equivalent' },
+      ]);
+      http.expectOne((r) => r.url === '/api/review-queue').flush([item, other]);
+      fixture.componentInstance.open(item);
+      const first = http.expectOne('/api/courses/EXT-1/recommendation');
+      fixture.componentInstance.open(other);
+      const second = http.expectOne('/api/courses/EXT-2/recommendation');
+      return { fixture, first, second };
+    }
+
+    async function approvedBody(fixture: Awaited<ReturnType<typeof switchCourses>>['fixture']) {
+      fixture.detectChanges();
+      await fixture.whenStable();
+      approveButtons(fixture.nativeElement as HTMLElement)[0].click();
+      return http.expectOne((r) => r.method === 'POST' && r.url === '/api/decisions').request.body;
+    }
+
+    it('does not fill the open course with the other course\'s BU code', async () => {
+      const { fixture, first, second } = await switchCourses();
+      second.flush(recFor('EXT-2', 'CAS BI 206'));
+      first.flush(recFor('EXT-1', 'CAS BI 107'));
+      expect(await approvedBody(fixture)).toEqual(expect.objectContaining({ ext_id: 'EXT-2', bu_course: 'CAS BI 206' }));
+    });
+
+    it('does not show the other course\'s error or stop the open course loading', async () => {
+      const { fixture, first, second } = await switchCourses();
+      first.flush({ detail: 'boom' }, { status: 500, statusText: 'Server Error' });
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('.banner--error')).toBeNull();
+      expect(el.textContent).toContain('Loading AI recommendation');
+      second.flush(recFor('EXT-2', 'CAS BI 206'));
+      expect(await approvedBody(fixture)).toEqual(expect.objectContaining({ ext_id: 'EXT-2', bu_course: 'CAS BI 206' }));
+    });
+  });
+
   it('shows outcomes for the selected candidate and the others on request', async () => {
     const fixture = await openCourse('Evaluator');
     const el = fixture.nativeElement as HTMLElement;
