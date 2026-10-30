@@ -76,15 +76,22 @@ def _score_offline(course: ExtCourse, bu: BUCourse, corpus: str, ext_topics: set
 
 
 _RANK_CACHE: dict[tuple, list[dict]] = {}
+_OFFLINE_CACHE_MAX = 4096          # bounded: the public credit check can send any title/description
 
 
 def _rank_offline(course: ExtCourse, bus: list[BUCourse], syllabus_text: str) -> list[dict]:
     """Deterministic, so results are memoised on the exact inputs (course content, syllabus text, BU catalog)."""
     key = (course.title, course.description, tuple(course.learning_outcomes), tuple(course.topics), syllabus_text,
            tuple(b.bu_code for b in bus))
-    if key not in _RANK_CACHE:
-        _RANK_CACHE[key] = _rank_offline_uncached(course, bus, syllabus_text)
-    return [dict(c, covered=list(c["covered"]), missing=list(c["missing"])) for c in _RANK_CACHE[key]]
+    hit = _RANK_CACHE.get(key)
+    if hit is None:
+        hit = _RANK_CACHE[key] = _rank_offline_uncached(course, bus, syllabus_text)
+        while len(_RANK_CACHE) > _OFFLINE_CACHE_MAX:     # oldest first (dicts keep insertion order)
+            try:
+                _RANK_CACHE.pop(next(iter(_RANK_CACHE)), None)
+            except (StopIteration, RuntimeError):          # another thread changed it; try again next time
+                break
+    return [dict(c, covered=list(c["covered"]), missing=list(c["missing"])) for c in hit]
 
 
 def _rank_offline_uncached(course: ExtCourse, bus: list[BUCourse], syllabus_text: str) -> list[dict]:
@@ -237,7 +244,7 @@ def candidate_shortlist(course: ExtCourse, bus: list[BUCourse], syllabus_text: s
     return picked, "azure-ai-search"
 
 
-def _azure_rank(course: ExtCourse, bus: list[BUCourse], syllabus_text: str) -> tuple[list[dict], str]:
+def _azure_rank(course: ExtCourse, bus: list[BUCourse], syllabus_text: str, cache: bool = True) -> tuple[list[dict], str]:
     shortlist, retrieval = candidate_shortlist(course, bus, syllabus_text)
     by_code = {b.bu_code: b for b in bus}
     messages = build_prompt(course, shortlist, by_code, syllabus_text)
@@ -247,6 +254,8 @@ def _azure_rank(course: ExtCourse, bus: list[BUCourse], syllabus_text: str) -> t
             _RANK_CACHE.move_to_end(key)
             return copy.deepcopy(_RANK_CACHE[key]), retrieval
     ranked = validate_llm_output(llm_client(messages), shortlist, by_code)
+    if not cache:                   # ad-hoc public course: do not push catalog rankings out of the cache
+        return ranked, retrieval
     with _rank_lock:
         _RANK_CACHE[key] = copy.deepcopy(ranked)
         while len(_RANK_CACHE) > _RANK_CACHE_MAX:
@@ -259,8 +268,9 @@ def engine_name() -> str:
 
 
 # ------------------------------------------------------------------ public interface
-def recommend(course: ExtCourse, bus: list[BUCourse], syllabus: Optional[SyllabusInput] = None) -> dict:
-    """Top-3 BU candidates with evidence, a suggested decision/code and a confidence. Recommendation only."""
+def recommend(course: ExtCourse, bus: list[BUCourse], syllabus: Optional[SyllabusInput] = None, cache: bool = True) -> dict:
+    """Top-3 BU candidates with evidence, a suggested decision/code and a confidence. Recommendation only.
+    cache=False: the model ranking is not stored (one-off courses typed into the public credit check)."""
     raw = syllabus.text if syllabus is not None and syllabus.state != "missing" else ""
     # Title and description can come from an uploaded transcript too, so they are checked like the syllabus.
     injection = detect_injection(raw) or detect_injection(f"{course.title}. {course.description}")
@@ -268,7 +278,7 @@ def recommend(course: ExtCourse, bus: list[BUCourse], syllabus: Optional[Syllabu
     engine, retrieval = engine_name(), "offline"
     if engine == "azure-openai":
         try:
-            ranked, retrieval = _azure_rank(course, bus, clean)
+            ranked, retrieval = _azure_rank(course, bus, clean, cache)
         except Exception:                                        # network/quota failure -> deterministic fallback
             ranked, engine, retrieval = _rank_offline(course, bus, clean), "offline-fallback", "offline"
     else:

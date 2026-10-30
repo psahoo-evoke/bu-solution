@@ -62,16 +62,24 @@ def tier_label(overlap_fraction: float) -> str:
 def eligibility(line: TranscriptLine, course: Optional[ExtCourse], store: Store) -> Optional[str]:
     """R01-R06 in reference order. Returns a no-credit reason code or None if eligible."""
     school = store.schools.get(line.school_code)
-    if school is not None and not school.accredited:          # R01
+    return no_credit_reason(school is None or school.accredited, course.course_type if course else "Academic",
+                            line.credits, line.grade)
+
+
+def no_credit_reason(accredited: bool, course_type: str, credits: Optional[float], grade: Optional[str]) -> Optional[str]:
+    """R01-R06 on plain values, shared by the evaluation and the public credit check. grade=None means the grade
+    is not known yet (public check): R05/R06 are then not applied."""
+    if not accredited:                                         # R01
         return "NC-ACCRED"
-    ctype = course.course_type if course else "Academic"
-    if ctype in INELIGIBLE_TYPES:                              # R02 / R03
-        return INELIGIBLE_TYPES[ctype]
-    if line.credits == 1:                                      # R04
+    if course_type in INELIGIBLE_TYPES:                        # R02 / R03
+        return INELIGIBLE_TYPES[course_type]
+    if credits == 1:                                           # R04
         return "NC-ONECREDIT"
-    if line.grade in PASS_FAIL:                                # R05
+    if grade is None:
+        return None
+    if grade in PASS_FAIL:                                     # R05
         return "NC-PASSFAIL"
-    if line.grade not in GRADE_OK:                             # R06 (C- and below; also D, F, W ...)
+    if grade not in GRADE_OK:                                  # R06 (C- and below; also D, F, W ...)
         return "NC-GRADE"
     return None
 
@@ -91,6 +99,15 @@ def lookup(store: Store, ext_id: str, student_id: str) -> tuple[Optional[Decisio
     if len({d.decision for d in ds}) > 1:                                                            # R11 superseded
         return newest, "Older conflicting decision superseded by newest catalog year"
     return newest, ""
+
+
+def lookup_public(store: Store, ext_id: str) -> tuple[Optional[Decision], str]:
+    """R10 / R11 for the public credit check: reusable, non-holdout decisions only. Filtered explicitly here so a
+    change to lookup() can never widen what an anonymous caller sees."""
+    dec, flag = lookup(store, ext_id, student_id="")
+    if dec is not None and not dec.reusable:
+        return None, ""
+    return dec, flag
 
 
 # ------------------------------------------------------------------ plain words (R23 / status view)

@@ -1,6 +1,6 @@
-"""ADR 0005 default-deny role matrix, generated from `x-roles` in docs/api/openapi.yaml (v0.2.0).
+"""ADR 0005 default-deny role matrix, generated from `x-roles` in docs/api/openapi.yaml (v0.4.0).
 
-Every route except /health: missing/unknown X-Demo-Role -> 401, role not in x-roles -> 403, allowed role -> neither.
+Every route except the public allowlist (guard.PUBLIC, ADR 0006): missing/unknown X-Demo-Role -> 401, role not in x-roles -> 403, allowed role -> neither.
 Refusals happen before any side effect.
 """
 import os
@@ -9,7 +9,7 @@ import re
 import pytest
 import yaml
 
-from app.guard import ALL_ROLES, ROUTE_ROLES
+from app.guard import ALL_ROLES, PUBLIC, ROUTE_ROLES
 from app.main import api
 
 from .conftest import REPO, role
@@ -23,7 +23,7 @@ BODIES = {
 }
 OPS = [(m.upper(), path, op.get("x-roles"))
        for path, item in SPEC["paths"].items() for m, op in item.items() if m in ("get", "post")]
-PROTECTED = [(m, p, set(r)) for m, p, r in OPS if p != "/health"]
+PROTECTED = [(m, p, set(r)) for m, p, r in OPS if (m, p) not in PUBLIC]
 
 
 def _url(path):
@@ -38,6 +38,15 @@ def _call(client, method, path, headers):
 def test_contract_and_guard_table_are_identical():
     assert {(m, p): set(r) for m, p, r in PROTECTED} == {(m, p): r for m, p, r in ROUTE_ROLES}
     assert all(r is not None for m, p, r in PROTECTED), "every protected operation declares x-roles"
+
+
+def test_public_operations_in_the_contract_are_exactly_the_guard_allowlist():
+    # /auth/* (portal sign-in and registration) is public but not part of the contract yet.
+    public_in_spec = {(m.upper(), p) for p, item in SPEC["paths"].items() for m, op in item.items()
+                      if isinstance(op, dict) and op.get("security") == []}
+    assert public_in_spec == {(m, p) for m, p in PUBLIC if not p.startswith("/auth/")}
+    assert all(op.get("x-roles") is None for p, item in SPEC["paths"].items() for op in item.values()
+               if isinstance(op, dict) and op.get("security") == [])
 
 
 def test_every_api_route_is_in_the_contract():

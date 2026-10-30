@@ -15,6 +15,11 @@ export const routes: Routes = [
     title: 'Sign in · TransferIQ',
     loadComponent: () => import('./pages/login').then((m) => m.LoginPage),
   },
+  {
+    path: 'credit-check',
+    title: 'Will my course transfer? · TransferIQ',
+    loadComponent: () => import('./pages/credit-check').then((m) => m.CreditCheckPage),   // public, no sign-in
+  },
   { path: 'student', pathMatch: 'full', redirectTo: `student/${DEFAULT_STUDENT}` },
   {
     path: 'student/:id',

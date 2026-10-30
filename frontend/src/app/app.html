@@ -6,6 +6,7 @@
   </a>
   <nav class="topbar__nav" aria-label="Main">
     <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Home</a>
+    <a routerLink="/credit-check" routerLinkActive="active" ariaCurrentWhenActive="page">Check a course</a>
     @if (!auth.secured() || (auth.signedIn() && roleService.available().length > 0)) {
       <a [routerLink]="studentLink()" routerLinkActive="active" ariaCurrentWhenActive="page">
         {{ auth.studentId() ? 'My status' : 'Student status' }}

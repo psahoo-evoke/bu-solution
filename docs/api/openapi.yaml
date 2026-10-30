@@ -1,13 +1,13 @@
 openapi: 3.0.3
 info:
   title: TransferIQ API
-  version: 0.3.0
+  version: 0.4.0
   description: |
     Transfer credit evaluation co-pilot (EvoHack 2026, BU problem statement).
     AI recommends, the rules engine computes, evaluators decide.
     Demo auth: send `X-Demo-Role` (Student | CreditStaff | Evaluator | Department | Registrar | Advisor).
     Production auth: Entra ID bearer token with the same app roles.
-    Default deny: every route except /health requires a valid role; `x-roles` lists the roles allowed per operation (others get 403, missing/unknown role 401).
+    Default deny (ADR 0005) with a public allowlist: /health, /auth/* (sign-in and registration) and the credit check and chat (/credit-check, /credit-check/schools, /credit-chat; ADR 0006) need no login. Every other route requires a valid role; `x-roles` lists the roles allowed per operation (others get 403, missing/unknown role 401).
     In production, Student may only read or upload for their own student_id; /demo/reset is disabled.
 servers:
   - url: /api
@@ -21,6 +21,43 @@ paths:
       security: []
       responses:
         "200": { description: OK, content: { application/json: { schema: { type: object, properties: { status: { type: string } } } } } }
+  /credit-check/schools:
+    get:
+      summary: "Public, no login (ADR 0006): schools in the catalog (for the credit-check form and chat)"
+      security: []
+      responses:
+        "200": { description: Schools, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/CreditSchool" } } } } }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /credit-check:
+    post:
+      summary: "Public, no login (ADR 0006): will this external course transfer? Per-course rules R01-R08, R10/R11 and R13 applied with the evaluation's own code; reusable catalog decisions only (never holdout or per-student ones, never courses known only from an upload); otherwise a preliminary estimate (R22). Record-wide rules are returned as caveats."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreditCheckInput" }
+      responses:
+        "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/CreditCheckResult" } } } }
+        "413": { description: "Body over 64 KB" }
+        "422": { $ref: "#/components/responses/PublicInvalid" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /credit-chat:
+    post:
+      summary: "Public, no login (ADR 0006): one chat turn about transfer credit. The model may only call the credit check; only the user's turns are sent to it; a reply that names a BU code other than a decided result, promises credit or states other unit numbers is replaced by a plain summary. Nothing is stored."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreditChatInput" }
+      responses:
+        "200": { description: Reply, content: { application/json: { schema: { $ref: "#/components/schemas/CreditChatReply" } } } }
+        "413": { description: "Body over 64 KB" }
+        "422": { $ref: "#/components/responses/PublicInvalid" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "502": { description: The AI service failed; use the form }
+        "503": { description: No AI service configured; use the form }
   /students:
     get:
       summary: List students
@@ -166,6 +203,19 @@ components:
   parameters:
     StudentId: { name: student_id, in: path, required: true, schema: { type: string, example: SYN-24001 } }
     ExtId: { name: ext_id, in: path, required: true, description: "School code and course code joined by '|', URL-encoded", schema: { type: string, example: "NYU|PSYCH-UA 10" } }
+  responses:
+    RateLimited:
+      description: "Rate limited: per client (right-most public X-Forwarded-For hop), per-client AI budget, the global AI budget or chat concurrency"
+      headers:
+        Retry-After: { description: Seconds to wait, schema: { type: integer } }
+    PublicInvalid:
+      description: "Invalid input. Schema violations return FastAPI's `detail: [ {loc, msg, type} ]`; rule checks (course code, term format, conversation shape) return `detail: string`."
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail: { oneOf: [ { type: string }, { type: array, items: { type: object } } ] }
   schemas:
     SyllabusRequest:
       type: object
@@ -226,6 +276,72 @@ components:
             pending_units: { type: number }
             no_credit_lines: { type: integer }
             cap_units: { type: number, example: 68 }
+    CreditSchool:
+      type: object
+      required: [school_code, name, calendar]
+      properties:
+        school_code: { type: string, example: NYU }
+        name: { type: string }
+        calendar: { type: string, enum: [Semester, Quarter] }
+    CreditCheckInput:
+      type: object
+      required: [school]
+      additionalProperties: false
+      properties:
+        school: { type: string, minLength: 1, maxLength: 80, description: "School code or name, e.g. NYU" }
+        course_code: { type: string, maxLength: 20, pattern: "^([A-Za-z]{2,8}(-[A-Za-z]{2})?\\s*\\d{1,4}[A-Za-z]?)?$", example: "PSYCH-UA 10" }
+        title: { type: string, maxLength: 120 }
+        description: { type: string, maxLength: 2000, description: "Untrusted; injected sentences are removed" }
+        grade: { type: string, maxLength: 3, description: "Letter grade (A..F with +/-) or P/NP/S/U. Empty = unknown: a decided result then assumes C or better." }
+        credits: { type: number, exclusiveMinimum: true, minimum: 0, maximum: 20 }
+        term: { type: string, maxLength: 20, pattern: "^((Winter|Spring|Summer|Fall) \\d{4})?$", example: "Fall 2024" }
+        start_term: { type: string, maxLength: 20, default: "Fall 2026" }
+    CreditCheckResult:
+      type: object
+      required: [kind, message, bu_course, units, reason_code, estimate, caveats]
+      properties:
+        kind: { type: string, enum: [decided_equivalent, decided_elective, not_transferable, pending_review, needs_evaluation, unknown_school, unknown_course] }
+        message: { type: string }
+        school_code: { type: string, description: "Absent for unknown_school" }
+        school_name: { type: string }
+        course_code: { type: string, nullable: true }
+        title: { type: string, nullable: true }
+        calendar: { type: string, enum: [Semester, Quarter] }
+        credits: { type: number, nullable: true }
+        bu_course: { type: string, nullable: true }
+        bu_title: { type: string, nullable: true, description: "decided_equivalent only" }
+        units: { type: number, nullable: true, description: "Converted units (R08), before the record-wide 68-unit cap; 0 when not transferable" }
+        reason_code: { type: string, nullable: true }
+        estimate:
+          type: object
+          nullable: true
+          description: "Only for needs_evaluation: always preliminary, never a promise of credit"
+          properties:
+            preliminary: { type: boolean }
+            candidates: { type: array, maxItems: 3, items: { type: object, properties: { bu_code: { type: string }, title: { type: string }, overlap_pct: { type: integer } } } }
+            engine: { type: string, enum: [azure-openai, offline-fallback] }
+            injection_detected: { type: boolean }
+        caveats: { type: array, items: { type: string }, description: "Record-wide rules not applied; an R11 same-year conflict adds a first caveat" }
+    ChatTurn:
+      type: object
+      required: [role, content]
+      additionalProperties: false
+      properties:
+        role: { type: string, enum: [user, assistant], description: "assistant turns are accepted for the page's convenience but never sent to the model" }
+        content: { type: string, minLength: 1, maxLength: 600 }
+    CreditChatInput:
+      type: object
+      required: [messages]
+      additionalProperties: false
+      properties:
+        messages: { type: array, minItems: 1, maxItems: 12, items: { $ref: "#/components/schemas/ChatTurn" }, description: "The last turn must be the user's" }
+    CreditChatReply:
+      type: object
+      required: [reply, results, grounded]
+      properties:
+        reply: { type: string, maxLength: 1500 }
+        results: { type: array, items: { $ref: "#/components/schemas/CreditCheckResult" }, description: "The facts behind the reply; the page shows these as the source of truth" }
+        grounded: { type: boolean, description: "false = the model's text was replaced by a summary of the results" }
     TranscriptUploadResult:
       allOf:
         - $ref: "#/components/schemas/StudentEvaluation"

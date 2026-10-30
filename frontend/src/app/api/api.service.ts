@@ -16,6 +16,11 @@ import {
   StudentEvaluation,
   SyllabusCheck,
   SyllabusRequest,
+  ChatTurn,
+  CreditChatReply,
+  CreditCheckInput,
+  CreditCheckResult,
+  CreditSchool,
 } from './models';
 
 export const API_BASE = '/api';
@@ -32,6 +37,21 @@ export class ApiService {
 
   health(): Observable<{ status: string }> {
     return this.http.get<{ status: string }>(`${API_BASE}/health`);
+  }
+
+  /** Public (no sign-in): schools in the catalog. */
+  creditSchools(): Observable<CreditSchool[]> {
+    return this.http.get<CreditSchool[]>(`${API_BASE}/credit-check/schools`);
+  }
+
+  /** Public (no sign-in): will this course transfer? Facts from the rules engine; estimates are preliminary. */
+  creditCheck(input: CreditCheckInput): Observable<CreditCheckResult> {
+    return this.http.post<CreditCheckResult>(`${API_BASE}/credit-check`, input);
+  }
+
+  /** Public (no sign-in): one chat turn; the conversation is kept in the page only. */
+  creditChat(messages: ChatTurn[]): Observable<CreditChatReply> {
+    return this.http.post<CreditChatReply>(`${API_BASE}/credit-chat`, { messages });
   }
 
   listStudents(): Observable<Student[]> {

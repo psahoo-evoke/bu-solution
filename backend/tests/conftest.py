@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app import matcher, search  # noqa: E402
+from app import matcher, ratelimit, search  # noqa: E402
 from app import store as store_mod  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -31,10 +31,12 @@ def fresh_store():
     store_mod.reset()
     matcher.clear_cache()
     search.reset()
+    ratelimit.reset_all()
     yield store_mod.STORE
     store_mod.reset()
     matcher.clear_cache()
     search.reset()
+    ratelimit.reset_all()
 
 
 @pytest.fixture

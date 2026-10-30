@@ -21,9 +21,9 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, FastAPI, File, Header, HTTPException, Path, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from . import accounts, blob_store, db, notify
+from . import accounts, blob_store, credit_chat, credit_check, db, notify, ratelimit
 from . import store as store_mod
 from .evaluation import evaluate_holdout
 from .guard import MAX_UPLOAD_BYTES, RoleGuardMiddleware, auth_mode
@@ -60,7 +60,7 @@ async def lifespan(_app: FastAPI):
 
 
 _entra = auth_mode() == "entra"
-app = FastAPI(title="TransferIQ API", version="0.3.0",
+app = FastAPI(title="TransferIQ API", version="0.4.0",
               description="AI recommends, the rules engine computes, evaluators decide.", lifespan=lifespan,
               docs_url=None if _entra else "/docs", redoc_url=None, openapi_url=None if _entra else "/openapi.json")
 
@@ -173,6 +173,101 @@ def build_evaluation(student_id: str) -> dict:
 @api.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ------------------------------------------------------------------ public credit check (no login, ADR 0006)
+class CreditCheckInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    school: str = Field(min_length=1, max_length=80)
+    course_code: str = Field("", max_length=20)
+    title: str = Field("", max_length=120)
+    description: str = Field("", max_length=credit_check.MAX_DESCRIPTION)
+    grade: str = Field("", max_length=3)
+    credits: Optional[float] = Field(None, gt=0, le=20)
+    term: str = Field("", max_length=20)
+    start_term: str = Field("Fall 2026", max_length=20)
+
+
+def _client(request: Request) -> str:
+    headers = {k.lower(): v for k, v in request.headers.items()}
+    return ratelimit.client_key(headers, request.client.host if request.client else "")
+
+
+def _public_limit(request: Request) -> str:
+    """Per-client request limit; returns the client key for the AI budgets."""
+    key = _client(request)
+    try:
+        ratelimit.PER_IP.hit(key)
+    except ratelimit.RateLimited as e:
+        raise HTTPException(429, str(e), headers={"Retry-After": str(e.retry_after)})
+    return key
+
+
+def run_credit_check(inp: CreditCheckInput, client: str, allow_estimate: bool = True) -> dict:
+    """Facts first (no model call); the preliminary estimate only when needed and within the AI budgets."""
+    args = inp.model_dump()
+    try:
+        res = credit_check.check_course(S(), **args, estimate=False)
+        if res["kind"] == "needs_evaluation" and allow_estimate:
+            if engine_name() == "azure-openai":
+                ratelimit.ai_call(client)
+            res = credit_check.check_course(S(), **args, estimate=True)
+    except credit_check.CheckError as e:
+        raise HTTPException(422, str(e))
+    except ratelimit.RateLimited:
+        res["message"] += " (A preliminary estimate is not available right now; please try again later.)"
+    return res
+
+
+@api.get("/credit-check/schools")
+def credit_check_schools(request: Request):
+    _public_limit(request)
+    return credit_check.schools(S())
+
+
+@api.post("/credit-check")
+def post_credit_check(inp: CreditCheckInput, request: Request):
+    return run_credit_check(inp, _public_limit(request))
+
+
+class ChatMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=credit_chat.MAX_MESSAGE_CHARS)
+
+
+class CreditChatInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    messages: list[ChatMessage] = Field(min_length=1, max_length=credit_chat.MAX_MESSAGES)
+
+
+# Chat turns hold a worker thread while the model answers: cap them so staff routes always have threads left.
+_CHAT_SLOTS = threading.BoundedSemaphore(int(os.environ.get("TRANSFERIQ_PUBLIC_CHAT_CONCURRENCY", "4")))
+
+
+@api.post("/credit-chat")
+def post_credit_chat(inp: CreditChatInput, request: Request):
+    """Public chat turn; nothing is stored. 503 when no AI is configured (the page falls back to the form)."""
+    client = _public_limit(request)
+    if not _CHAT_SLOTS.acquire(blocking=False):
+        raise HTTPException(429, "The chat is busy right now; please use the course check form or try again shortly.",
+                            headers={"Retry-After": "10"})
+    try:
+        return credit_chat.chat(S(), [m.model_dump() for m in inp.messages],
+                                check=lambda args, est: run_credit_check(CreditCheckInput(**args), client, est),
+                                ai_budget=lambda: ratelimit.ai_call(client))
+    except credit_chat.ChatUnavailable as e:
+        raise HTTPException(503, str(e))
+    except credit_chat.ChatInputError as e:
+        raise HTTPException(422, str(e))
+    except ratelimit.RateLimited as e:
+        raise HTTPException(429, "The chat is busy right now; please use the course check form or try again later.",
+                            headers={"Retry-After": str(e.retry_after)})
+    except Exception:
+        _log.warning("credit chat failed", exc_info=True)
+        raise HTTPException(502, "The chat could not answer right now; please use the course check form.")
+    finally:
+        _CHAT_SLOTS.release()
 
 
 @api.get("/students")

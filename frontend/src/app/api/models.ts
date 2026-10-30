@@ -214,3 +214,60 @@ export interface ReasonCode {
   decision: string;
   meaning: string;
 }
+
+// ------------------------------------------------------------------ public credit check and chat (no sign-in)
+export interface CreditSchool {
+  school_code: string;
+  name: string;
+  calendar: string;
+}
+
+export interface CreditCheckInput {
+  school: string;
+  course_code?: string;
+  title?: string;
+  description?: string;
+  grade?: string;
+  credits?: number;
+  term?: string;
+}
+
+export type CreditKind =
+  | 'decided_equivalent'
+  | 'decided_elective'
+  | 'not_transferable'
+  | 'pending_review'
+  | 'needs_evaluation'
+  | 'unknown_school'
+  | 'unknown_course';
+
+export interface CreditCheckResult {
+  kind: CreditKind;
+  message: string;
+  school_code?: string;
+  school_name?: string;
+  course_code?: string | null;
+  title?: string | null;
+  bu_course: string | null;
+  bu_title?: string | null;
+  units: number | null;
+  reason_code: string | null;
+  estimate: {
+    preliminary: boolean;
+    candidates: { bu_code: string; title: string; overlap_pct: number }[];
+    engine: string;
+    injection_detected: boolean;
+  } | null;
+  caveats: string[];
+}
+
+export interface ChatTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface CreditChatReply {
+  reply: string;
+  results: CreditCheckResult[];
+  grounded: boolean;
+}
