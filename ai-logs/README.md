@@ -96,6 +96,7 @@ Agent roles are defined in [`agents/`](../agents/). Each role has a human owner 
 | 2026-10-30 | [developer-40](2026-10-30/developer-40.md) | Front page Upload step: student only | Sagar (spathur) |
 | 2026-10-30 | [developer-41](2026-10-30/developer-41.md) | UX quick wins for students and department reviewers | Sagar (spathur) |
 | 2026-10-30 | [developer-42](2026-10-30/developer-42.md) | No misleading Retry after a refused upload | psahoo (POD) |
+| 2026-10-30 | [devops-01](2026-10-30/devops-01.md) | Azure OpenAI for the live chat ("Ask in your words") | Sagar (spathur) |
 | 2026-10-30 | [security-05](2026-10-30/security-05.md) | Security review of the course picker, chat context, partial matching and workbench identity | psahoo (POD) |
 <!-- INDEX:END -->
 
