@@ -220,7 +220,7 @@ cd frontend && npm ci && npm start          # http://localhost:4200 (proxies /ap
 cd backend && pytest -q && python eval/run_eval.py
 ```
 
-Locally the app runs in **demo mode** (pick a role in the top bar) with in-memory data. Tests and the demo run offline; no Azure keys are needed. To try the chatbot locally, set `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT` and `AZURE_OPENAI_API_KEY` in the backend's environment before starting it. With Docker: `docker compose up --build` gives http://localhost:8080.
+Locally the app runs in **demo mode** (pick a role in the top bar) with in-memory data. Tests and the demo run offline; no Azure keys are needed. Every setting is listed, with its default, in [`backend/.env.example`](backend/.env.example): copy it to `backend/.env` (gitignored), uncomment what you need (e.g. `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_API_KEY` for the AI matcher and chatbot), and load it before starting uvicorn (`set -a; source .env; set +a`). With Docker: `docker compose up --build` gives http://localhost:8080.
 
 ---
 
