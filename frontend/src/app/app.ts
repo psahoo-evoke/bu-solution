@@ -20,11 +20,13 @@ export class App implements OnInit {
   protected readonly roleService = inject(RoleService);
   /** null = checking, true = up, false = down */
   protected readonly apiUp = signal<boolean | null>(null);
-  /** A signed-in student's link goes straight to their own record. */
+  /** Developers on localhost get the "start the backend" hint; everyone else gets a plain-language message. */
+  protected readonly localDev = ['localhost', '127.0.0.1'].includes(location.hostname);
   protected readonly statusLabel = computed(() => {
     const role = this.roleService.role();
     return role === 'Student' || role === 'Department' ? statusTitle(role) : 'Student status';
   });
+  /** A signed-in student's link goes straight to their own record. */
   protected readonly studentLink = computed(() => (this.auth.studentId() ? ['/student', this.auth.studentId()!] : ['/student']));
 
   ngOnInit(): void {

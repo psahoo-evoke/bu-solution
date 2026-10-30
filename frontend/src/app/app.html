@@ -56,9 +56,13 @@
 
 @if (apiUp() === false) {
   <div class="banner banner--error banner--global" role="alert">
-    <strong>API offline:</strong> the TransferIQ backend at <code>/api</code> did not answer. Start it on
-    <code>http://localhost:8000</code> (see <code>frontend/README.md</code>).
-    <button type="button" class="btn btn--small" (click)="checkHealth()">Check again</button>
+    @if (localDev) {
+      <strong>API offline:</strong> the TransferIQ backend at <code>/api</code> did not answer. Start it on
+      <code>http://localhost:8000</code> (see <code>frontend/README.md</code>).
+    } @else {
+      <strong>TransferIQ is not reachable right now.</strong> Your saved work is safe. Please try again in a moment.
+    }
+    <button type="button" class="btn btn--small" (click)="checkHealth()">Try again</button>
   </div>
 }
 

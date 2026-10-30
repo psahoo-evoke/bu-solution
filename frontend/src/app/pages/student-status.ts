@@ -13,6 +13,8 @@ import { StatusChip } from '../shared/status-chip';
 
 /** States where a syllabus upload can move the course forward. */
 const SYLLABUS_STATES = new Set(['maybe_ts', 'maybe_tm', 'maybe_review', 'pending_age']);
+/** Syllabus needed (TS) or incomplete (TM): the student has something to do. */
+const NEEDS_SYLLABUS = new Set(['maybe_ts', 'maybe_tm']);
 
 @Component({
   selector: 'app-student-status',
@@ -43,6 +45,10 @@ export class StudentStatusPage {
   protected readonly groups = computed(() => groupByTerm(this.evaluation()?.lines ?? []));
   protected readonly totals = computed(() => this.evaluation()?.totals ?? null);
   protected readonly hasCourses = computed(() => (this.evaluation()?.lines.length ?? 0) > 0);
+  /** Courses still missing a (complete) syllabus that this user can upload: the "to do" card and highlighted rows. */
+  protected readonly syllabusNeeded = computed(() =>
+    (this.evaluation()?.lines ?? []).filter((l) => this.needsSyllabus(l)),
+  );
   protected readonly displayStatus = displayStatus;
   protected readonly nextStepText = nextStepText;
 
@@ -85,6 +91,10 @@ export class StudentStatusPage {
   tierText(tier: string): string {
     const t = tier.replace(/_/g, ' ');
     return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+
+  needsSyllabus(line: CourseEvaluation): boolean {
+    return NEEDS_SYLLABUS.has(line.state) && this.canUploadSyllabus(line);
   }
 
   canUploadSyllabus(line: CourseEvaluation): boolean {

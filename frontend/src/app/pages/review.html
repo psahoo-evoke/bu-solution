@@ -1,7 +1,7 @@
 <section class="page-head">
   <div>
     <h1>Evaluator workbench</h1>
-    <p class="muted">Maybe courses with the comparison already done.</p>
+    <p class="muted">Courses waiting for your decision, with the AI comparison already done.</p>
   </div>
   @if (signedInName(); as name) {
     <div class="identity evaluator-fixed">
@@ -91,11 +91,21 @@
       </p>
     }
 
+    @if (queue().length > 1) {
+      <div class="queue__search">
+        <label for="queue-search" class="visually-hidden">Search the queue</label>
+        <input id="queue-search" type="search" placeholder="Search course, school or BU code" autocomplete="off"
+               [ngModel]="queueSearch()" (ngModelChange)="queueSearch.set($event)" />
+        @if (queueSearch()) {
+          <span class="muted small" role="status">{{ shownQueue().length }} of {{ queue().length }}</span>
+        }
+      </div>
+    }
     @if (queueLoading()) {
       <p class="muted queue__loading" role="status"><span class="spinner" aria-hidden="true"></span> Loading queue…</p>
     }
     <ul class="queue__list" aria-label="Courses awaiting a decision">
-      @for (item of queue(); track item.ext_id) {
+      @for (item of shownQueue(); track item.ext_id) {
         <li>
           <button
             type="button"
@@ -120,7 +130,10 @@
           </button>
         </li>
       } @empty {
-        @if (!queueLoading() && !error()) {
+        @if (queueSearch() && queue().length) {
+          <li class="muted small queue__nomatch">No course matches “{{ queueSearch() }}”.
+            <button type="button" class="btn btn--small btn--ghost" (click)="queueSearch.set('')">Clear search</button></li>
+        } @else if (!queueLoading() && !error()) {
           <li class="queue__done">All caught up: nothing awaits a decision.</li>
         }
       }

@@ -184,6 +184,26 @@ describe('StudentStatusPage header', () => {
     expect(btn[0]).not.toContain('btn--primary');
   });
 
+  it('lists the courses that need a syllabus at the top and highlights their rows', async () => {
+    const el = await renderEvaluation(maya.lines);
+    const todo = el.querySelector('.todo');
+    expect(todo?.textContent).toContain('One course needs a syllabus');
+    expect(todo?.textContent).toContain('NYU PSYCH-UA 25');
+    expect(el.querySelectorAll('tr.row--action').length).toBe(1);
+  });
+
+  it('shows no syllabus to-do once every syllabus is in', async () => {
+    const el = await renderEvaluation(maya.lines.map((l) => ({ ...l, syllabus_uploaded: true })));
+    expect(el.querySelector('.todo')).toBeNull();
+    expect(el.querySelector('tr.row--action')).toBeNull();
+  });
+
+  it('shows how much of the credit is secured as a progress bar', async () => {
+    const el = await renderEvaluation(maya.lines);
+    expect(el.querySelector('.progress__text')?.textContent).toMatch(/\d+% secured/);
+    expect(el.querySelector('.progress__bar')?.getAttribute('aria-label')).toContain('units secured');
+  });
+
   it('hides the student picker for a student and shows it for staff', () => {
     expect(render('Student').querySelector('#student-picker')).toBeNull();
     TestBed.resetTestingModule();

@@ -374,3 +374,53 @@ meter { width: 10rem; height: 1rem; }
   dd { margin: 0; font-size: 1.15rem; font-weight: 700; }
 }
 .syllabus-done { display: inline-block; font-size: .82rem; font-weight: 600; color: var(--secured-fg); white-space: nowrap; }
+
+// Student "to do": courses waiting on a syllabus the student can upload
+.todo {
+  border-left: 6px solid #c48a00; background: var(--pending-bg); border-color: #e6c77a;
+  h2 { display: flex; align-items: center; gap: .55rem; margin: 0 0 .3rem; }
+  p { margin: 0 0 .5rem; }
+  &__count {
+    display: inline-grid; place-items: center; min-width: 1.7rem; height: 1.7rem; padding: 0 .4rem; border-radius: 999px;
+    background: #c48a00; color: #fff; font-size: .9rem; font-weight: 700;
+  }
+  &__list { margin: 0; padding-left: 1.2rem; font-size: .92rem; li { padding: .1rem 0; } }
+}
+.table tr.row--action { background: #fffaf0; td:first-child { box-shadow: inset 4px 0 0 #c48a00; } }
+
+// Student credit progress: secured vs pending units at a glance
+.progress {
+  margin-bottom: .6rem;
+  &__text { margin: 0 0 .35rem; }
+  &__bar { display: flex; height: .7rem; border-radius: 999px; overflow: hidden; background: var(--nocredit-bg); }
+  &__secured { background: #1f7a3a; }
+  &__pending { background: repeating-linear-gradient(45deg, #e0a526 0 6px, #ecc15e 6px 12px); }
+}
+
+// Phones: course tables become one card per course, each value labelled
+@media (max-width: 700px) {
+  .table--stack {
+    thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    tr { display: block; padding: .6rem .2rem; border-bottom: 1px solid var(--border); }
+    tr.row--action { padding-left: .6rem; box-shadow: inset 4px 0 0 #c48a00; td:first-child { box-shadow: none; } }
+    td { display: block; position: relative; padding: .25rem 0 .25rem 7rem; border: 0; text-align: left; }
+    td.num { text-align: left; }
+    td[data-label]::before {
+      content: attr(data-label); position: absolute; left: 0; top: .35rem; width: 6.5rem;
+      font-size: .78rem; font-weight: 600; color: var(--muted);
+    }
+    td:first-child { padding: 0 0 .4rem; &::before { display: none; } }
+    td.is-empty { display: none; }
+    td.cell-actions { padding: .4rem 0 0; .file-btn { width: 100%; justify-content: center; } }
+  }
+}
+
+// Workbench queue: search, and the list stays in view while a long comparison scrolls
+.queue__search {
+  display: flex; align-items: center; gap: .5rem; margin: .5rem 0 .75rem;
+  input { flex: 1; min-width: 0; font: inherit; padding: .45rem .6rem; border: 1px solid #9aa3ae; border-radius: 6px; }
+}
+.queue__nomatch { padding: .75rem .25rem; }
+@media (min-width: 901px) {
+  .workbench .queue { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
+}

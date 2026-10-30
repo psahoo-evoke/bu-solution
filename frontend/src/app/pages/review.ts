@@ -41,6 +41,15 @@ export class ReviewPage {
   /** A signed-in department account only ever sees its own department (the API enforces it): fixed, not a choice. */
   protected readonly ownDepartment = computed(() => (this.roles.role() === 'Department' ? this.auth.department() : null));
   protected readonly queueLoading = signal(false);
+  /** Client-side filter of the loaded queue (course, title, school, department, top BU match). */
+  protected readonly queueSearch = signal('');
+  protected readonly shownQueue = computed(() => {
+    const q = this.queueSearch().trim().toLowerCase();
+    if (!q) return this.queue();
+    return this.queue().filter((i) =>
+      [i.school_code, i.course_code, i.title, i.department, i.top_candidate.bu_code].join(' ').toLowerCase().includes(q),
+    );
+  });
   protected readonly error = signal<string | null>(null);
   protected readonly success = signal<string | null>(null);
 

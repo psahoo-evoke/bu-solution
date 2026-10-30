@@ -71,7 +71,39 @@
     </section>
   }
 
+  @if (syllabusNeeded().length && !uploadingTranscript()) {
+    <section class="card todo" aria-labelledby="todo-h">
+      <h2 id="todo-h">
+        <span class="todo__count" aria-hidden="true">{{ syllabusNeeded().length }}</span>
+        {{ syllabusNeeded().length === 1 ? 'One course needs' : syllabusNeeded().length + ' courses need' }} a syllabus
+      </h2>
+      <p class="muted small">
+        The department can only decide these once the syllabus is in. Use <strong>Upload syllabus</strong> on the
+        highlighted rows below.
+      </p>
+      <ul class="todo__list">
+        @for (line of syllabusNeeded(); track line.ext_id + line.term) {
+          <li>{{ line.school_code }} {{ line.course_code }} · {{ line.title }}</li>
+        }
+      </ul>
+    </section>
+  }
+
   @if (hasCourses() && totals(); as t) {
+    @let creditTotal = t.secured_units + t.pending_units;
+    @if (creditTotal > 0) {
+      <div class="progress" [class.is-stale]="uploadingTranscript()">
+        <p class="progress__text">
+          <strong>{{ (t.secured_units / creditTotal) * 100 | number: '1.0-0' }}% secured</strong>
+          <span class="muted"> · {{ t.secured_units | number: '1.0-2' }} of {{ creditTotal | number: '1.0-2' }} units so far</span>
+        </p>
+        <div class="progress__bar" role="img"
+             [attr.aria-label]="(t.secured_units | number: '1.0-2') + ' units secured, ' + (t.pending_units | number: '1.0-2') + ' pending'">
+          <span class="progress__secured" [style.width.%]="(t.secured_units / creditTotal) * 100"></span>
+          <span class="progress__pending" [style.width.%]="(t.pending_units / creditTotal) * 100"></span>
+        </div>
+      </div>
+    }
     <section class="totals" aria-label="Credit totals" [class.is-stale]="uploadingTranscript()" [attr.aria-busy]="uploadingTranscript()">
       <div class="total total--secured">
         <span class="total__label">Secured</span>
@@ -104,7 +136,7 @@
     <section class="card term" [attr.aria-labelledby]="'term-' + $index" [class.is-stale]="uploadingTranscript()" [attr.aria-busy]="uploadingTranscript()">
       <h3 [id]="'term-' + $index">{{ g.term }}</h3>
       <div class="table-wrap">
-        <table class="table">
+        <table class="table table--stack">
           <caption class="visually-hidden">Courses taken in {{ g.term }}</caption>
           <thead>
             <tr>
@@ -119,8 +151,8 @@
           </thead>
           <tbody>
             @for (line of g.lines; track line.ext_id + line.term) {
-              <tr>
-                <td>
+              <tr [class.row--action]="needsSyllabus(line)">
+                <td data-label="Course">
                   <strong>{{ line.school_code }} {{ line.course_code }}</strong>
                   <div>{{ line.title }}</div>
                   <div class="muted small">
@@ -128,8 +160,8 @@
                   </div>
                 </td>
                 @let st = displayStatus(line);
-                <td><app-status-chip [code]="st.code" [label]="st.label" /></td>
-                <td>
+                <td data-label="Status"><app-status-chip [code]="st.code" [label]="st.label" /></td>
+                <td data-label="BU course">
                   @if (line.bu_course) {
                     {{ line.bu_course }}
                   } @else {
@@ -139,7 +171,7 @@
                     <div class="muted small">AI: {{ tierText(line.ai_tier) }} ({{ line.ai_overlap_pct }}% overlap)</div>
                   }
                 </td>
-                <td class="num">
+                <td class="num" data-label="Units">
                   {{ line.units | number: '1.0-2' }}
                   @if (line.state === 'approved') {
                     <div class="muted small">counts as pending until posted</div>
@@ -147,8 +179,8 @@
                     <div class="muted small">{{ line.units_if_approved | number: '1.0-2' }} if approved</div>
                   }
                 </td>
-                <td>{{ nextStepText(line) || '—' }}</td>
-                <td>
+                <td data-label="Next step">{{ nextStepText(line) || '—' }}</td>
+                <td data-label="Flags" [class.is-empty]="!line.flags.length && !line.reason_code">
                   @for (f of line.flags; track f) {
                     <span class="flag">{{ f }}</span>
                   } @empty {
@@ -158,7 +190,7 @@
                     <div class="muted small">Reason {{ line.reason_code }}</div>
                   }
                 </td>
-                <td>
+                <td class="cell-actions" [class.is-empty]="!canUploadSyllabus(line) && !line.syllabus_uploaded">
                   @if (canUploadSyllabus(line)) {
                     <label class="btn btn--small file-btn" [class.is-busy]="busyExtId() === line.ext_id">
                       <input
@@ -187,5 +219,11 @@
     }
   }
 } @else if (loading()) {
-  <p class="muted" role="status">Loading evaluation…</p>
+  <section class="card loader-panel" role="status">
+    <span class="spinner spinner--lg" aria-hidden="true"></span>
+    <div>
+      <strong>Loading your credit status…</strong>
+      <p class="muted small">Fetching every course and where it stands.</p>
+    </div>
+  </section>
 }

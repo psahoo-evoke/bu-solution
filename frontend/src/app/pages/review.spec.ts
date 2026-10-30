@@ -76,6 +76,34 @@ describe('ReviewPage role gating', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('#evaluator-name')).not.toBeNull();   // demo: no account
   });
 
+  it('filters the queue by search text and says when nothing matches', async () => {
+    TestBed.inject(RoleService).set('Evaluator');
+    const fixture = TestBed.createComponent(ReviewPage);
+    fixture.detectChanges();
+    http.expectOne('/api/reason-codes').flush([]);
+    const mk = (ext_id: string, course_code: string, title: string, bu_code: string) => ({
+      ext_id, course_code, title, school_code: 'NYU', department: 'Psychology', students: ['SYN-1'], syllabus_state: 'complete',
+      confidence_pct: 70, batch_eligible: false, top_candidate: { bu_code, title, overlap_pct: 70 },
+    });
+    http.expectOne((r) => r.url === '/api/review-queue').flush([
+      mk('A', 'PSYCH-UA 25', 'Social Psychology', 'CAS PS 261'), mk('B', 'MATH-UA 9', 'Algebra', 'CAS MA 121'),
+    ]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const search = el.querySelector('#queue-search') as HTMLInputElement;
+    search.value = 'ma 121';
+    search.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(Array.from(el.querySelectorAll('.queue__item')).map((b) => b.textContent)).toEqual([expect.stringContaining('MATH-UA 9')]);
+    search.value = 'chemistry';
+    search.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(el.querySelectorAll('.queue__item').length).toBe(0);
+    expect(el.querySelector('.queue__nomatch')?.textContent).toContain('No course matches');
+    expect(el.querySelector('.queue__done')).toBeNull();
+  });
+
   it('shows the syllabus next to the AI comparison and the automatic request status', async () => {
     TestBed.inject(RoleService).set('Evaluator');
     const fixture = TestBed.createComponent(ReviewPage);
