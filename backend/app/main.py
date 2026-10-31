@@ -33,7 +33,7 @@ from .guard import MAX_UPLOAD_BYTES, RoleGuardMiddleware, auth_mode
 from .ingest import UploadError, check_pdf_bytes, check_syllabus, parse_transcript, pdf_text
 from .matcher import detect_injection, engine_name, recommend, recommend_many
 from . import rules
-from .rules import evaluate_student, tier_label, totals
+from .rules import evaluate_student, summarize_student, tier_label, totals
 from .store import Decision, ExtCourse, SyllabusRecord, TranscriptLine, TranscriptRecord
 
 # uvicorn only configures its own loggers; give ours a handler so INFO lines (e.g. stored uploads) reach the
@@ -334,6 +334,13 @@ def list_students(request: Request):
         st = S().students.get(u["student_id"])
         return [st.to_api(S().schools)] if st else []
     return [st.to_api(S().schools) for st in S().students.values()]
+
+
+@api.get("/students/summary")
+def students_summary():
+    """Caseload view for advisors and financial aid: one row per student, no contact data, no AI call."""
+    today = dt.date.today()
+    return [summarize_student(S(), st, today) for st in S().students.values()]
 
 
 @api.get("/students/{student_id}/evaluation")

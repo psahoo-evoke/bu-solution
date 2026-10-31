@@ -1,6 +1,6 @@
 // Hand-written from docs/api/openapi.yaml (components/schemas). Keep in sync with the contract.
 
-export type DemoRole = 'Student' | 'CreditStaff' | 'Evaluator' | 'Department' | 'Registrar' | 'Advisor';
+export type DemoRole = 'Student' | 'CreditStaff' | 'Evaluator' | 'Department' | 'Registrar' | 'Advisor' | 'FinancialAid';
 export const DEMO_ROLES: readonly DemoRole[] = [
   'Student',
   'CreditStaff',
@@ -8,6 +8,7 @@ export const DEMO_ROLES: readonly DemoRole[] = [
   'Department',
   'Registrar',
   'Advisor',
+  'FinancialAid',
 ];
 
 export interface Student {
@@ -23,6 +24,40 @@ export interface Student {
   /** school_code of the most recently attended school; the name is resolved by the API. */
   previous_school?: string | null;
   previous_school_name?: string | null;
+}
+
+export type Attention = 'action_needed' | 'in_progress' | 'on_track' | 'no_transcript';
+export type AidStatus = 'confirmed' | 'provisional' | 'no_data';
+
+/** openapi: components.schemas.StudentSummary (GET /students/summary). No contact data. */
+export interface StudentSummary {
+  student_id: string;
+  name: string;
+  intended_major: string;
+  bu_school?: string;
+  bu_start_term: string;
+  previous_school_name: string | null;
+  course_count: number;
+  secured_units: number;
+  /** Approved, awaiting posting (already included in pending_units) */
+  approved_units: number;
+  pending_units: number;
+  /** min(secured + pending, cap): the most that could count if everything pending is approved */
+  projected_units: number;
+  no_credit_lines: number;
+  cap_units: number;
+  awaiting_student: number;
+  awaiting_evaluator: number;
+  awaiting_posting: number;
+  /** ISO date (R19) */
+  transfer_deadline: string;
+  /** Negative once past the deadline */
+  days_to_deadline: number;
+  past_deadline: boolean;
+  advisory_flags: string[];
+  attention: Attention;
+  attention_reasons: string[];
+  aid_status: AidStatus;
 }
 
 export type CourseState =

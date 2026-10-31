@@ -11,8 +11,11 @@ export function homeRoute(role: DemoRole, studentId?: string | null): string {
       return '/review';
     case 'Registrar':
       return '/registrar';
-    case 'Student':
     case 'Advisor':
+      return '/advisor';
+    case 'FinancialAid':
+      return '/financial-aid';
+    case 'Student':
     default:
       return `/student/${studentId || DEFAULT_STUDENT}`;
   }
@@ -32,4 +35,5 @@ export const ROLE_LABELS: Record<DemoRole, string> = {
   Department: 'Department',
   Registrar: 'Registrar',
   Advisor: 'Advisor',
+  FinancialAid: 'Financial aid',
 };

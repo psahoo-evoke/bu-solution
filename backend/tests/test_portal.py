@@ -171,3 +171,18 @@ def test_decisions_record_the_signed_in_accounts_name(anon, fresh_store):
     h = bearer(anon, "biology.dept@bu.edu", "department")
     r = anon.post("/api/decisions/batch", json={"ext_ids": ["NEU|BIOL 3712"], "evaluator": "Someone Else"}, headers=h)
     assert r.status_code == 201 and {d["evaluator"] for d in r.json()} == {"Biology Department <biology.dept@bu.edu>"}
+
+
+# ------------------------------------------------------------------ advisor and financial aid caseload
+def test_advisor_and_financial_aid_sign_in_and_read_the_caseload(anon):
+    for email in ("advisor@bu.edu", "financialaid@bu.edu"):
+        h = bearer(anon, email, "staff")
+        r = anon.get("/api/students/summary", headers=h)
+        assert r.status_code == 200 and len(r.json()) == len(accounts.SAMPLE_STUDENTS)
+    fa = bearer(anon, "financialaid@bu.edu", "staff")
+    assert anon.post("/api/postings", json={}, headers=fa).status_code == 403
+    assert anon.post("/api/decisions/batch", json={"ext_ids": ["NEU|BIOL 3712"], "evaluator": "x"}, headers=fa).status_code == 403
+
+
+def test_a_student_cannot_read_the_caseload(anon):
+    assert anon.get("/api/students/summary", headers=bearer(anon, "maya.delgado@bu.edu")).status_code == 403

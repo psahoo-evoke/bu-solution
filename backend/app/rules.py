@@ -255,12 +255,17 @@ def evaluate_student(store: Store, student: Student, ai_hint: Optional[AiHint] =
 
     # R19: credits must be transferred within one year of starting at BU.
     today = today or _dt.date.today()
-    deadline = _dt.date(start_year + 1, 9 if start_season == "Fall" else 1, 1)
-    if today > deadline:
+    if today > transfer_deadline(student):
         for o in out:
             if o["state"].startswith(("maybe", "pending")):
                 o["flags"].append("Past the one-year transfer deadline: Outstanding Transfer Credit Review needed")
     return out
+
+
+def transfer_deadline(student: Student) -> _dt.date:
+    """R19: one year after starting at BU (a Fall start counts from 1 September, otherwise from 1 January)."""
+    season, year = student.bu_start_term.split()
+    return _dt.date(int(year) + 1, 9 if season == "Fall" else 1, 1)
 
 
 def totals(lines: list[dict]) -> dict:
@@ -269,3 +274,65 @@ def totals(lines: list[dict]) -> dict:
     pending = round(float(sum(o["units_if_approved"] for o in lines if o["state"].startswith(("maybe", "pending")))) + approved, 2)
     return dict(secured_units=secured, approved_units=approved, pending_units=pending,
                 no_credit_lines=sum(1 for o in lines if o["state"] == "posted_no_credit"), cap_units=CAP_UNITS)
+
+
+DEADLINE_WARNING_DAYS = 60
+
+
+def _plural(n: int, one: str, many: str) -> str:
+    return f"{n} {one if n == 1 else many}"
+
+
+def summarize_student(store: Store, student: Student, today: Optional[_dt.date] = None) -> dict:
+    """One-row view of a student's transfer credit for advisors and financial aid (read-only, no contact data).
+
+    Uses the same line evaluation as the status page, without AI hints, so it is cheap and never calls a model.
+    `attention` is for advisors (who needs a nudge); `aid_status` is for financial aid (are the units final)."""
+    today = today or _dt.date.today()
+    lines = evaluate_student(store, student, today=today)
+    t = totals(lines)
+
+    def count(*states: str) -> int:
+        return sum(1 for o in lines if o["state"] in states)
+
+    awaiting_student = count("maybe_ts", "maybe_tm")
+    awaiting_evaluator = count("maybe_review", "pending_age")
+    awaiting_posting = count("approved")
+    open_items = awaiting_student + awaiting_evaluator + awaiting_posting
+    deadline = transfer_deadline(student)
+    days_left = (deadline - today).days
+    flags = sorted({f for o in lines for f in o["flags"]})
+
+    reasons: list[str] = []
+    if awaiting_student:
+        reasons.append(f"{_plural(awaiting_student, 'course needs', 'courses need')} a syllabus from the student")
+    if awaiting_evaluator:
+        reasons.append(f"{_plural(awaiting_evaluator, 'course', 'courses')} waiting for an evaluator")
+    if awaiting_posting:
+        reasons.append(f"{_plural(awaiting_posting, 'approved course', 'approved courses')} waiting for the Registrar to post")
+    if open_items and days_left < 0:
+        reasons.append("Past the one-year transfer deadline")
+    elif open_items and days_left <= DEADLINE_WARNING_DAYS:
+        reasons.append(f"Transfer deadline in {_plural(days_left, 'day', 'days')}")
+
+    if not lines:
+        attention, reasons = "no_transcript", ["No transcript on file yet"]
+    elif awaiting_student or (open_items and days_left <= DEADLINE_WARNING_DAYS):
+        attention = "action_needed"
+    elif open_items:
+        attention = "in_progress"
+    else:
+        attention = "on_track"
+    aid_status = "no_data" if not lines else ("provisional" if open_items else "confirmed")
+    prev = store.schools.get(student.previous_school)
+
+    return dict(
+        student_id=student.student_id, name=student.name, intended_major=student.intended_major,
+        bu_school=student.bu_school, bu_start_term=student.bu_start_term,
+        previous_school_name=prev.name if prev else None,
+        course_count=len(lines), secured_units=t["secured_units"], approved_units=t["approved_units"],
+        pending_units=t["pending_units"], projected_units=round(min(t["secured_units"] + t["pending_units"], CAP_UNITS), 2),
+        no_credit_lines=t["no_credit_lines"], cap_units=CAP_UNITS,
+        awaiting_student=awaiting_student, awaiting_evaluator=awaiting_evaluator, awaiting_posting=awaiting_posting,
+        transfer_deadline=deadline.isoformat(), days_to_deadline=days_left, past_deadline=days_left < 0,
+        advisory_flags=flags, attention=attention, attention_reasons=reasons, aid_status=aid_status)

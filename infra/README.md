@@ -55,7 +55,7 @@ Run the deploy script with `ENTRA_CLIENT_ID=<application (client) id> ENTRA_TENA
 
 The app registration (one registration for the SPA and the API) needs:
 1. **Authentication → Single-page application** redirect URIs: the web app URL (for example `https://bu-solutions.<env domain>`) and `http://localhost:4200` for local dev.
-2. **App roles** (allowed member types: Users/Groups). The value must match exactly: `Student`, `CreditStaff`, `Evaluator`, `Department`, `Registrar`, `Advisor`.
+2. **App roles** (allowed member types: Users/Groups). The value must match exactly: `Student`, `CreditStaff`, `Evaluator`, `Department`, `Registrar`, `Advisor`, `FinancialAid`.
 3. **Enterprise applications → the app → Users and groups:** assign each person (or a group) one or more of those roles. A signed-in user with no role sees "No TransferIQ role assigned", and the API answers 403.
 4. Optional: set *Assignment required* = Yes so that only assigned users can sign in.
 

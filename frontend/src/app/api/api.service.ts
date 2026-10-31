@@ -14,6 +14,7 @@ import {
   Rule,
   Student,
   StudentEvaluation,
+  StudentSummary,
   SyllabusCheck,
   SyllabusRequest,
   ChatTurn,
@@ -64,6 +65,11 @@ export class ApiService {
 
   listStudents(): Observable<Student[]> {
     return this.http.get<Student[]>(`${API_BASE}/students`);
+  }
+
+  /** Advisor and financial-aid caseload: one row per student, no contact data. */
+  getStudentSummaries(): Observable<StudentSummary[]> {
+    return this.http.get<StudentSummary[]>(`${API_BASE}/students/summary`);
   }
 
   getStudentEvaluation(studentId: string): Observable<StudentEvaluation> {

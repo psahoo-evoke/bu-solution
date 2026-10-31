@@ -7,6 +7,7 @@ import { DEMO_ROLES, DemoRole } from './models';
  */
 export type Operation =
   | 'listStudents'
+  | 'studentSummary'
   | 'studentEvaluation'
   | 'uploadTranscript'
   | 'uploadSyllabus'
@@ -26,6 +27,7 @@ const ALL: readonly DemoRole[] = DEMO_ROLES;
 
 export const OPERATION_ROLES: Record<Operation, readonly DemoRole[]> = {
   listStudents: ALL,
+  studentSummary: ['Advisor', 'FinancialAid', 'CreditStaff'],
   studentEvaluation: ALL,
   uploadTranscript: ['Student', 'CreditStaff'],
   uploadSyllabus: ['Student', 'CreditStaff', 'Evaluator', 'Department'],
@@ -45,6 +47,7 @@ export const OPERATION_ROLES: Record<Operation, readonly DemoRole[]> = {
 /** Plain-words verb for each operation, used in "Switch role to X to <verb>". */
 const VERBS: Record<Operation, string> = {
   listStudents: 'see students',
+  studentSummary: 'see the caseload',
   studentEvaluation: 'see this status page',
   uploadTranscript: 'upload a transcript',
   uploadSyllabus: 'upload a syllabus',

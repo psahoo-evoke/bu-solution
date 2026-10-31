@@ -29,7 +29,7 @@ import os
 import re
 from typing import Optional
 
-ALL_ROLES = ("Student", "CreditStaff", "Evaluator", "Department", "Registrar", "Advisor")
+ALL_ROLES = ("Student", "CreditStaff", "Evaluator", "Department", "Registrar", "Advisor", "FinancialAid")
 EVERYONE = set(ALL_ROLES)
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 _MULTIPART_SLACK = 64 * 1024        # multipart boundaries/headers around the file part
@@ -38,6 +38,7 @@ MAX_PUBLIC_BODY = 64 * 1024         # public routes take small JSON only
 # (method, path template under /api, allowed roles). Keep in sync with docs/api/openapi.yaml x-roles.
 ROUTE_ROLES: list[tuple[str, str, set[str]]] = [
     ("GET", "/students", EVERYONE),
+    ("GET", "/students/summary", {"Advisor", "FinancialAid", "CreditStaff"}),
     ("GET", "/students/{student_id}/evaluation", EVERYONE),
     ("GET", "/students/{student_id}/notifications", EVERYONE),
     ("POST", "/students/{student_id}/notifications/seen", {"Student"}),
@@ -142,7 +143,7 @@ def choose_role(granted: list[str], requested: Optional[str]) -> str:
     """Active role for this request: the requested one if the token grants it, else the first granted role."""
     if not granted:
         raise AuthError(403, "Your account has no TransferIQ role. Ask an administrator to assign one "
-                             "(Student, CreditStaff, Evaluator, Department, Registrar or Advisor).")
+                             "(Student, CreditStaff, Evaluator, Department, Registrar, Advisor or FinancialAid).")
     if requested:
         if requested not in granted:
             raise AuthError(403, f"Role '{requested}' is not assigned to your account (assigned: {', '.join(granted)})")

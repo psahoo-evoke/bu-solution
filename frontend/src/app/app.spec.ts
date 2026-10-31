@@ -25,7 +25,7 @@ describe('App shell', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.textContent?.toLowerCase()).not.toContain('synthetic');
     const options = Array.from(el.querySelectorAll('#role-select option')).map((o) => o.textContent?.trim());
-    expect(options).toEqual(['Student', 'CreditStaff', 'Evaluator', 'Department', 'Registrar', 'Advisor']);
+    expect(options).toEqual(['Student', 'CreditStaff', 'Evaluator', 'Department', 'Registrar', 'Advisor', 'FinancialAid']);
   });
 
   it('shows an error banner (not a blank page) when the API is down', async () => {

@@ -31,6 +31,7 @@ const SAMPLES: Record<Portal, Sample[]> = {
     { email: 'creditstaff@bu.edu', label: 'Credit staff' },
     { email: 'registrar@bu.edu', label: 'Registrar' },
     { email: 'advisor@bu.edu', label: 'Advisor' },
+    { email: 'financialaid@bu.edu', label: 'Financial aid' },
   ],
 };
 

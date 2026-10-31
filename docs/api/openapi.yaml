@@ -5,7 +5,7 @@ info:
   description: |
     Transfer credit evaluation co-pilot (EvoHack 2026, BU problem statement).
     AI recommends, the rules engine computes, evaluators decide.
-    Demo auth: send `X-Demo-Role` (Student | CreditStaff | Evaluator | Department | Registrar | Advisor).
+    Demo auth: send `X-Demo-Role` (Student | CreditStaff | Evaluator | Department | Registrar | Advisor | FinancialAid).
     Production auth: Entra ID bearer token with the same app roles.
     Default deny (ADR 0005) with a public allowlist: /health, /auth/* (sign-in and registration) and the credit check and chat (/credit-check, /credit-check/schools, /credit-check/courses, /credit-chat; ADR 0006) need no login. Every other route requires a valid role; `x-roles` lists the roles allowed per operation (others get 403, missing/unknown role 401).
     In production, Student may only read or upload for their own student_id; /demo/reset is disabled.
@@ -72,13 +72,19 @@ paths:
   /students:
     get:
       summary: List students
-      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor]
+      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor, FinancialAid]
       responses:
         "200": { description: Students, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Student" } } } } }
+  /students/summary:
+    get:
+      summary: One-row transfer credit summary per student, for advisor caseloads and financial aid (no contact data, no AI call)
+      x-roles: [Advisor, FinancialAid, CreditStaff]
+      responses:
+        "200": { description: Summaries, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/StudentSummary" } } } } }
   /students/{student_id}/evaluation:
     get:
       summary: Every transcript line with its current status, plus secured vs pending totals
-      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor]
+      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor, FinancialAid]
       parameters: [ { $ref: "#/components/parameters/StudentId" } ]
       responses:
         "200": { description: Evaluation, content: { application/json: { schema: { $ref: "#/components/schemas/StudentEvaluation" } } } }
@@ -91,7 +97,7 @@ paths:
         (only when it applies to them) and credit posted. Built from what the app already records; shown even when an email
         failed or no mail service is configured. Never includes staff email lists, evaluator names or notes. Reading does not
         mark anything read (staff may look at a student's record). Portal: a student only reaches their own id.
-      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor]
+      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor, FinancialAid]
       parameters: [ { $ref: "#/components/parameters/StudentId" } ]
       responses:
         "200": { description: Notifications, content: { application/json: { schema: { $ref: "#/components/schemas/StudentNotifications" } } } }
@@ -240,19 +246,19 @@ paths:
   /evaluation/metrics:
     get:
       summary: Matcher quality on the held-out decisions (sponsor gates)
-      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor]
+      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor, FinancialAid]
       responses:
         "200": { description: Metrics, content: { application/json: { schema: { $ref: "#/components/schemas/Metrics" } } } }
   /rules:
     get:
       summary: The rules the engine applies (R01–R24)
-      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor]
+      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor, FinancialAid]
       responses:
         "200": { description: Rules, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Rule" } } } } }
   /reason-codes:
     get:
       summary: Reason codes evaluators can record
-      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor]
+      x-roles: [Student, CreditStaff, Evaluator, Department, Registrar, Advisor, FinancialAid]
       responses:
         "200": { description: Codes, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ReasonCode" } } } } }
   /demo/reset:
@@ -305,6 +311,32 @@ components:
         address: { type: string, description: "Postal address, one text field (personal data; never sent to an AI service)" }
         previous_school: { type: string, nullable: true, description: "school_code of the most recently attended school (latest transcript term); full history is in the transcript lines" }
         previous_school_name: { type: string, nullable: true, example: "New York University" }
+    StudentSummary:
+      type: object
+      properties:
+        student_id: { type: string }
+        name: { type: string }
+        intended_major: { type: string }
+        bu_school: { type: string }
+        bu_start_term: { type: string }
+        previous_school_name: { type: string, nullable: true }
+        course_count: { type: integer }
+        secured_units: { type: number, description: "Matched or posted" }
+        approved_units: { type: number, description: "Approved, awaiting posting (included in pending_units)" }
+        pending_units: { type: number }
+        projected_units: { type: number, description: "min(secured + pending, cap): the most that could count if everything pending is approved" }
+        no_credit_lines: { type: integer }
+        cap_units: { type: number, example: 68 }
+        awaiting_student: { type: integer, description: "Lines needing a syllabus (TS) or more materials (TM)" }
+        awaiting_evaluator: { type: integer, description: "Lines under evaluator review or age review" }
+        awaiting_posting: { type: integer, description: "Approved lines the Registrar has not posted" }
+        transfer_deadline: { type: string, format: date, description: "R19: one year after starting at BU" }
+        days_to_deadline: { type: integer, description: "Negative once past the deadline" }
+        past_deadline: { type: boolean }
+        advisory_flags: { type: array, items: { type: string } }
+        attention: { type: string, enum: [action_needed, in_progress, on_track, no_transcript], description: "For advisors" }
+        attention_reasons: { type: array, items: { type: string } }
+        aid_status: { type: string, enum: [confirmed, provisional, no_data], description: "For financial aid: confirmed = every line decided and posted, so the units will not change" }
     CourseEvaluation:
       type: object
       properties:

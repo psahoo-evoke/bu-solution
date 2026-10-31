@@ -36,7 +36,7 @@ ACCOUNTS_BLOB = "accounts.json"
 SESSION_HOURS = 8
 PASSWORD_MIN = 5
 EMAIL_RE = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$")   # any domain, not only bu.edu
-STAFF_ROLES = ("Evaluator", "CreditStaff", "Registrar", "Advisor")
+STAFF_ROLES = ("Evaluator", "CreditStaff", "Registrar", "Advisor", "FinancialAid")
 PORTALS = {"student": {"Student"}, "department": {"Department"}, "staff": set(STAFF_ROLES)}
 
 SAMPLE_STUDENTS = {   # student_loginsample.txt
@@ -47,9 +47,11 @@ SAMPLE_STUDENTS = {   # student_loginsample.txt
 }
 ACADEMIC_DEPARTMENTS = ("Psychology", "Biology", "Economics", "Computer Science", "Mathematics", "General education")
 STAFF_ACCOUNTS = {"Evaluator": "evaluator@bu.edu", "CreditStaff": "creditstaff@bu.edu",
-                  "Registrar": "registrar@bu.edu", "Advisor": "advisor@bu.edu"}
+                  "Registrar": "registrar@bu.edu", "Advisor": "advisor@bu.edu",
+                  "FinancialAid": "financialaid@bu.edu"}
 STAFF_NAMES = {"Evaluator": "Transfer Evaluator", "CreditStaff": "Transfer Credit Staff",
-               "Registrar": "Registrar's Office", "Advisor": "Academic Advisor"}
+               "Registrar": "Registrar's Office", "Advisor": "Academic Advisor",
+               "FinancialAid": "Financial Aid Office"}
 
 
 class AccountError(Exception):

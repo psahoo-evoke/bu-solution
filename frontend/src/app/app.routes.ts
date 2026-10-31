@@ -46,5 +46,17 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./pages/registrar').then((m) => m.RegistrarPage),
   },
+  {
+    path: 'advisor',
+    title: 'Advisor caseload · TransferIQ',
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/advisor').then((m) => m.AdvisorPage),
+  },
+  {
+    path: 'financial-aid',
+    title: 'Financial aid · TransferIQ',
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/financial-aid').then((m) => m.FinancialAidPage),
+  },
   { path: '**', redirectTo: '' },
 ];

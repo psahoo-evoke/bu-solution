@@ -1,0 +1,141 @@
+<section class="page-head">
+  <div>
+    <h1>Financial aid: transfer credit readiness</h1>
+    <p class="muted">Which students' transfer units are final, and which could still change. Read-only: award amounts are not calculated here.</p>
+  </div>
+  @if (allowed()) {
+  <div class="row row--tight">
+    <button type="button" class="btn" (click)="load()" [disabled]="loading() || !allowed()">{{ loading() ? 'Refreshing…' : 'Refresh' }}</button>
+    <button type="button" class="btn btn--primary" (click)="download()" [disabled]="!visible().length">Download CSV ({{ visible().length }})</button>
+  </div>
+  }
+</section>
+
+@if (!allowed()) {
+  <div class="banner banner--info" role="status">
+    You are viewing as <strong>{{ roles.role() }}</strong>. {{ switchHint }}
+    <button type="button" class="btn btn--small" (click)="switchRole()">Switch to {{ suggested }}</button>
+  </div>
+} @else {
+  <app-error-banner [message]="error()" (retry)="load()" />
+
+  @if (loading() && !rows().length) {
+    <p class="muted" role="status">Loading students…</p>
+  } @else if (rows().length) {
+    <section class="kpis" aria-label="Readiness summary">
+      <button type="button" class="kpi kpi--secured" [class.is-on]="filter() === 'confirmed'" [attr.aria-pressed]="filter() === 'confirmed'" (click)="filter.set(filter() === 'confirmed' ? 'all' : 'confirmed')">
+        <span class="kpi__value">{{ count('confirmed') }}</span>
+        <span class="kpi__label">Confirmed students</span>
+      </button>
+      <button type="button" class="kpi kpi--pending" [class.is-on]="filter() === 'provisional'" [attr.aria-pressed]="filter() === 'provisional'" (click)="filter.set(filter() === 'provisional' ? 'all' : 'provisional')">
+        <span class="kpi__value">{{ count('provisional') }}</span>
+        <span class="kpi__label">Provisional students</span>
+      </button>
+      <div class="kpi kpi--static">
+        <span class="kpi__value">{{ secured() | number: '1.0-2' }}</span>
+        <span class="kpi__label">Secured units (all students)</span>
+      </div>
+      <div class="kpi kpi--static">
+        <span class="kpi__value">{{ pending() | number: '1.0-2' }}</span>
+        <span class="kpi__label">Pending units (could change)</span>
+      </div>
+    </section>
+
+    <div class="banner banner--info" role="note">
+      <span>
+        <strong>How to read this.</strong>{{ ' ' }}<em>Confirmed</em> means every course is decided and posted, so the units will not change.
+        <em>Provisional</em> means courses are still waiting on the student, an evaluator or the Registrar; <em>Could reach</em> is the most
+        that could count if everything pending is approved, never above the {{ rows()[0].cap_units }}-unit external cap.
+      </span>
+    </div>
+
+    <section class="toolbar" aria-label="Find students">
+      <div class="field">
+        <label for="aid-search">Search</label>
+        <input id="aid-search" type="text" placeholder="Name, ID, major or school" [ngModel]="query()" (ngModelChange)="query.set($event)" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="aid-filter">Readiness</label>
+        <select id="aid-filter" [ngModel]="filter()" (ngModelChange)="filter.set($event)">
+          <option value="all">All students</option>
+          @for (s of statuses; track s) {
+            <option [value]="s">{{ label[s] }} ({{ count(s) }})</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="aid-sort">Sort by</label>
+        <select id="aid-sort" [ngModel]="sort()" (ngModelChange)="sort.set($event)">
+          @for (k of sortKeys; track k) {
+            <option [value]="k">{{ sortLabel[k] }}</option>
+          }
+        </select>
+      </div>
+      <p class="muted small toolbar__count" role="status" aria-live="polite">
+        Showing {{ visible().length }} of {{ rows().length }} {{ rows().length === 1 ? 'student' : 'students' }}
+        @if (filter() !== 'all' || query()) {
+          · <button type="button" class="link-btn" (click)="clearFilters()">Clear filters</button>
+        }
+      </p>
+    </section>
+
+    @if (visible().length) {
+      <section class="card card--flush">
+        <div class="table-wrap">
+          <table class="table table--rows">
+            <caption class="visually-hidden">Transfer credit readiness by student</caption>
+            <thead>
+              <tr>
+                <th scope="col">Student</th>
+                <th scope="col">Readiness</th>
+                <th scope="col" class="num">Secured</th>
+                <th scope="col" class="num">Pending</th>
+                <th scope="col">Could reach</th>
+                <th scope="col" class="num">No credit</th>
+                <th scope="col" class="num">Open items</th>
+                <th scope="col">Transfer deadline</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (s of visible(); track s.student_id) {
+                <tr>
+                  <td>
+                    <a [routerLink]="['/student', s.student_id]"><strong>{{ s.name }}</strong></a>
+                    <div class="muted small">{{ s.student_id }} · {{ s.intended_major }}</div>
+                    <div class="muted small">{{ s.previous_school_name ?? 'No previous school on file' }} · starts {{ s.bu_start_term }}</div>
+                  </td>
+                  <td>
+                    <span class="chip chip--{{ tone[s.aid_status] }}" [attr.title]="meaning[s.aid_status]"><span class="chip__text">{{ label[s.aid_status] }}</span></span>
+                  </td>
+                  <td class="num">{{ s.secured_units | number: '1.0-2' }}</td>
+                  <td class="num">{{ s.pending_units | number: '1.0-2' }}</td>
+                  <td>
+                    @if (s.course_count) {
+                      <meter min="0" [max]="s.cap_units" [value]="s.projected_units" [attr.aria-label]="s.name + ': could reach ' + s.projected_units + ' of ' + s.cap_units + ' units'"></meter>
+                      <div class="small">{{ s.projected_units | number: '1.0-2' }} / {{ s.cap_units }}</div>
+                    } @else {
+                      <span class="muted">—</span>
+                    }
+                  </td>
+                  <td class="num">{{ s.no_credit_lines }}</td>
+                  <td class="num">{{ openItems(s) }}</td>
+                  <td [class.is-late]="s.past_deadline && openItems(s) > 0">
+                    {{ s.transfer_deadline }}
+                    <div class="muted small">{{ deadlineText(s.days_to_deadline) }}</div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    } @else {
+      <div class="card empty">
+        <p><strong>No students match.</strong></p>
+        <button type="button" class="btn" (click)="clearFilters()">Clear filters</button>
+      </div>
+    }
+  } @else if (!error()) {
+    <div class="card empty"><p>No students on file yet.</p></div>
+  }
+}
