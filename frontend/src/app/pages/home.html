@@ -107,6 +107,41 @@
   }
 </div>
 
+<!-- Staff views: one tile per office -->
+<section class="staff" aria-labelledby="staff-h">
+  <div class="staff__head">
+    <div class="view__icon staff__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M20 6h-4V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2ZM10 4h4v2h-4V4Zm10 15H4v-5h5v2h6v-2h5v5Z"/></svg>
+    </div>
+    <div>
+      <h2 id="staff-h">Staff views</h2>
+      <p class="view__lead">Advisors, financial aid and the transfer credit office. Choose your office to sign in.</p>
+    </div>
+  </div>
+  <ul class="staff__grid">
+    @for (s of staffViews; track s.role) {
+      <li class="staff__tile">
+        <h3 class="staff__name">{{ labels[s.role] }}</h3>
+        <p class="staff__lead">{{ s.lead }}</p>
+        <button type="button" class="btn btn--block staff__btn" [class.btn--primary]="auth.signedIn()" (click)="open(s.role)" [attr.aria-label]="buttonLabel(s.role) + ' (' + labels[s.role] + ')'">
+          @if (auth.entra() && !auth.signedIn()) {
+            <svg class="ms-logo" viewBox="0 0 21 21" width="16" height="16" aria-hidden="true">
+              <rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+              <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+            </svg>
+          }
+          {{ buttonLabel(s.role) }}
+        </button>
+      </li>
+    }
+  </ul>
+  @if (auth.portal() && !auth.signedIn()) {
+    <p class="view__sso muted small">Staff accounts are set up by an administrator, so there is no registration. Use your BU email.</p>
+  } @else if (auth.entra()) {
+    <p class="view__sso muted small">Single sign-on with your university Microsoft account; your assigned role decides which view opens.</p>
+  }
+</section>
+
 <!-- How it works -->
 <section class="how" aria-labelledby="how-h">
   <h2 id="how-h">How it works</h2>

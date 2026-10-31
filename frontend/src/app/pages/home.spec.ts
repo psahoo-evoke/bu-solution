@@ -64,11 +64,35 @@ describe('HomePage', () => {
     expect(router.navigateByUrl).toHaveBeenCalledWith('/review');
   });
 
+  it('lists every staff view as its own sign-in tile', () => {
+    const el = render();
+    const names = Array.from(el.querySelectorAll('.staff__name')).map((h) => h.textContent?.trim());
+    expect(names).toEqual(['Advisor', 'Financial aid', 'Evaluator', 'Credit staff', 'Registrar']);
+    expect(Array.from(el.querySelectorAll('h2')).map((h) => h.textContent?.trim())).toContain('Staff views');
+  });
+
+  it('demo mode: the Advisor and Financial aid tiles open their own pages', () => {
+    click(render(), 'Continue as Advisor');
+    expect(roles.role()).toBe('Advisor');
+    expect(router.navigateByUrl).toHaveBeenLastCalledWith('/advisor');
+    click(render(), 'Continue as Financial aid');
+    expect(roles.role()).toBe('FinancialAid');
+    expect(router.navigateByUrl).toHaveBeenLastCalledWith('/financial-aid');
+  });
+
+  it('portal mode, signed out: a staff tile goes to the staff sign-in, and says there is no registration', () => {
+    auth.config.set({ mode: 'portal' });
+    const el = render();
+    click(el, 'Financial aid sign in');
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/login/staff');
+    expect(el.querySelector('.staff')?.textContent).toContain('no registration');
+  });
+
   it('entra mode, signed out: views start Microsoft sign-in with the chosen view', () => {
     entra(auth);
     const login = vi.spyOn(auth, 'login').mockResolvedValue();
     const el = render();
-    expect(buttons(el).filter((b) => b.includes('Sign in with Microsoft'))).toHaveLength(2);
+    expect(buttons(el).filter((b) => b.includes('Sign in with Microsoft'))).toHaveLength(7);   // Student, Department and 5 staff views
     // Signed out: no empty "My view" card; the hero offers the public check and a hint points at the sign-in cards.
     expect(Array.from(el.querySelectorAll('h2')).map((h) => h.textContent?.trim())).not.toContain('My view');
     expect(el.querySelector('.hero a[href="/credit-check"]')).not.toBeNull();

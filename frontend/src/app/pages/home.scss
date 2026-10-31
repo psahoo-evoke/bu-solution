@@ -88,3 +88,20 @@
 @media (max-width: 760px) {
   .hero { grid-template-columns: 1fr; padding: 1.5rem 1.25rem; }
 }
+
+.staff {
+  background: var(--surface); border: 1px solid var(--border); border-top: 4px solid #4b5563; border-radius: 12px;
+  padding: 1.25rem 1.4rem 1.1rem; margin-bottom: 1.5rem;
+  h2 { font-size: 1.35rem; margin: 0; }
+}
+.staff__head { display: flex; align-items: center; gap: .9rem; margin-bottom: 1rem; .view__lead { margin-top: .1rem; } }
+.staff__icon { background: var(--nocredit-bg); color: #374151; flex: none; }
+.staff__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .85rem; }
+.staff__tile {
+  display: flex; flex-direction: column; gap: .35rem; padding: .95rem 1rem; border: 1px solid var(--border); border-radius: 10px; background: #fbfbfc;
+  transition: border-color .15s ease, box-shadow .15s ease;
+  &:hover, &:focus-within { border-color: var(--accent); box-shadow: 0 4px 14px rgba(27, 31, 36, .08); }
+}
+.staff__name { margin: 0; font-size: 1.05rem; }
+.staff__lead { margin: 0 0 .5rem; color: var(--muted); font-size: .9rem; }
+.staff__btn { margin-top: auto; padding: .5rem .8rem; font-size: .92rem; }

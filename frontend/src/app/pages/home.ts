@@ -54,6 +54,15 @@ export class HomePage implements OnInit {
     },
   ];
 
+  /** Staff views: one tile per office. Accounts are issued by an administrator, so there is no registration here. */
+  protected readonly staffViews: { role: DemoRole; lead: string }[] = [
+    { role: 'Advisor', lead: 'See which advisees are waiting on something, and what to tell them.' },
+    { role: 'FinancialAid', lead: 'Check whether a student’s transfer units are final or could still change.' },
+    { role: 'Evaluator', lead: 'Review transfer courses with the AI comparison and past decisions.' },
+    { role: 'CreditStaff', lead: 'Follow the whole process: uploads, review, posting and reminders.' },
+    { role: 'Registrar', lead: 'Post approved credit and export it for MyBU.' },
+  ];
+
   /** "My view": who is here and as what. Null when nobody is signed in (portal / entra). */
   protected readonly myView = computed(() => {
     if (this.auth.secured() && !this.auth.signedIn()) return null;

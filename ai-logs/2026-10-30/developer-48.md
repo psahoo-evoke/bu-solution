@@ -18,6 +18,7 @@ Create pages for academic advisors and the financial aid team, with API integrat
 - Role `FinancialAid`: guard, contract, portal staff account `financialaid@bu.edu` (same demo password as the other staff), sign-in list, role-home, nav, Entra app-role doc in infra/README.md (an administrator must add the `FinancialAid` app role in Entra).
 - `GET /api/students/summary` (Advisor, FinancialAid, CreditStaff): one row per student, no contact data, no AI call. Credit math stays in rules.py (`summarize_student`, `transfer_deadline`; R19 deadline now shared).
 - Pages `/advisor` (caseload, attention filter, search, sort, expandable open courses with what to tell the student) and `/financial-aid` (confirmed vs provisional, could-reach vs the 68-unit cap, CSV of the rows on screen with formula guard). Advisor now lands on /advisor after sign-in (was the student page).
+- Home page: a "Staff views" section with one sign-in tile per staff office (Advisor, Financial aid, Evaluator, Credit staff, Registrar), beside Student and Department; works in demo, portal and Entra mode.
 - Tests: backend/tests/test_summary.py, two portal tests in test_portal.py, frontend shared/summary.spec.ts.
 - Decision: no award amounts or invented financial data; the aid view shows credit status only.
 
