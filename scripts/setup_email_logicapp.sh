@@ -8,6 +8,7 @@
 #   Resource group -> API connection "office365-transferiq" -> Edit API connection -> Authorize -> sign in with the
 #   mailbox that should send the mails -> Save.
 # Mail is then sent FROM that mailbox to SYLLABUS_REQUEST_TO / _CC. Re-running is safe.
+# With KEYVAULT=<vault> the trigger URL is stored in Azure Key Vault (the app keeps a reference).
 set -euo pipefail
 export MSYS_NO_PATHCONV=1 PYTHONIOENCODING=utf-8 PYTHONUTF8=1
 
@@ -22,6 +23,8 @@ TMP=".setup-logicapp.tmp.json"
 trap 'rm -f "$TMP"' EXIT
 
 log() { printf '\n==> %s\n' "$*"; }
+# shellcheck source=lib_secrets.sh
+. "$ROOT/scripts/lib_secrets.sh"
 SUB="$(az account show --query id -o tsv)"
 MANAGED_API="/subscriptions/$SUB/providers/Microsoft.Web/locations/$LOCATION/managedApis/office365"
 
@@ -74,9 +77,10 @@ az resource create -g "$RG" -n "$LOGIC_APP" --resource-type Microsoft.Logic/work
   --properties @"$TMP" -o none
 WF_ID="$(az resource show -g "$RG" -n "$LOGIC_APP" --resource-type Microsoft.Logic/workflows --query id -o tsv)"
 
-log "Store the trigger URL as a Container Apps secret on $API_APP (never printed)"
+log "Store the trigger URL as a secret of $API_APP (never printed)"
 CALLBACK="$(az rest --method post --uri "https://management.azure.com$WF_ID/triggers/manual/listCallbackUrl?api-version=2016-06-01" --query value -o tsv)"
-az containerapp secret set -n "$API_APP" -g "$RG" --secrets notify-webhook="$CALLBACK" -o none --only-show-errors
+[ -n "${KEYVAULT:-}" ] && kv_grant "$API_APP"
+app_secret "$API_APP" notify-webhook "$CALLBACK"
 az containerapp update -n "$API_APP" -g "$RG" -o none --only-show-errors \
   --set-env-vars NOTIFY_WEBHOOK_URL=secretref:notify-webhook
 
