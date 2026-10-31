@@ -14,7 +14,7 @@
 @if (!allowed()) {
   <div class="banner banner--info" role="status">
     You are viewing as <strong>{{ roles.role() }}</strong>. {{ switchHint }}
-    <button type="button" class="btn btn--small" (click)="switchRole()">Switch to {{ suggested }}</button>
+    <button type="button" class="btn btn--small" (click)="switchRole()">{{ roles.switchLabel(suggested) }}</button>
   </div>
 } @else {
   <app-error-banner [message]="error()" (retry)="load()" />

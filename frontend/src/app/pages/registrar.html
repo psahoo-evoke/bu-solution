@@ -8,7 +8,9 @@
 @if (!canExport() || !canReset() || !canPost()) {
   <div class="banner banner--info" role="status">
     You are viewing as <strong>{{ roles.role() }}</strong>. Posting, the export and the demo reset are for Registrar or CreditStaff.
-    <button type="button" class="btn btn--small" (click)="roles.set('Registrar')">Switch to Registrar</button>
+    @if (roles.canSwitchTo('Registrar')) {
+      <button type="button" class="btn btn--small" (click)="roles.switchTo('Registrar')">{{ roles.switchLabel('Registrar') }}</button>
+    }
   </div>
 }
 <app-error-banner [message]="error()" [retryable]="false" />

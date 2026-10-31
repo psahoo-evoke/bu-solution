@@ -23,12 +23,16 @@
 @if (!canQueue()) {
   <div class="banner banner--info" role="status">
     You are viewing as <strong>{{ roles.role() }}</strong>. {{ queueHint }}
-    <button type="button" class="btn btn--small" (click)="roles.set(decideRole)">Switch to {{ decideRole }}</button>
+    @if (roles.canSwitchTo(decideRole)) {
+      <button type="button" class="btn btn--small" (click)="roles.switchTo(decideRole)">{{ roles.switchLabel(decideRole) }}</button>
+    }
   </div>
 } @else if (!canDecide()) {
   <div class="banner banner--info" role="status">
     You are viewing as <strong>{{ roles.role() }}</strong> (read-only). {{ decideHint }}
-    <button type="button" class="btn btn--small" (click)="roles.set(decideRole)">Switch to {{ decideRole }}</button>
+    @if (roles.canSwitchTo(decideRole)) {
+      <button type="button" class="btn btn--small" (click)="roles.switchTo(decideRole)">{{ roles.switchLabel(decideRole) }}</button>
+    }
   </div>
 }
 <app-error-banner [message]="error()" (retry)="loadQueue()" />

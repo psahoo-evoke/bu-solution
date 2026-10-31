@@ -3,7 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../api/auth.service';
 import { DemoRole } from '../api/models';
 import { ROLE_LABELS, homeRoute } from '../api/role-home';
-import { RoleService } from '../api/role.service';
+import { RoleService, portalFor } from '../api/role.service';
 
 interface ViewCard {
   role: DemoRole;
@@ -124,6 +124,3 @@ export class HomePage implements OnInit {
   }
 }
 
-function portalFor(role: DemoRole): 'student' | 'department' | 'staff' {
-  return role === 'Student' ? 'student' : role === 'Department' ? 'department' : 'staff';
-}

@@ -90,7 +90,7 @@ export class AdvisorPage {
   }
 
   switchRole(): void {
-    this.roles.set(this.suggested);
+    void this.roles.switchTo(this.suggested);
   }
 
   clearFilters(): void {

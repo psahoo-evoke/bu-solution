@@ -4,8 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../api/api.service';
 import { describeError } from '../api/errors';
-import { AidStatus, StudentSummary } from '../api/models';
-import { can, suggestedRole, switchRoleMessage } from '../api/permissions';
+import { AidStatus, DemoRole, StudentSummary } from '../api/models';
+import { can, switchRoleMessage } from '../api/permissions';
 import { RoleService } from '../api/role.service';
 import { ErrorBanner } from '../shared/error-banner';
 import { AID_LABEL, AID_MEANING, AID_TONE, SORT_LABEL, SortKey, aidCsv, deadlineText, matchesQuery, openItems, sortRows, sumUnits } from '../shared/summary';
@@ -30,7 +30,7 @@ export class FinancialAidPage {
 
   protected readonly allowed = computed(() => can(this.roles.role(), 'studentSummary'));
   protected readonly switchHint = switchRoleMessage('studentSummary');
-  protected readonly suggested = suggestedRole('studentSummary');
+  protected readonly suggested: DemoRole = 'FinancialAid';
 
   protected readonly statuses = STATUSES;
   protected readonly sortKeys = Object.keys(SORT_LABEL) as SortKey[];
@@ -80,7 +80,7 @@ export class FinancialAidPage {
   }
 
   switchRole(): void {
-    this.roles.set(this.suggested);
+    void this.roles.switchTo(this.suggested);
   }
 
   clearFilters(): void {
