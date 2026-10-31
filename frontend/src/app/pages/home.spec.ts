@@ -88,6 +88,20 @@ describe('HomePage', () => {
     expect(el.querySelector('.staff')?.textContent).toContain('no registration');
   });
 
+  it('portal mode, signed in as another role: a tile signs out and opens that sign-in', async () => {
+    auth.config.set({ mode: 'portal' });
+    auth.portalUser.set({ email: 'advisor@bu.edu', name: 'Academic Advisor', role: 'Advisor', student_id: null, department: null } as never);
+    const logout = vi.spyOn(auth, 'logout').mockResolvedValue();
+    const el = render();
+    expect(buttons(el)).toContain('Switch to Registrar sign in');
+    expect(buttons(el)).toContain('Open Advisor view');
+    click(el, 'Switch to Registrar sign in');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(logout).toHaveBeenCalled();
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/login/staff');
+  });
+
   it('entra mode, signed out: views start Microsoft sign-in with the chosen view', () => {
     entra(auth);
     const login = vi.spyOn(auth, 'login').mockResolvedValue();

@@ -91,6 +91,11 @@ export class HomePage implements OnInit {
         return;
       }
       if (!this.roles.available().includes(role)) {
+        if (this.auth.portal()) {
+          // Portal accounts have one role each: picking another view means signing in as that account.
+          void this.auth.logout().then(() => this.router.navigateByUrl(`/login/${portalFor(role)}`));
+          return;
+        }
         this.notice.set(
           `You are signed in as ${this.auth.userName()}, which is not a ${ROLE_LABELS[role]} account. ` +
             (this.auth.portal()
@@ -106,7 +111,11 @@ export class HomePage implements OnInit {
 
   protected buttonLabel(role: DemoRole): string {
     if (!this.auth.secured()) return `Continue as ${ROLE_LABELS[role]}`;
-    if (this.auth.signedIn()) return `Open ${ROLE_LABELS[role]} view`;
+    if (this.auth.signedIn()) {
+      return this.auth.portal() && !this.roles.available().includes(role)
+        ? `Switch to ${ROLE_LABELS[role]} sign in`
+        : `Open ${ROLE_LABELS[role]} view`;
+    }
     return this.auth.portal() ? `${ROLE_LABELS[role]} sign in` : 'Sign in with Microsoft';
   }
 
