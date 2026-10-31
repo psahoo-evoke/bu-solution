@@ -1,16 +1,32 @@
+<!-- Hero: what this is, the two ways in, and an example of what a student sees -->
 <section class="hero" aria-labelledby="hero-h">
   <div class="hero__text">
     <p class="hero__eyebrow">Transfer credit co-pilot</p>
     <h1 id="hero-h">Know where every transfer credit stands.</h1>
     <p class="hero__lead">
-      TransferIQ pre-matches every transfer course, shows students what is secured and what is pending, and gives
-      departments an evidence-backed recommendation.
+      See what is secured, what is pending and what to do next. Departments get an evidence-backed recommendation for every course.
     </p>
-    <!-- Public course-credit check: no sign-in -->
     <div class="hero__actions">
-      <a class="btn hero__cta" routerLink="/credit-check">Will my course transfer? Check a course</a>
-      <span class="hero__note">No sign-in needed</span>
+      @if (!auth.signedIn() || !auth.secured()) {
+        <button type="button" class="btn hero__cta" (click)="scrollToSignIn()">Sign in</button>
+      }
+      <a class="btn hero__ghost" routerLink="/credit-check">Will my course transfer?</a>
     </div>
+    <p class="hero__note">Checking a course needs no sign-in.</p>
+  </div>
+
+  <!-- Illustration only: made-up numbers from the demo data -->
+  <div class="hero__card" aria-hidden="true">
+    <p class="hero__card-tag">Example</p>
+    <div class="hero__totals">
+      <div><span class="hero__num hero__num--ok">14.67</span><span class="hero__lbl">units secured</span></div>
+      <div><span class="hero__num hero__num--wait">8</span><span class="hero__lbl">units pending</span></div>
+    </div>
+    <ul class="hero__rows">
+      <li><span>Intro to Psychology</span><span class="chip chip--secured"><span class="chip__text">Credit secured</span> <span class="chip__code">T</span></span></li>
+      <li><span>Statistics</span><span class="chip chip--pending"><span class="chip__text">Under review</span> <span class="chip__code">TP</span></span></li>
+      <li><span>Cognitive Neuroscience</span><span class="chip chip--action"><span class="chip__text">Syllabus needed</span> <span class="chip__code">TS</span></span></li>
+    </ul>
   </div>
 </section>
 
@@ -21,7 +37,7 @@
   </div>
 }
 
-<!-- My view: who is here and as what. Signed out, the Student / Department cards below are the way in. -->
+<!-- My view: who is here and as what -->
 @if (noRole() || myView()) {
 <section class="myview" aria-labelledby="myview-h">
   <h2 id="myview-h">My view</h2>
@@ -61,86 +77,107 @@
     </div>
   }
 </section>
-} @else {
-  <p class="signin-hint muted">
-    @if (auth.portal()) { Sign in below with your email, or register if you are new. }
-    @else { Sign in below with your university Microsoft account. }
-  </p>
 }
 
-<!-- Student View / Department View -->
-<div class="views">
-  @for (v of views; track v.role) {
-    <section class="view" [class.view--dept]="v.role === 'Department'" [attr.aria-labelledby]="'view-' + v.role">
-      <div class="view__icon" aria-hidden="true">
-        @if (v.role === 'Student') {
-          <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M12 3 1 8.5 12 14l9-4.5V16h2V8.5L12 3Zm-6.5 8.9V16c0 1.9 2.9 4 6.5 4s6.5-2.1 6.5-4v-4.1L12 15.2l-6.5-3.3Z"/></svg>
-        } @else {
-          <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M12 2 2 7v2h20V7L12 2ZM4 11v7h3v-7H4Zm6.5 0v7h3v-7h-3ZM17 11v7h3v-7h-3ZM2 20v2h20v-2H2Z"/></svg>
-        }
-      </div>
-      <h2 [id]="'view-' + v.role">{{ v.title }}</h2>
-      <p class="view__lead">{{ v.lead }}</p>
-      <ul class="view__points">
-        @for (p of v.points; track p) {
-          <li>{{ p }}</li>
-        }
-      </ul>
-      <button type="button" class="btn btn--primary btn--block" (click)="open(v.role)">
-        @if (auth.entra() && !auth.signedIn()) {
-          <svg class="ms-logo" viewBox="0 0 21 21" width="16" height="16" aria-hidden="true">
-            <rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-            <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-          </svg>
-        }
-        {{ buttonLabel(v.role) }}
-      </button>
-      @if (auth.entra()) {
-        <p class="view__sso muted small">Single sign-on with your university Microsoft account</p>
-      } @else if (auth.portal() && !auth.signedIn()) {
-        <p class="view__sso muted small">
-          Not registered?
-          <a [routerLink]="['/login', v.role === 'Student' ? 'student' : 'department']">Register as {{ v.role === 'Student' ? 'a student' : 'a department reviewer' }}</a>
-        </p>
-      }
-    </section>
-  }
-</div>
-
-<!-- Staff views: one tile per office -->
-<section class="staff" aria-labelledby="staff-h">
-  <div class="staff__head">
-    <div class="view__icon staff__icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M20 6h-4V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2ZM10 4h4v2h-4V4Zm10 15H4v-5h5v2h6v-2h5v5Z"/></svg>
-    </div>
-    <div>
-      <h2 id="staff-h">Staff views</h2>
-      <p class="view__lead">Advisors, financial aid and the transfer credit office. Choose your office to sign in.</p>
-    </div>
-  </div>
-  <ul class="staff__grid">
-    @for (s of staffViews; track s.role) {
-      <li class="staff__tile">
-        <h3 class="staff__name">{{ labels[s.role] }}</h3>
-        <p class="staff__lead">{{ s.lead }}</p>
-        <button type="button" class="btn btn--block staff__btn" [class.btn--primary]="auth.signedIn()" (click)="open(s.role)" [attr.aria-label]="buttonLabel(s.role) + ' (' + labels[s.role] + ')'">
-          @if (auth.entra() && !auth.signedIn()) {
-            <svg class="ms-logo" viewBox="0 0 21 21" width="16" height="16" aria-hidden="true">
-              <rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-              <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-            </svg>
-          }
-          {{ buttonLabel(s.role) }}
-        </button>
-      </li>
-    }
-  </ul>
-  @if (auth.portal() && !auth.signedIn()) {
-    <p class="view__sso muted small">New staff? <a routerLink="/login/staff">Register with the staff code</a> from your administrator.</p>
-  } @else if (auth.entra()) {
-    <p class="view__sso muted small">Single sign-on with your university Microsoft account; your assigned role decides which view opens.</p>
+<!-- Sign in: who is signing in? Collapsed once someone is signed in, so "Continue to my view" is the main action. -->
+<section id="sign-in" class="signin" aria-labelledby="signin-h">
+  @if (auth.secured() && auth.signedIn()) {
+    <details class="signin__switch">
+      <summary>Sign in as someone else</summary>
+      <ng-container *ngTemplateOutlet="choices" />
+    </details>
+  } @else {
+    <header class="signin__head">
+      <h2 id="signin-h">Choose how you are signing in</h2>
+      <p class="muted">
+        @if (auth.portal()) { Use your email and password, or register if you are new. }
+        @else if (auth.entra()) { Sign in with your university Microsoft account. }
+        @else { Demo mode: pick a view to explore. No password needed. }
+      </p>
+    </header>
+    <ng-container *ngTemplateOutlet="choices" />
   }
 </section>
+
+<ng-template #choices>
+  <div class="audiences">
+    <!-- Student -->
+    <article class="aud aud--student" aria-labelledby="aud-student">
+      <div class="aud__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 3 1 8.5 12 14l9-4.5V16h2V8.5L12 3Zm-6.5 8.9V16c0 1.9 2.9 4 6.5 4s6.5-2.1 6.5-4v-4.1L12 15.2l-6.5-3.3Z"/></svg>
+      </div>
+      <h3 id="aud-student">Student View</h3>
+      <p class="aud__lead">See exactly where your transfer credit stands.</p>
+      <ul class="aud__points">
+        @for (p of views[0].points; track p) { <li>{{ p }}</li> }
+      </ul>
+      <button type="button" class="btn btn--primary btn--block aud__btn" (click)="open('Student')" [attr.aria-label]="buttonLabel('Student')">
+        @if (auth.entra() && !auth.signedIn()) { <ng-container *ngTemplateOutlet="msLogo" /> }
+        {{ buttonLabel('Student') }}
+      </button>
+      @if (auth.portal() && !auth.signedIn()) {
+        <p class="aud__alt muted small">New here? <a routerLink="/login/student">Register as a student</a></p>
+      } @else if (auth.entra()) {
+        <p class="aud__alt muted small">Single sign-on with your university account</p>
+      }
+    </article>
+
+    <!-- Department -->
+    <article class="aud aud--dept" aria-labelledby="aud-dept">
+      <div class="aud__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 2 2 7v2h20V7L12 2ZM4 11v7h3v-7H4Zm6.5 0v7h3v-7h-3ZM17 11v7h3v-7h-3ZM2 20v2h20v-2H2Z"/></svg>
+      </div>
+      <h3 id="aud-dept">Department View</h3>
+      <p class="aud__lead">Decide on transfer courses with the evidence in one place.</p>
+      <ul class="aud__points">
+        @for (p of views[1].points; track p) { <li>{{ p }}</li> }
+      </ul>
+      <button type="button" class="btn btn--primary btn--block aud__btn" (click)="open('Department')" [attr.aria-label]="buttonLabel('Department')">
+        @if (auth.entra() && !auth.signedIn()) { <ng-container *ngTemplateOutlet="msLogo" /> }
+        {{ buttonLabel('Department') }}
+      </button>
+      @if (auth.portal() && !auth.signedIn()) {
+        <p class="aud__alt muted small">New here? <a routerLink="/login/department">Register as a department reviewer</a></p>
+      } @else if (auth.entra()) {
+        <p class="aud__alt muted small">Single sign-on with your university account</p>
+      }
+    </article>
+
+    <!-- Staff -->
+    <article class="aud aud--staff" aria-labelledby="aud-staff">
+      <div class="aud__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M20 6h-4V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2ZM10 4h4v2h-4V4Zm10 15H4v-5h5v2h6v-2h5v5Z"/></svg>
+      </div>
+      <h3 id="aud-staff">Staff views</h3>
+      <p class="aud__lead">Choose your office.</p>
+      <ul class="offices">
+        @for (s of staffViews; track s.role) {
+          <li>
+            <button type="button" class="office" (click)="open(s.role)" [attr.aria-label]="buttonLabel(s.role) + ' (' + labels[s.role] + ')'">
+              <span class="office__text">
+                <span class="office__name">{{ labels[s.role] }}</span>
+                <span class="office__lead">{{ s.lead }}</span>
+              </span>
+              <span class="office__go" aria-hidden="true">→</span>
+            </button>
+          </li>
+        }
+      </ul>
+      @if (auth.portal() && !auth.signedIn()) {
+        <p class="aud__alt muted small">New staff? <a routerLink="/login/staff">Register with the staff code</a> from your administrator.</p>
+      } @else if (auth.entra()) {
+        <p class="aud__alt muted small">Single sign-on; your assigned role decides which view opens.</p>
+      }
+    </article>
+  </div>
+</ng-template>
+
+<ng-template #msLogo>
+  <svg class="ms-logo" viewBox="0 0 21 21" width="16" height="16" aria-hidden="true">
+    <rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+    <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+  </svg>
+</ng-template>
 
 <!-- How it works -->
 <section class="how" aria-labelledby="how-h">
@@ -156,12 +193,33 @@
     </li>
     <li>
       <span class="how__num" aria-hidden="true">3</span>
-      <div><strong>Decide</strong><p>The department reviews the evidence and decides; strong matches can be approved as a batch.</p></div>
+      <div><strong>Decide</strong><p>The department reviews the evidence and decides. The AI recommends, people decide.</p></div>
     </li>
     <li>
       <span class="how__num" aria-hidden="true">4</span>
-      <div><strong>Post</strong><p>The registrar posts approved credit and exports it for MyBU. Every step is on the audit trail.</p></div>
+      <div><strong>Post</strong><p>The Registrar posts approved credit and exports it for MyBU. Every step is on the audit trail.</p></div>
     </li>
   </ol>
 </section>
 
+<!-- What the status codes mean -->
+<section class="legend" aria-labelledby="legend-h">
+  <h2 id="legend-h">What the status codes mean</h2>
+  <ul class="legend__list">
+    @for (l of legend; track l.code) {
+      <li>
+        <app-status-chip [code]="l.code" [label]="l.label" />
+        <span class="legend__text">{{ l.text }}</span>
+      </li>
+    }
+  </ul>
+</section>
+
+<!-- Closing prompt: the public tool -->
+<section class="cta" aria-labelledby="cta-h">
+  <div>
+    <h2 id="cta-h">Not sure if a course will transfer?</h2>
+    <p>Ask before you enrol. Name the school and the course and get an answer in plain words. No account needed.</p>
+  </div>
+  <a class="btn cta__btn" routerLink="/credit-check">Check a course</a>
+</section>

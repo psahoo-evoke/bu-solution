@@ -14,8 +14,9 @@ function entra(auth: AuthService, roles?: string[]): void {
   if (roles) auth.account.set({ name: 'Pat Lee', username: 'pat@x', idTokenClaims: { roles } } as unknown as AccountInfo);
 }
 
+/** Accessible names, as a screen reader hears them: the aria-label when there is one, else the text. */
 function buttons(el: HTMLElement): string[] {
-  return Array.from(el.querySelectorAll('button')).map((b) => b.textContent?.trim() ?? '');
+  return Array.from(el.querySelectorAll('button')).map((b) => b.getAttribute('aria-label') ?? b.textContent?.trim() ?? '');
 }
 
 describe('HomePage', () => {
@@ -43,14 +44,14 @@ describe('HomePage', () => {
   }
 
   function click(el: HTMLElement, label: string): void {
-    const btn = Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.trim().startsWith(label));
+    const btn = Array.from(el.querySelectorAll('button')).find((b) => (b.getAttribute('aria-label') ?? b.textContent?.trim() ?? '').startsWith(label));
     expect(btn, label).toBeTruthy();
     btn!.click();
   }
 
   it('shows My view, Student View and Department View', () => {
     const el = render();
-    const headings = Array.from(el.querySelectorAll('h2')).map((h) => h.textContent?.trim());
+    const headings = Array.from(el.querySelectorAll('h2, h3')).map((h) => h.textContent?.trim());
     expect(headings).toEqual(expect.arrayContaining(['My view', 'Student View', 'Department View']));
   });
 
@@ -68,9 +69,9 @@ describe('HomePage', () => {
 
   it('lists every staff view as its own sign-in tile', () => {
     const el = render();
-    const names = Array.from(el.querySelectorAll('.staff__name')).map((h) => h.textContent?.trim());
+    const names = Array.from(el.querySelectorAll('.office__name')).map((h) => h.textContent?.trim());
     expect(names).toEqual(['Advisor', 'Financial aid', 'Evaluator', 'Credit staff', 'Registrar']);
-    expect(Array.from(el.querySelectorAll('h2')).map((h) => h.textContent?.trim())).toContain('Staff views');
+    expect(Array.from(el.querySelectorAll('h2, h3')).map((h) => h.textContent?.trim())).toContain('Staff views');
   });
 
   it('demo mode: the Advisor and Financial aid tiles open their own pages', () => {
@@ -87,8 +88,8 @@ describe('HomePage', () => {
     const el = render();
     click(el, 'Financial aid sign in');
     expect(router.navigateByUrl).toHaveBeenCalledWith('/login/staff');
-    expect(el.querySelector('.staff')?.textContent).toContain('Register with the staff code');
-    expect(el.querySelector('.staff a[href="/login/staff"]')).not.toBeNull();
+    expect(el.querySelector('.aud--staff')?.textContent).toContain('Register with the staff code');
+    expect(el.querySelector('.aud--staff a[href="/login/staff"]')).not.toBeNull();
   });
 
   it('portal mode, signed in as another role: a tile signs out and opens that sign-in', async () => {
@@ -96,8 +97,8 @@ describe('HomePage', () => {
     auth.portalUser.set({ email: 'advisor@bu.edu', name: 'Academic Advisor', role: 'Advisor', student_id: null, department: null } as never);
     const logout = vi.spyOn(auth, 'logout').mockResolvedValue();
     const el = render();
-    expect(buttons(el)).toContain('Switch to Registrar sign in');
-    expect(buttons(el)).toContain('Open Advisor view');
+    expect(buttons(el).some((b) => b.startsWith('Switch to Registrar sign in'))).toBe(true);
+    expect(buttons(el).some((b) => b.startsWith('Open Advisor view'))).toBe(true);
     click(el, 'Switch to Registrar sign in');
     await Promise.resolve();
     await Promise.resolve();
@@ -113,7 +114,7 @@ describe('HomePage', () => {
     // Signed out: no empty "My view" card; the hero offers the public check and a hint points at the sign-in cards.
     expect(Array.from(el.querySelectorAll('h2')).map((h) => h.textContent?.trim())).not.toContain('My view');
     expect(el.querySelector('.hero a[href="/credit-check"]')).not.toBeNull();
-    expect(el.textContent).toContain('Sign in below with your university Microsoft account.');
+    expect(el.textContent).toContain('Sign in with your university Microsoft account.');
     click(el, 'Sign in with Microsoft');
     expect(login).toHaveBeenCalledWith('Student');
     expect(router.navigateByUrl).not.toHaveBeenCalled();
@@ -219,5 +220,49 @@ describe('home page for a signed-in user (the logo opens it)', () => {
     expect(Array.from(el.querySelectorAll('h2')).map((h) => h.textContent?.trim())).toContain('My view');
     expect(el.textContent).toContain('Welcome back, Academic Advisor');
     expect(Array.from(el.querySelectorAll('button')).map((b) => b.textContent?.trim())).toContain('Continue to my view →');
+  });
+});
+
+describe('home page content', () => {
+  function page(setup?: (auth: AuthService) => void): HTMLElement {
+    TestBed.configureTestingModule({ imports: [HomePage], providers: [provideRouter([])] });
+    setup?.(TestBed.inject(AuthService));
+    const fixture = TestBed.createComponent(HomePage);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('explains every status code in plain words', () => {
+    const el = page();
+    const codes = Array.from(el.querySelectorAll('.legend .chip__code')).map((c) => c.textContent?.trim());
+    expect(codes).toEqual(['T', 'TP', 'TS', 'TM', 'TX']);
+    expect(el.querySelector('.legend')?.textContent).toContain('a grade below C');
+  });
+
+  it('signed out: the hero has a Sign in button and the public course check', () => {
+    const el = page((a) => a.config.set({ mode: 'portal' }));
+    expect(Array.from(el.querySelectorAll('.hero button')).map((b) => b.textContent?.trim())).toEqual(['Sign in']);
+    expect(el.querySelector('.hero a[href="/credit-check"]')).not.toBeNull();
+    expect(el.querySelector('.cta a[href="/credit-check"]')).not.toBeNull();
+    expect(el.querySelector('details.signin__switch')).toBeNull();            // the choices are open, not tucked away
+  });
+
+  it('signed in: no Sign in button, and the choices move into "Sign in as someone else"', () => {
+    const el = page((a) => {
+      a.config.set({ mode: 'portal' });
+      a.portalUser.set({ email: 'advisor@bu.edu', name: 'Academic Advisor', role: 'Advisor', student_id: null, department: null } as never);
+    });
+    expect(el.querySelector('.hero button')).toBeNull();
+    const switcher = el.querySelector('details.signin__switch') as HTMLDetailsElement;
+    expect(switcher.open).toBe(false);
+    expect(switcher.querySelector('summary')?.textContent).toContain('Sign in as someone else');
+    expect(switcher.querySelectorAll('.office')).toHaveLength(5);
+  });
+
+  it('every office button has a distinct accessible name', () => {
+    const el = page();
+    const names = Array.from(el.querySelectorAll('.office')).map((b) => b.getAttribute('aria-label'));
+    expect(new Set(names).size).toBe(5);
+    expect(names[0]).toContain('Advisor');
   });
 });

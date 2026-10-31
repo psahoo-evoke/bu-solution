@@ -1,9 +1,11 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../api/auth.service';
-import { DemoRole } from '../api/models';
+import { BuStatusCode, DemoRole } from '../api/models';
 import { ROLE_LABELS, homeRoute } from '../api/role-home';
 import { RoleService, portalFor } from '../api/role.service';
+import { StatusChip } from '../shared/status-chip';
 
 interface ViewCard {
   role: DemoRole;
@@ -19,7 +21,7 @@ interface ViewCard {
  */
 @Component({
   selector: 'app-home',
-  imports: [RouterLink],
+  imports: [RouterLink, NgTemplateOutlet, StatusChip],
   templateUrl: './home.html',
   styleUrl: './home.scss',
 })
@@ -61,6 +63,15 @@ export class HomePage implements OnInit {
     { role: 'Evaluator', lead: 'Review transfer courses with the AI comparison and past decisions.' },
     { role: 'CreditStaff', lead: 'Follow the whole process: uploads, review, posting and reminders.' },
     { role: 'Registrar', lead: 'Post approved credit and export it for MyBU.' },
+  ];
+
+  /** Plain-words meaning of each BU status code, shown under the sign-in cards. */
+  protected readonly legend: { code: BuStatusCode; label: string; text: string }[] = [
+    { code: 'T', label: 'Credit secured', text: 'The credit is on your BU record.' },
+    { code: 'TP', label: 'Pending', text: 'The course is being evaluated, or approved and waiting to be posted.' },
+    { code: 'TS', label: 'Syllabus needed', text: 'Upload the course syllabus so it can be evaluated.' },
+    { code: 'TM', label: 'More materials', text: 'The syllabus needs more detail, such as learning outcomes and a weekly schedule.' },
+    { code: 'TX', label: 'No credit', text: 'The course cannot transfer, for example a grade below C or a school that is not accredited.' },
   ];
 
   /** "My view": who is here and as what. Null when nobody is signed in (portal / entra). */
@@ -117,6 +128,14 @@ export class HomePage implements OnInit {
         : `Open ${ROLE_LABELS[role]} view`;
     }
     return this.auth.portal() ? `${ROLE_LABELS[role]} sign in` : 'Sign in with Microsoft';
+  }
+
+  /** The hero's Sign in button: bring the sign-in choices into view (and move keyboard focus there). */
+  protected scrollToSignIn(): void {
+    const el = document.getElementById('sign-in');
+    const calm = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el?.scrollIntoView?.({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+    el?.querySelector<HTMLElement>('button, a')?.focus({ preventScroll: true });
   }
 
   protected signOut(): void {
