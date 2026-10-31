@@ -78,8 +78,28 @@ describe('App shell: no Home for signed-in students and departments', () => {
     expect(brandHref(el)).toBe('/review');
   });
 
-  it('keeps Home for staff and for visitors who are not signed in', async () => {
-    expect(navTexts(await shell(user('Registrar')))).toContain('Home');
+  it('shows each signed-in role only its own pages, never Home', async () => {
+    const expected: Record<string, string[]> = {
+      Advisor: ['Student status', 'Advisor caseload'],
+      FinancialAid: ['Student status', 'Financial aid'],
+      Registrar: ['Student status', 'Registrar'],
+      Evaluator: ['Student status', 'Evaluator workbench', 'AI evaluation'],
+      CreditStaff: ['Student status', 'Evaluator workbench', 'AI evaluation', 'Registrar'],
+    };
+    for (const [role, links] of Object.entries(expected)) {
+      TestBed.resetTestingModule();
+      await TestBed.configureTestingModule({
+        imports: [App],
+        providers: [provideRouter([]), provideHttpClient(withInterceptors([roleInterceptor])), provideHttpClientTesting()],
+      }).compileComponents();
+      const el = await shell(user(role as DemoRole));
+      expect(navTexts(el), role).toEqual(links);
+      expect(brandHref(el), role).not.toBe('/');
+    }
+  });
+
+  it('a student sees their status and the course check; visitors keep Home', async () => {
+    expect(navTexts(await shell(user('Student', 'SYN-24001')))).toEqual(['Check a course', 'My credit status']);
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [App],
@@ -109,8 +129,12 @@ describe('homeGuard', () => {
     expect(run('Department')).toBe('/review');
   });
 
-  it('lets staff, signed-out visitors and demo mode open the home page', () => {
-    expect(run('Registrar')).toBe(true);
+  it('sends signed-in staff to their own page; signed-out visitors and demo mode open the home page', () => {
+    expect(run('Registrar')).toBe('/registrar');
+    TestBed.resetTestingModule();
+    expect(run('Advisor')).toBe('/advisor');
+    TestBed.resetTestingModule();
+    expect(run('FinancialAid')).toBe('/financial-aid');
     TestBed.resetTestingModule();
     expect(run(null)).toBe(true);
     TestBed.resetTestingModule();

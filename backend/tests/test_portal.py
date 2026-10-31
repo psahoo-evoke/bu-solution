@@ -186,3 +186,74 @@ def test_advisor_and_financial_aid_sign_in_and_read_the_caseload(anon):
 
 def test_a_student_cannot_read_the_caseload(anon):
     assert anon.get("/api/students/summary", headers=bearer(anon, "maya.delgado@bu.edu")).status_code == 403
+
+
+# ------------------------------------------------------------------ staff registration (needs the staff invite code)
+STAFF = dict(name="Sam Staff", email="sam@example.com", password="secret1", role="Advisor", invite_code="bu-staff")
+
+
+@pytest.fixture
+def staff_limit():
+    from app import main
+    main._STAFF_CODE_TRIES.reset()
+    yield
+    main._STAFF_CODE_TRIES.reset()
+
+
+def register_staff(anon, **over):
+    return anon.post("/api/auth/register/staff", json={**STAFF, **over})
+
+
+@pytest.mark.parametrize("role", accounts.STAFF_ROLES)
+def test_staff_register_with_the_code_and_sign_in_as_that_role(anon, staff_limit, role):
+    r = register_staff(anon, role=role, email=f"{role.lower()}@example.com")
+    assert r.status_code == 201 and r.json()["user"]["role"] == role and r.json()["user"]["student_id"] is None
+    again = login(anon, f"{role.lower()}@example.com", "staff", "secret1")
+    assert again.status_code == 200 and again.json()["user"]["role"] == role
+
+
+def test_a_registered_advisor_can_read_the_caseload_but_not_post(anon, staff_limit):
+    h = {"Authorization": f"Bearer {register_staff(anon).json()['token']}"}
+    assert anon.get("/api/students/summary", headers=h).status_code == 200
+    assert anon.post("/api/postings", json={}, headers=h).status_code == 403
+
+
+def test_wrong_or_missing_code_creates_nothing(anon, staff_limit):
+    for code in ("nope", "", "BU-STAFF"):
+        r = register_staff(anon, invite_code=code)
+        assert r.status_code == 403 and "staff code" in r.json()["detail"]
+    assert login(anon, "sam@example.com", "staff", "secret1").status_code == 404
+
+
+def test_switching_it_off_with_an_empty_code(anon, staff_limit, monkeypatch):
+    monkeypatch.setenv("TRANSFERIQ_STAFF_INVITE_CODE", "")
+    assert register_staff(anon, invite_code="").status_code == 403
+    assert anon.get("/api/auth/options").json()["staff_registration"] is False
+    monkeypatch.setenv("TRANSFERIQ_STAFF_INVITE_CODE", "my-own-code")
+    assert register_staff(anon).status_code == 403                     # the default code no longer works
+    assert register_staff(anon, invite_code="my-own-code").status_code == 201
+
+
+def test_only_staff_roles_and_valid_details(anon, staff_limit):
+    for role in ("Student", "Department", "Admin", ""):
+        assert register_staff(anon, role=role).status_code == 422
+    assert register_staff(anon, password="abc").status_code == 422
+    assert register_staff(anon, email="not-an-email").status_code == 422
+    assert register_staff(anon, name="X").status_code == 422
+
+
+def test_duplicate_email_including_a_demo_account(anon, staff_limit):
+    assert register_staff(anon, email="advisor@bu.edu").status_code == 409
+    assert register_staff(anon).status_code == 201
+    assert register_staff(anon).status_code == 409
+
+
+def test_guessing_the_code_is_rate_limited(anon, staff_limit):
+    codes = [register_staff(anon, invite_code=f"guess{i}").status_code for i in range(12)]
+    assert codes[:10] == [403] * 10 and codes[10:] == [429, 429]
+
+
+def test_options_list_the_staff_roles_but_never_the_code(anon):
+    o = anon.get("/api/auth/options").json()
+    assert o["staff_roles"] == list(accounts.STAFF_ROLES) and o["staff_registration"] is True
+    assert "bu-staff" not in str(o)

@@ -136,7 +136,7 @@
     }
   </ul>
   @if (auth.portal() && !auth.signedIn()) {
-    <p class="view__sso muted small">Staff accounts are set up by an administrator, so there is no registration. Use your BU email.</p>
+    <p class="view__sso muted small">New staff? <a routerLink="/login/staff">Register with the staff code</a> from your administrator.</p>
   } @else if (auth.entra()) {
     <p class="view__sso muted small">Single sign-on with your university Microsoft account; your assigned role decides which view opens.</p>
   }

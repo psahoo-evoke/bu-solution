@@ -17,7 +17,7 @@
         }
       </span>
       <div>
-        <h1 id="login-h">{{ tab() === 'register' ? (kind() === 'student' ? 'Student registration' : 'Department registration') : copy().title }}</h1>
+        <h1 id="login-h">{{ tab() === 'register' ? (kind() === 'student' ? 'Student registration' : kind() === 'staff' ? 'Staff registration' : 'Department registration') : copy().title }}</h1>
         <p class="muted">{{ copy().lead }}</p>
       </div>
     </header>
@@ -77,6 +77,9 @@
         </details>
       } @else {
         <form class="form" (ngSubmit)="register()" autocomplete="on">
+          @if (kind() === 'staff' && options()?.staff_registration === false) {
+            <div class="banner banner--warning" role="status">Staff registration is switched off on this server. Ask your administrator for an account.</div>
+          }
           <div class="field">
             <label for="r-name">Full name</label>
             <input id="r-name" name="name" type="text" [(ngModel)]="name" autocomplete="name" required />
@@ -94,6 +97,21 @@
                   <option [value]="d">{{ d }}</option>
                 }
               </select>
+            </div>
+          } @else if (kind() === 'staff') {
+            <div class="field">
+              <label for="r-role">Your office</label>
+              <select id="r-role" name="staffRole" [(ngModel)]="staffRole" required>
+                <option value="" disabled>Choose your role</option>
+                @for (r of options()?.staff_roles ?? []; track r) {
+                  <option [value]="r">{{ labels[r] }}</option>
+                }
+              </select>
+            </div>
+            <div class="field">
+              <label for="r-code">Staff code</label>
+              <input id="r-code" name="inviteCode" type="password" [(ngModel)]="inviteCode" autocomplete="off" required aria-describedby="r-code-hint" />
+              <span id="r-code-hint" class="muted small">Given to you by your administrator. It stops anyone else registering as staff.</span>
             </div>
           } @else {
             <div class="form__row">
@@ -128,9 +146,10 @@
           </div>
           <p class="muted small">At least 5 characters.
             @if (kind() === 'student') { A new student record is created for you; upload your transcript after signing in. }
+            @else if (kind() === 'staff') { Your role decides which pages you can use; you can only be registered once per email. }
             @else { You will review your department's transfer courses. }
           </p>
-          <button type="submit" class="btn btn--primary btn--block" [disabled]="busy()">{{ busy() ? 'Creating account…' : 'Create account and sign in' }}</button>
+          <button type="submit" class="btn btn--primary btn--block" [disabled]="busy() || (kind() === 'staff' && options()?.staff_registration === false)">{{ busy() ? 'Creating account…' : 'Create account and sign in' }}</button>
           <p class="form__alt small">Already registered? <button type="button" class="linkish" (click)="show('signin')">Sign in</button></p>
         </form>
       }

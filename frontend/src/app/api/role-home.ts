@@ -21,10 +21,10 @@ export function homeRoute(role: DemoRole, studentId?: string | null): string {
   }
 }
 
-/** Signed in as one of these roles, the user has no Home: the top bar hides it, the logo and "/" lead to their own
- * page instead (homeRoute). Staff keep Home; demo mode and signed-out visitors need it to choose a view. */
-export function homeHidden(role: DemoRole, signedIn: boolean): boolean {
-  return signedIn && (role === 'Student' || role === 'Department');
+/** Signed in, a user has no Home: the top bar hides it, the logo and "/" lead to their own page instead (homeRoute).
+ * Demo mode and signed-out visitors need Home to choose a view or sign in. */
+export function homeHidden(_role: DemoRole, signedIn: boolean): boolean {
+  return signedIn;
 }
 
 /** Human labels for roles (CreditStaff reads better with a space). */

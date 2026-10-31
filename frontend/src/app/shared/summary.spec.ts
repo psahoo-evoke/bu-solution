@@ -1,5 +1,5 @@
 import { StudentSummary } from '../api/models';
-import { can, switchRoleMessage } from '../api/permissions';
+import { can, canOpenPage, switchRoleMessage } from '../api/permissions';
 import { aidCsv, csvCell, deadlineText, matchesQuery, openItems, sortRows, sumUnits } from './summary';
 
 const row = (o: Partial<StudentSummary>): StudentSummary => ({
@@ -69,10 +69,22 @@ describe('caseload helpers', () => {
 });
 
 describe('role matrix for the caseload', () => {
-  it('lets Advisor, FinancialAid and CreditStaff see the caseload, nobody else', () => {
-    for (const r of ['Advisor', 'FinancialAid', 'CreditStaff'] as const) expect(can(r, 'studentSummary')).toBe(true);
-    for (const r of ['Student', 'Evaluator', 'Department', 'Registrar'] as const) expect(can(r, 'studentSummary')).toBe(false);
-    expect(switchRoleMessage('studentSummary')).toBe('Switch role to Advisor, FinancialAid or CreditStaff to see the caseload.');
+  it('lets only Advisor and FinancialAid see the caseload', () => {
+    for (const r of ['Advisor', 'FinancialAid'] as const) expect(can(r, 'studentSummary')).toBe(true);
+    for (const r of ['Student', 'Evaluator', 'Department', 'Registrar', 'CreditStaff'] as const) expect(can(r, 'studentSummary')).toBe(false);
+    expect(switchRoleMessage('studentSummary')).toBe('Switch role to Advisor or FinancialAid to see the caseload.');
+  });
+
+  it('gives each role its own pages and no one else\'s', () => {
+    const pages = ['advisor', 'financialAid', 'review', 'registrar', 'evaluation'] as const;
+    const seen = (r: Parameters<typeof canOpenPage>[0]) => pages.filter((p) => canOpenPage(r, p));
+    expect(seen('Advisor')).toEqual(['advisor']);
+    expect(seen('FinancialAid')).toEqual(['financialAid']);
+    expect(seen('Registrar')).toEqual(['registrar']);
+    expect(seen('Student')).toEqual([]);
+    expect(seen('Evaluator')).toEqual(['review', 'evaluation']);
+    expect(seen('Department')).toEqual(['review', 'evaluation']);
+    expect(seen('CreditStaff')).toEqual(['review', 'registrar', 'evaluation']);
   });
 
   it('keeps FinancialAid read-only', () => {

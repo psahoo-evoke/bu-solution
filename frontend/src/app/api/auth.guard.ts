@@ -1,6 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from './auth.service';
+import { Page, canOpenPage } from './permissions';
 import { homeHidden, homeRoute } from './role-home';
 import { RoleService } from './role.service';
 
@@ -28,4 +29,16 @@ export const homeGuard: CanActivateFn = () => {
   // No role yet: stay here, the home page explains it (authGuard sends such users here, so never bounce back).
   if (!auth.secured() || roles.available().length === 0 || !homeHidden(roles.role(), auth.signedIn())) return true;
   return inject(Router).parseUrl(homeRoute(roles.role(), auth.studentId()));
+};
+
+/** A page that belongs to certain roles (permissions.PAGE_ROLES): anyone else who is signed in is sent to their own
+ * page. Signed-out visitors go to the home page like authGuard; demo mode shows every page. */
+export const pageGuard = (page: Page): CanActivateFn => () => {
+  const auth = inject(AuthService);
+  if (!auth.secured()) return true;
+  const router = inject(Router);
+  const roles = inject(RoleService);
+  if (!auth.signedIn() || roles.available().length === 0) return router.createUrlTree(['/']);
+  if (canOpenPage(roles.role(), page)) return true;
+  return router.parseUrl(homeRoute(roles.role(), auth.studentId()));
 };

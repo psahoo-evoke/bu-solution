@@ -38,7 +38,7 @@ MAX_PUBLIC_BODY = 64 * 1024         # public routes take small JSON only
 # (method, path template under /api, allowed roles). Keep in sync with docs/api/openapi.yaml x-roles.
 ROUTE_ROLES: list[tuple[str, str, set[str]]] = [
     ("GET", "/students", EVERYONE),
-    ("GET", "/students/summary", {"Advisor", "FinancialAid", "CreditStaff"}),
+    ("GET", "/students/summary", {"Advisor", "FinancialAid"}),
     ("GET", "/students/{student_id}/evaluation", EVERYONE),
     ("GET", "/students/{student_id}/notifications", EVERYONE),
     ("POST", "/students/{student_id}/notifications/seen", {"Student"}),
@@ -61,7 +61,7 @@ ROUTE_ROLES: list[tuple[str, str, set[str]]] = [
 UPLOAD_ROUTES = {"/students/{student_id}/transcripts", "/courses/{ext_id}/syllabus"}
 PUBLIC = {("GET", "/health"), ("POST", "/auth/login"), ("POST", "/auth/register/student"),
           ("GET", "/credit-check/schools"), ("GET", "/credit-check/courses"),("POST", "/credit-check"), ("POST", "/credit-chat"),   # public, no login
-          ("POST", "/auth/register/department"), ("GET", "/auth/options")}
+          ("POST", "/auth/register/department"), ("POST", "/auth/register/staff"), ("GET", "/auth/options")}
 _STUDENT_PATH = re.compile(r"^/students/([^/]+)(/|$)")
 
 

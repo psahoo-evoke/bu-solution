@@ -78,7 +78,7 @@ paths:
   /students/summary:
     get:
       summary: One-row transfer credit summary per student, for advisor caseloads and financial aid (no contact data, no AI call)
-      x-roles: [Advisor, FinancialAid, CreditStaff]
+      x-roles: [Advisor, FinancialAid]
       responses:
         "200": { description: Summaries, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/StudentSummary" } } } } }
   /students/{student_id}/evaluation:

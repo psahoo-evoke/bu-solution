@@ -107,6 +107,48 @@ describe('portal sign-in', () => {
     expect(router.navigateByUrl).toHaveBeenCalledWith('/student/SYN-24005');
   });
 
+  it('staff can register: office and staff code are sent, and they land on their own page', async () => {
+    const ADV: PortalUser = { email: 'sam@bu.edu', name: 'Sam Staff', role: 'Advisor', student_id: null, department: null };
+    const fetchSpy = mockFetch(json(201, { token: TOKEN, user: ADV, expires_in: 1 }));
+    const fixture = await loginPage('staff');
+    const page = fixture.componentInstance as unknown as Record<string, string> & { register(): Promise<void>; show(t: string): void };
+    page.show('register');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('#r-role')).toBeTruthy();
+    expect((el.querySelector('#r-code') as HTMLInputElement).type).toBe('password');
+    Object.assign(page, { name: 'Sam Staff', email: 'sam@bu.edu', password: 'secret1', confirm: 'secret1', staffRole: 'Advisor', inviteCode: 'bu-staff' });
+    await page.register();
+    const [url, init] = fetchSpy.mock.calls.find(([u]) => String(u).includes('/register/'))!;
+    expect(String(url)).toContain('/api/auth/register/staff');
+    expect(JSON.parse(String((init as RequestInit).body))).toMatchObject({ role: 'Advisor', invite_code: 'bu-staff' });
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/advisor');
+  });
+
+  it('a wrong staff code shows the server message and signs nobody in', async () => {
+    mockFetch(json(403, { detail: 'That staff code is not correct. Ask your administrator for it.' }));
+    const fixture = await loginPage('staff');
+    const page = fixture.componentInstance as unknown as Record<string, string> & { register(): Promise<void> };
+    Object.assign(page, { name: 'Sam Staff', email: 'sam@bu.edu', password: 'secret1', confirm: 'secret1', staffRole: 'Advisor', inviteCode: 'nope' });
+    await page.register();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('staff code is not correct');
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+    expect(auth.signedIn()).toBe(false);
+  });
+
+  it('staff registration switched off on the server disables the form', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) =>
+      String(url).endsWith('/api/auth/options') ? json(200, { ...OPTIONS, staff_roles: ['Advisor'], staff_registration: false }) : json(201, {}),
+    );
+    const fixture = await loginPage('staff');
+    (fixture.componentInstance as unknown as { show(t: string): void }).show('register');
+    await vi.waitFor(() => { fixture.detectChanges(); expect(fixture.nativeElement.textContent).toContain('Staff registration is switched off'); });
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('Staff registration is switched off');
+    expect((el.querySelector('button[type="submit"]') as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('registration checks that the passwords match', async () => {
     const fetchSpy = mockFetch(json(201, {}));
     const fixture = await loginPage('department');

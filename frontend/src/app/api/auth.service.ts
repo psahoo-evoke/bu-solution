@@ -37,6 +37,8 @@ export interface AuthOptions {
   departments: string[];
   majors: string[];
   terms: string[];
+  staff_roles?: DemoRole[];
+  staff_registration?: boolean;
 }
 
 /** Error from /api/auth with the HTTP status (404 = no account, 401 = wrong password, 409 = already registered). */
@@ -139,6 +141,10 @@ export class AuthService {
 
   registerStudent(body: { name: string; email: string; password: string; intended_major: string; start_term: string }) {
     return this.portalCall('/api/auth/register/student', body);
+  }
+
+  registerStaff(body: { name: string; email: string; password: string; role: DemoRole; invite_code: string }) {
+    return this.portalCall('/api/auth/register/staff', body);
   }
 
   registerDepartment(body: { name: string; email: string; password: string; department: string }) {

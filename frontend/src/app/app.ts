@@ -3,7 +3,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { ApiService } from './api/api.service';
 import { AuthService } from './api/auth.service';
 import { DemoRole } from './api/models';
-import { Operation, can } from './api/permissions';
+import { Page, canOpenPage } from './api/permissions';
 import { homeHidden, homeRoute } from './api/role-home';
 import { RoleService } from './api/role.service';
 import { NotificationBell } from './shared/notification-bell';
@@ -57,13 +57,21 @@ export class App implements OnInit {
 
   onRoleChange(value: string): void {
     this.roleService.set(value as DemoRole);
+    // Signed in with several roles (Entra): the other role's pages differ, so open its own page.
+    if (this.auth.secured()) void this.router.navigateByUrl(homeRoute(this.roleService.role(), this.auth.studentId()));
   }
 
-  /** Demo mode shows every page (the role switcher explains what each role can do); signed-in users only see
-   * the pages their role can use. */
-  protected showNav(op: Operation): boolean {
-    return !this.auth.secured() || can(this.roleService.role(), op);
+  /** Signed in, a user sees only their own pages (permissions.PAGE_ROLES). Demo mode shows every page, except that
+   * the model metrics stay out of a Student's view. */
+  protected showPage(page: Page): boolean {
+    if (!this.auth.secured()) return page === 'evaluation' ? this.roleService.role() !== 'Student' : true;
+    return canOpenPage(this.roleService.role(), page);
   }
+
+  /** The public course check is for students and visitors; signed-in staff have their own tools. */
+  protected readonly showCheck = computed(
+    () => !this.auth.secured() || !this.auth.signedIn() || this.roleService.role() === 'Student',
+  );
 
   protected signOut(): void {
     void this.auth.logout().then(() => this.router.navigateByUrl('/'));

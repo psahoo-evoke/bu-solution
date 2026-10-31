@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, input, signal } from '@angular/cor
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthApiError, AuthOptions, AuthService, Portal, PortalUser } from '../api/auth.service';
+import { DemoRole } from '../api/models';
 import { ROLE_LABELS, homeRoute } from '../api/role-home';
 import { RoleService } from '../api/role.service';
 
@@ -48,8 +49,8 @@ const COPY: Record<Portal, { title: string; lead: string; registerLabel: string 
   },
   staff: {
     title: 'Staff sign in',
-    lead: 'Transfer evaluators, credit staff, the Registrar and advisors.',
-    registerLabel: null,
+    lead: 'Advisors, financial aid, transfer evaluators, credit staff and the Registrar.',
+    registerLabel: 'New staff? Register',
   },
 };
 
@@ -90,6 +91,8 @@ export class LoginPage implements OnInit {
   major = '';
   term = 'Fall 2026';
   department = '';
+  staffRole = '';
+  inviteCode = '';
 
   ngOnInit(): void {
     this.auth.options().then((o) => this.options.set(o), () => undefined);
@@ -121,11 +124,16 @@ export class LoginPage implements OnInit {
       return;
     }
     const base = { name: this.name, email: this.email, password: this.password };
-    await this.run(() =>
-      this.kind() === 'department'
-        ? this.auth.registerDepartment({ ...base, department: this.department })
-        : this.auth.registerStudent({ ...base, intended_major: this.major, start_term: this.term }),
-    );
+    await this.run(() => {
+      switch (this.kind()) {
+        case 'department':
+          return this.auth.registerDepartment({ ...base, department: this.department });
+        case 'staff':
+          return this.auth.registerStaff({ ...base, role: this.staffRole as DemoRole, invite_code: this.inviteCode });
+        default:
+          return this.auth.registerStudent({ ...base, intended_major: this.major, start_term: this.term });
+      }
+    });
   }
 
   protected continueAs(): void {

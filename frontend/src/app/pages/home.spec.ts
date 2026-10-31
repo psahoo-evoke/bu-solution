@@ -2,7 +2,9 @@ import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import type { AccountInfo } from '@azure/msal-browser';
 import { vi } from 'vitest';
-import { authGuard } from '../api/auth.guard';
+import { authGuard, homeGuard, pageGuard } from '../api/auth.guard';
+import { DemoRole } from '../api/models';
+import { Page } from '../api/permissions';
 import { AuthService } from '../api/auth.service';
 import { RoleService } from '../api/role.service';
 import { HomePage } from './home';
@@ -80,12 +82,13 @@ describe('HomePage', () => {
     expect(router.navigateByUrl).toHaveBeenLastCalledWith('/financial-aid');
   });
 
-  it('portal mode, signed out: a staff tile goes to the staff sign-in, and says there is no registration', () => {
+  it('portal mode, signed out: a staff tile goes to the staff sign-in, and offers staff registration', () => {
     auth.config.set({ mode: 'portal' });
     const el = render();
     click(el, 'Financial aid sign in');
     expect(router.navigateByUrl).toHaveBeenCalledWith('/login/staff');
-    expect(el.querySelector('.staff')?.textContent).toContain('no registration');
+    expect(el.querySelector('.staff')?.textContent).toContain('Register with the staff code');
+    expect(el.querySelector('.staff a[href="/login/staff"]')).not.toBeNull();
   });
 
   it('portal mode, signed in as another role: a tile signs out and opens that sign-in', async () => {
@@ -157,5 +160,55 @@ describe('authGuard', () => {
   it('allows a signed-in user with a role', () => {
     entra(TestBed.inject(AuthService), ['Student']);
     expect(run()).toBe(true);
+  });
+});
+
+describe('pageGuard (each role only opens its own pages)', () => {
+  const run = (page: Page) => TestBed.runInInjectionContext(() => pageGuard(page)({} as never, {} as never));
+
+  function portal(role: DemoRole): AuthService {
+    const auth = TestBed.inject(AuthService);
+    auth.config.set({ mode: 'portal' });
+    auth.portalUser.set({ email: `${role}@bu.edu`, name: role, role, student_id: null, department: null } as never);
+    return auth;
+  }
+
+  beforeEach(() => TestBed.configureTestingModule({ providers: [provideRouter([])] }));
+
+  it('demo mode shows every page', () => {
+    expect(run('advisor')).toBe(true);
+    expect(run('financialAid')).toBe(true);
+  });
+
+  it('signed-out visitors go to the home page', () => {
+    TestBed.inject(AuthService).config.set({ mode: 'portal' });
+    expect(String(run('advisor'))).toBe('/');
+  });
+
+  it('the Financial aid team cannot open the Advisor page, or the metrics, and lands on its own page', () => {
+    portal('FinancialAid');
+    expect(String(run('advisor'))).toBe('/financial-aid');
+    expect(String(run('evaluation'))).toBe('/financial-aid');
+    expect(String(run('review'))).toBe('/financial-aid');
+    expect(run('financialAid')).toBe(true);
+  });
+
+  it('an Advisor cannot open the Financial aid page and lands on the Advisor page', () => {
+    portal('Advisor');
+    expect(String(run('financialAid'))).toBe('/advisor');
+    expect(String(run('registrar'))).toBe('/advisor');
+    expect(run('advisor')).toBe(true);
+  });
+
+  it('a Registrar sees only the Registrar page; a Department only the workbench and metrics', () => {
+    portal('Registrar');
+    expect(run('registrar')).toBe(true);
+    expect(String(run('review'))).toBe('/registrar');
+  });
+
+  it('signed-in staff have no Home: the home route leads to their own page', () => {
+    portal('FinancialAid');
+    const to = TestBed.runInInjectionContext(() => homeGuard({} as never, {} as never));
+    expect(String(to)).toBe('/financial-aid');
   });
 });

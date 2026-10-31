@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, homeGuard } from './api/auth.guard';
+import { authGuard, homeGuard, pageGuard } from './api/auth.guard';
 
 export const DEFAULT_STUDENT = 'SYN-24001';
 
@@ -31,31 +31,31 @@ export const routes: Routes = [
   {
     path: 'review',
     title: 'Evaluator workbench · TransferIQ',
-    canActivate: [authGuard],
+    canActivate: [authGuard, pageGuard('review')],
     loadComponent: () => import('./pages/review').then((m) => m.ReviewPage),
   },
   {
     path: 'evaluation',
     title: 'AI evaluation · TransferIQ',
-    canActivate: [authGuard],
+    canActivate: [authGuard, pageGuard('evaluation')],
     loadComponent: () => import('./pages/evaluation').then((m) => m.EvaluationPage),
   },
   {
     path: 'registrar',
     title: 'Registrar · TransferIQ',
-    canActivate: [authGuard],
+    canActivate: [authGuard, pageGuard('registrar')],
     loadComponent: () => import('./pages/registrar').then((m) => m.RegistrarPage),
   },
   {
     path: 'advisor',
     title: 'Advisor caseload · TransferIQ',
-    canActivate: [authGuard],
+    canActivate: [authGuard, pageGuard('advisor')],
     loadComponent: () => import('./pages/advisor').then((m) => m.AdvisorPage),
   },
   {
     path: 'financial-aid',
     title: 'Financial aid · TransferIQ',
-    canActivate: [authGuard],
+    canActivate: [authGuard, pageGuard('financialAid')],
     loadComponent: () => import('./pages/financial-aid').then((m) => m.FinancialAidPage),
   },
   { path: '**', redirectTo: '' },

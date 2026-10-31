@@ -27,7 +27,7 @@ const ALL: readonly DemoRole[] = DEMO_ROLES;
 
 export const OPERATION_ROLES: Record<Operation, readonly DemoRole[]> = {
   listStudents: ALL,
-  studentSummary: ['Advisor', 'FinancialAid', 'CreditStaff'],
+  studentSummary: ['Advisor', 'FinancialAid'],
   studentEvaluation: ALL,
   uploadTranscript: ['Student', 'CreditStaff'],
   uploadSyllabus: ['Student', 'CreditStaff', 'Evaluator', 'Department'],
@@ -81,4 +81,20 @@ export function switchRoleMessage(op: Operation): string {
 /** The role to suggest in a one-click "Switch to …" button. */
 export function suggestedRole(op: Operation): DemoRole {
   return OPERATION_ROLES[op][0];
+}
+
+/** Pages that belong to particular roles. A signed-in user sees only their own pages (nav and URL); the student
+ * status page is shared and is not listed. The API enforces its own x-roles on every call. */
+export type Page = 'advisor' | 'financialAid' | 'review' | 'registrar' | 'evaluation';
+
+export const PAGE_ROLES: Record<Page, readonly DemoRole[]> = {
+  advisor: ['Advisor'],
+  financialAid: ['FinancialAid'],
+  review: ['CreditStaff', 'Evaluator', 'Department'],
+  registrar: ['Registrar', 'CreditStaff'],
+  evaluation: ['CreditStaff', 'Evaluator', 'Department'],
+};
+
+export function canOpenPage(role: DemoRole, page: Page): boolean {
+  return PAGE_ROLES[page].includes(role);
 }

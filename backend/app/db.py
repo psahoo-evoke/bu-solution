@@ -28,6 +28,10 @@ class DBError(Exception):
     pass
 
 
+class DuplicateAccount(DBError):
+    """An account with this email already exists (primary key of portal_accounts)."""
+
+
 def enabled() -> bool:
     return bool(os.environ.get("POSTGRES_HOST", "").strip())
 
@@ -94,15 +98,21 @@ def _ts(value: Optional[str]):
     return dt.datetime.fromisoformat(value) if value else None
 
 
-EXTRA_TABLES = """
+# Every role an account can have (same names as app/guard.py ALL_ROLES; tests/test_accounts_db.py keeps them equal).
+ACCOUNT_ROLES = ("Student", "Department", "Evaluator", "CreditStaff", "Registrar", "Advisor", "FinancialAid")
+_ROLES_SQL = ", ".join(f"'{r}'" for r in ACCOUNT_ROLES)
+
+EXTRA_TABLES = f"""
 CREATE TABLE IF NOT EXISTS portal_accounts (
     email          text PRIMARY KEY,
     name           text NOT NULL,
-    role           text NOT NULL CHECK (role IN ('Student','Department')),
+    role           text NOT NULL,
     password_hash  text NOT NULL,
     student_id     text REFERENCES students,
     department     text,
-    created_at     timestamptz NOT NULL DEFAULT now()
+    seeded         boolean NOT NULL DEFAULT false,   -- demo account created by the app (vs self-registered)
+    created_at     timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT portal_accounts_role_check CHECK (role IN ({_ROLES_SQL}))
 );
 CREATE TABLE IF NOT EXISTS transcripts (
     transcript_id     text PRIMARY KEY,
@@ -131,6 +141,20 @@ CREATE TABLE IF NOT EXISTS workbook_notes (
 """
 
 
+def _migrate_portal_accounts(cur) -> None:
+    """A table created before every role could have an account only allowed Student and Department, and had no
+    `seeded` column: add the column and widen the role rule (idempotent)."""
+    cur.execute("alter table portal_accounts add column if not exists seeded boolean not null default false")
+    cur.execute("select pg_get_constraintdef(oid) from pg_constraint "
+                "where conname = 'portal_accounts_role_check' and conrelid = to_regclass('portal_accounts')")
+    row = cur.fetchone()
+    if row is None or any(f"'{r}'" not in row[0] for r in ACCOUNT_ROLES):
+        cur.execute("alter table portal_accounts drop constraint if exists portal_accounts_role_check")
+        cur.execute(f"alter table portal_accounts add constraint portal_accounts_role_check "
+                    f"check (role in ({_ROLES_SQL}))")
+        log.info("portal_accounts: role rule widened to %s", ", ".join(ACCOUNT_ROLES))
+
+
 def ensure_schema() -> None:
     """Base tables come from backend/db/schema.sql; create them when the schema is empty, then add the portal table."""
     with tx() as cur:
@@ -141,6 +165,7 @@ def ensure_schema() -> None:
                 cur.execute(f.read())
             log.info("created the TransferIQ tables from schema.sql")
         cur.execute(EXTRA_TABLES)
+        _migrate_portal_accounts(cur)
         # Students registered before registration stored their email: take it from their sign-in account.
         cur.execute("update students s set email = a.email from portal_accounts a "
                     "where a.student_id = s.student_id and s.email is null")
@@ -332,21 +357,60 @@ def save_audit(entry: dict) -> None:
 
 
 # ------------------------------------------------------------------ portal accounts
+_ACCOUNT_COLS = ("email", "name", "role", "password_hash", "student_id", "department", "seeded")
+
+
 def load_accounts() -> list[dict]:
     with tx() as cur:
-        cur.execute("select email, name, role, password_hash, student_id, department from portal_accounts")
-        cols = ("email", "name", "role", "password_hash", "student_id", "department")
-        return [dict(zip(cols, r)) for r in cur.fetchall()]
+        cur.execute(f"select {', '.join(_ACCOUNT_COLS)} from portal_accounts")
+        return [dict(zip(_ACCOUNT_COLS, r)) for r in cur.fetchall()]
+
+
+def get_account(email: str) -> Optional[dict]:
+    """One account by (already lower-cased) email, or None. Every sign-in and session check reads the table."""
+    with tx() as cur:
+        cur.execute(f"select {', '.join(_ACCOUNT_COLS)} from portal_accounts where email = %s", (email,))
+        r = cur.fetchone()
+        return dict(zip(_ACCOUNT_COLS, r)) if r else None
+
+
+def registered_student_email(student_id: str) -> Optional[str]:
+    """The address a student registered with (seeded sample students have none), or None."""
+    with tx() as cur:
+        cur.execute("select email from portal_accounts where student_id = %s and role = 'Student' and not seeded "
+                    "limit 1", (student_id,))
+        r = cur.fetchone()
+        return r[0] if r else None
 
 
 def save_registration(acct, student=None) -> None:
-    """A registered account (and, for a student, their new student record) in one transaction."""
+    """A registered account (and, for a student, their new student record) in one transaction.
+    Raises DuplicateAccount when the email is taken, DBError for anything else."""
+    try:
+        with tx() as cur:
+            if student is not None:
+                cur.execute(_INSERT_STUDENT, _student_row(student))
+            cur.execute("insert into portal_accounts (email, name, role, password_hash, student_id, department, seeded) "
+                        "values (%s,%s,%s,%s,%s,%s,false)",
+                        (acct.email, acct.name, acct.role, acct.password_hash, acct.student_id, acct.department))
+    except DBError as e:
+        import psycopg
+        if isinstance(e.__cause__, psycopg.errors.UniqueViolation) and "portal_accounts" in str(e.__cause__):
+            raise DuplicateAccount("An account with this email already exists") from e
+        raise
+
+
+def save_seeded(new: list, changed: list) -> None:
+    """Demo accounts the app creates itself: insert the missing ones, refresh the changed ones (one transaction)."""
     with tx() as cur:
-        if student is not None:
-            cur.execute(_INSERT_STUDENT, _student_row(student))
-        cur.execute("insert into portal_accounts (email, name, role, password_hash, student_id, department) "
-                    "values (%s,%s,%s,%s,%s,%s)",
-                    (acct.email, acct.name, acct.role, acct.password_hash, acct.student_id, acct.department))
+        for a in new:
+            cur.execute("insert into portal_accounts (email, name, role, password_hash, student_id, department, seeded) "
+                        "values (%s,%s,%s,%s,%s,%s,true) on conflict (email) do nothing",
+                        (a.email, a.name, a.role, a.password_hash, a.student_id, a.department))
+        for a in changed:
+            cur.execute("update portal_accounts set name = %s, role = %s, password_hash = %s, student_id = %s, "
+                        "department = %s where email = %s and seeded",
+                        (a.name, a.role, a.password_hash, a.student_id, a.department, a.email))
 
 
 # ------------------------------------------------------------------ seed / demo reset

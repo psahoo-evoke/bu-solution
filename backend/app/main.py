@@ -1074,6 +1074,18 @@ class DepartmentRegistration(BaseModel):
     department: str = Field(max_length=60)
 
 
+class StaffRegistration(BaseModel):
+    name: str = Field(max_length=80)
+    email: str = Field(max_length=120)
+    password: str = Field(max_length=200)
+    role: str = Field(max_length=20)
+    invite_code: str = Field("", max_length=100)
+
+
+# Guessing the staff code: 10 tries per client per 10 minutes (per process, like the other public limits).
+_STAFF_CODE_TRIES = ratelimit.Limiter(10, 600)
+
+
 def _portal_session(acct: accounts.Account) -> dict:
     return dict(token=accounts.issue_token(acct), user=acct.public(), expires_in=accounts.SESSION_HOURS * 3600)
 
@@ -1092,7 +1104,8 @@ def auth_options():
     majors = sorted({s.intended_major for s in S().students.values()} |
                     {d for d in accounts.departments() if d != "General education"})
     return dict(mode=auth_mode(), departments=accounts.departments(), majors=majors,
-                terms=["Fall 2026", "Spring 2027", "Fall 2027"])
+                terms=["Fall 2026", "Spring 2027", "Fall 2027"], staff_roles=list(accounts.STAFF_ROLES),
+                staff_registration=accounts.staff_registration_open())
 
 
 @auth_api.post("/login")
@@ -1109,6 +1122,15 @@ def auth_register_student(inp: StudentRegistration):
 @auth_api.post("/register/department", status_code=201)
 def auth_register_department(inp: DepartmentRegistration):
     return _account_call(accounts.register_department, inp.name, inp.email, inp.password, inp.department)
+
+
+@auth_api.post("/register/staff", status_code=201)
+def auth_register_staff(inp: StaffRegistration, request: Request):
+    try:
+        _STAFF_CODE_TRIES.hit(_client(request))
+    except ratelimit.RateLimited as e:
+        raise HTTPException(429, str(e), headers={"Retry-After": str(e.retry_after)})
+    return _account_call(accounts.register_staff, inp.name, inp.email, inp.password, inp.role, inp.invite_code)
 
 
 app.include_router(api)

@@ -33,10 +33,10 @@ def test_summary_has_no_contact_data(anon):
         assert not {"email", "phone", "address"} & set(row)
 
 
-def test_only_advisor_financial_aid_and_credit_staff_may_read_it(anon):
-    for who in ("Advisor", "FinancialAid", "CreditStaff"):
+def test_only_advisor_and_financial_aid_may_read_it(anon):
+    for who in ("Advisor", "FinancialAid"):
         assert anon.get("/api/students/summary", headers=role(who)).status_code == 200
-    for who in ("Student", "Evaluator", "Department", "Registrar"):
+    for who in ("Student", "Evaluator", "Department", "Registrar", "CreditStaff"):
         assert anon.get("/api/students/summary", headers=role(who)).status_code == 403
 
 
