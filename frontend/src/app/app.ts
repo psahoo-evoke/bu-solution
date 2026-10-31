@@ -37,9 +37,6 @@ export class App implements OnInit {
     this.auth.secured() && this.roleService.available().length > 0
       && homeHidden(this.roleService.role(), this.auth.signedIn()),
   );
-  protected readonly brandLink = computed(() =>
-    this.noHome() ? homeRoute(this.roleService.role(), this.auth.studentId()) : '/',
-  );
   /** A signed-in student's link goes straight to their own record. */
   protected readonly studentLink = computed(() => (this.auth.studentId() ? ['/student', this.auth.studentId()!] : ['/student']));
 

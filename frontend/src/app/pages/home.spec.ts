@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import type { AccountInfo } from '@azure/msal-browser';
 import { vi } from 'vitest';
-import { authGuard, homeGuard, pageGuard } from '../api/auth.guard';
+import { authGuard, pageGuard } from '../api/auth.guard';
 import { DemoRole } from '../api/models';
 import { Page } from '../api/permissions';
 import { AuthService } from '../api/auth.service';
@@ -205,10 +205,19 @@ describe('pageGuard (each role only opens its own pages)', () => {
     expect(run('registrar')).toBe(true);
     expect(String(run('review'))).toBe('/registrar');
   });
+});
 
-  it('signed-in staff have no Home: the home route leads to their own page', () => {
-    portal('FinancialAid');
-    const to = TestBed.runInInjectionContext(() => homeGuard({} as never, {} as never));
-    expect(String(to)).toBe('/financial-aid');
+describe('home page for a signed-in user (the logo opens it)', () => {
+  it('shows My view with a way back to their own page', () => {
+    TestBed.configureTestingModule({ imports: [HomePage], providers: [provideRouter([])] });
+    const auth = TestBed.inject(AuthService);
+    auth.config.set({ mode: 'portal' });
+    auth.portalUser.set({ email: 'advisor@bu.edu', name: 'Academic Advisor', role: 'Advisor', student_id: null, department: null } as never);
+    const fixture = TestBed.createComponent(HomePage);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(Array.from(el.querySelectorAll('h2')).map((h) => h.textContent?.trim())).toContain('My view');
+    expect(el.textContent).toContain('Welcome back, Academic Advisor');
+    expect(Array.from(el.querySelectorAll('button')).map((b) => b.textContent?.trim())).toContain('Continue to my view →');
   });
 });

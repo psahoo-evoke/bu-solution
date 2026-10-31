@@ -1,4 +1,4 @@
-import { DEFAULT_STUDENT } from '../app.routes';
+import { DEFAULT_STUDENT } from './defaults';
 import { DemoRole } from './models';
 
 /** Where each role starts after signing in or choosing a view on the home page. A signed-in student goes to

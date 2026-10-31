@@ -2,7 +2,6 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, UrlTree } from '@angular/router';
-import { homeGuard } from './api/auth.guard';
 import { AuthService, PortalUser } from './api/auth.service';
 import { DemoRole } from './api/models';
 import { roleInterceptor } from './api/role.interceptor';
@@ -66,19 +65,19 @@ describe('App shell: no Home for signed-in students and departments', () => {
   const navTexts = (el: HTMLElement) => Array.from(el.querySelectorAll('.topbar__nav a')).map((a) => a.textContent?.trim());
   const brandHref = (el: HTMLElement) => el.querySelector('.topbar__brand')?.getAttribute('href');
 
-  it('hides Home for a student and the logo opens their own status page', async () => {
+  it('hides the Home link for a student, but the logo opens the home page', async () => {
     const el = await shell(user('Student', 'SYN-24001'));
     expect(navTexts(el)).not.toContain('Home');
-    expect(brandHref(el)).toBe('/student/SYN-24001');
+    expect(brandHref(el)).toBe('/');
   });
 
-  it('hides Home for a department and the logo opens the workbench', async () => {
+  it('hides the Home link for a department, but the logo opens the home page', async () => {
     const el = await shell(user('Department', null, 'Biology'));
     expect(navTexts(el)).not.toContain('Home');
-    expect(brandHref(el)).toBe('/review');
+    expect(brandHref(el)).toBe('/');
   });
 
-  it('shows each signed-in role only its own pages, never Home', async () => {
+  it('shows each signed-in role only its own pages; the logo opens the home page', async () => {
     const expected: Record<string, string[]> = {
       Advisor: ['Student status', 'Advisor caseload'],
       FinancialAid: ['Student status', 'Financial aid'],
@@ -94,7 +93,7 @@ describe('App shell: no Home for signed-in students and departments', () => {
       }).compileComponents();
       const el = await shell(user(role as DemoRole));
       expect(navTexts(el), role).toEqual(links);
-      expect(brandHref(el), role).not.toBe('/');
+      expect(brandHref(el), role).toBe('/');
     }
   });
 
@@ -108,36 +107,5 @@ describe('App shell: no Home for signed-in students and departments', () => {
     const el = await shell(null);
     expect(navTexts(el)).toContain('Home');
     expect(brandHref(el)).toBe('/');
-  });
-});
-
-describe('homeGuard', () => {
-  const run = (role: DemoRole | null, mode: 'portal' | 'demo' = 'portal') => {
-    TestBed.configureTestingModule({ providers: [provideRouter([])] });
-    const auth = TestBed.inject(AuthService);
-    auth.config.set({ mode });
-    if (role) auth.portalUser.set({ email: 'x@bu.edu', name: 'X', role, student_id: role === 'Student' ? 'SYN-24002' : null,
-                                    department: role === 'Department' ? 'Biology' : null });
-    const res = TestBed.runInInjectionContext(() => homeGuard({} as never, {} as never));
-    return res instanceof UrlTree ? res.toString() : res;
-  };
-  beforeEach(() => localStorage.clear());
-
-  it('sends a signed-in student to their own status page and a department to the workbench', () => {
-    expect(run('Student')).toBe('/student/SYN-24002');
-    TestBed.resetTestingModule();
-    expect(run('Department')).toBe('/review');
-  });
-
-  it('sends signed-in staff to their own page; signed-out visitors and demo mode open the home page', () => {
-    expect(run('Registrar')).toBe('/registrar');
-    TestBed.resetTestingModule();
-    expect(run('Advisor')).toBe('/advisor');
-    TestBed.resetTestingModule();
-    expect(run('FinancialAid')).toBe('/financial-aid');
-    TestBed.resetTestingModule();
-    expect(run(null)).toBe(true);
-    TestBed.resetTestingModule();
-    expect(run(null, 'demo')).toBe(true);
   });
 });
