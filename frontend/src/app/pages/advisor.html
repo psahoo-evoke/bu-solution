@@ -84,10 +84,10 @@
                   <td class="num">{{ s.secured_units | number: '1.0-2' }}</td>
                   <td class="num">{{ s.pending_units | number: '1.0-2' }}</td>
                   <td class="waiting">
-                    @if (s.awaiting_student) { <span title="Student must upload a syllabus or more materials">Student {{ s.awaiting_student }}</span> }
-                    @if (s.awaiting_evaluator) { <span title="Evaluator or department review">Evaluator {{ s.awaiting_evaluator }}</span> }
-                    @if (s.awaiting_posting) { <span title="Approved, Registrar has not posted yet">Registrar {{ s.awaiting_posting }}</span> }
-                    @if (!s.awaiting_student && !s.awaiting_evaluator && !s.awaiting_posting) { <span class="muted">Nothing</span> }
+                    @if (s.awaiting_student) { <span title="The student must upload a syllabus or more materials"><strong>{{ s.awaiting_student }}</strong> {{ s.awaiting_student === 1 ? 'course' : 'courses' }} waiting on student</span> }
+                    @if (s.awaiting_evaluator) { <span title="Under evaluator or department review"><strong>{{ s.awaiting_evaluator }}</strong> {{ s.awaiting_evaluator === 1 ? 'course' : 'courses' }} with evaluator</span> }
+                    @if (s.awaiting_posting) { <span title="Approved; the Registrar has not posted it yet"><strong>{{ s.awaiting_posting }}</strong> {{ s.awaiting_posting === 1 ? 'course' : 'courses' }} awaiting posting</span> }
+                    @if (!s.awaiting_student && !s.awaiting_evaluator && !s.awaiting_posting) { <span class="muted">Nothing open</span> }
                   </td>
                   <td [class.is-late]="s.past_deadline">
                     {{ s.transfer_deadline }}

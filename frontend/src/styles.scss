@@ -708,3 +708,4 @@ meter { width: 10rem; height: 1rem; }
   li { display: grid; grid-template-columns: minmax(12rem, 1fr) auto minmax(14rem, 1.4fr); gap: .5rem 1rem; align-items: start; padding: .55rem .7rem; background: #fff; border: 1px solid var(--border); border-radius: 6px; }
   @media (max-width: 800px) { li { grid-template-columns: 1fr; } }
 }
+.waiting span { display: block; width: fit-content; margin: 0 0 .25rem; white-space: nowrap; }
