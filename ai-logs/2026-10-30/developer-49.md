@@ -29,3 +29,8 @@ Not committed yet (see Verification).
 
 ## Commit
 `developer: portal_accounts as the only account store, staff registration, role-only pages`
+
+## Follow-up: first start-up against the real PostgreSQL (2026-10-30)
+- Backend started from the committed code with backend/.env loaded: start-up succeeded.
+- Read-only checks afterwards: the role rule now lists all seven roles; the `seeded` column exists; 15 demo accounts are rows with seeded = true; the 15 accounts registered earlier (10 students, 5 departments) are kept with seeded = false; the real student's account is present and answers "Incorrect password" to a wrong password; advisor, financialaid and registrar demo accounts sign in; `staff_registration` is on.
+- This closes the "not run against a real PostgreSQL" gap above. The information_schema query listed each column twice, so another schema in the database also has a portal_accounts table (not touched by this change).
