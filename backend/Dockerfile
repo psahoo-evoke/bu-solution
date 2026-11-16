@@ -4,7 +4,7 @@
 #   docker run --rm -p 8000:8000 transferiq-api        # then GET http://localhost:8000/api/health
 # Layout inside the image mirrors the repo so relative paths from backend/ to ../data keep working:
 #   /app/backend/...   /app/data/synthetic/{seed,syllabi,transcripts}
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
